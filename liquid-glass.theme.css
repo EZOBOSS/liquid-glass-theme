@@ -17,7 +17,11 @@
 /* change the accent color from purple to white */
 :root {
     --primary-accent-color: #fff;
-    --background: rgb(20, 20, 20);
+    --background: radial-gradient(
+        circle,
+        rgba(18, 19, 7, 0.749) 0%,
+        rgb(0, 0, 0) 100%
+    );
 
     --bg-color: rgb(250, 251, 255, 0.74);
     --bg-color-img: linear-gradient(45deg, #f4f4fc, #f4f4fc);
@@ -1844,7 +1848,7 @@ body.ghost-clicking #heroLoadingScreen {
     border: #d0f5fc8a 1px solid !important;
     border-radius: 1rem !important;
 }
-
+/* card margin */
 .meta-items-container-qcuUA {
     margin-left: 1rem !important;
 }
@@ -1875,5 +1879,8 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 .label-container-XOyzm:hover .description-container-vW_De {
+    color: black !important;
+}
+.label-container-XOyzm:hover .title-container-NcfV9 {
     color: black !important;
 }
