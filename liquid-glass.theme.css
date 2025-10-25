@@ -1836,7 +1836,7 @@ body.ghost-clicking #heroLoadingScreen {
 [class*="meta-item-container"] * {
     box-shadow: none !important;
 }
-
+/* card animations */
 .poster-container-qkw48:hover::after {
     height: 100% !important;
     backdrop-filter: blur(2px) contrast(1.2);
@@ -1862,4 +1862,18 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 1 !important;
 
     transition: all 0.5s ease;
+}
+/* stream picking animations */
+.label-container-XOyzm:hover {
+    background-color: var(--bg-color) !important;
+
+    border-radius: 1rem !important;
+    transition: all 0.5s ease;
+}
+.label-container-XOyzm:hover .addon-name-tC8PX {
+    color: black !important;
+}
+
+.label-container-XOyzm:hover .description-container-vW_De {
+    color: black !important;
 }
