@@ -114,6 +114,49 @@ async function getMetadata(id, type) {
             poster: meta.poster,
             background: meta.background,
             logo: meta.logo,
+            // ✅ Trailer extraction with YouTube support
+            trailer: (() => {
+                let url = null;
+
+                // 1️⃣ Get raw trailer URL or ID
+                if (meta.trailer) url = meta.trailer;
+                else if (
+                    Array.isArray(meta.trailers) &&
+                    meta.trailers.length > 0
+                )
+                    url = meta.trailers[0].source || meta.trailers[0].url;
+                else if (Array.isArray(meta.videos) && meta.videos.length > 0)
+                    url = meta.videos[0].url;
+
+                if (!url) return null;
+
+                // 2️⃣ Handle YouTube ID (short ID without slashes)
+                if (!url.includes("/") && !url.includes("youtube.com")) {
+                    return `https://www.youtube.com/embed/${url}?autoplay=1&mute=0&loop=1&playlist=${url}`;
+                }
+
+                // 3️⃣ Handle full YouTube URLs
+                try {
+                    const ytUrl = new URL(url);
+                    let id = null;
+
+                    if (ytUrl.hostname.includes("youtube.com")) {
+                        id = ytUrl.searchParams.get("v");
+                    } else if (ytUrl.hostname.includes("youtu.be")) {
+                        id = ytUrl.pathname.slice(1);
+                    }
+
+                    if (id) {
+                        return `https://www.youtube.com/embed/${id}?autoplay=1&mute=0&loop=1&playlist=${id}`;
+                    }
+                } catch {
+                    // Invalid URL, return original as fallback
+                    return url;
+                }
+
+                // 4️⃣ Fallback to raw URL
+                return url;
+            })(),
         };
 
         console.log(`Fetched metadata for ${id}:`, metadata);
@@ -188,6 +231,16 @@ function createMetadataElements(metadata) {
         genres.className = "enhanced-metadata-item";
         genres.textContent = metadata.genres.slice(0, 3).join(", ");
         elements.push(genres);
+    }
+
+    if (metadata.trailer) {
+        const trailer = document.createElement("a");
+        trailer.className = "enhanced-metadata-item enhanced-trailer";
+        trailer.href = metadata.trailer;
+        trailer.target = "_blank";
+        trailer.rel = "noopener noreferrer";
+        trailer.textContent = "";
+        elements.push(trailer);
     }
 
     return elements;
