@@ -467,6 +467,7 @@ html body {
     mask-repeat: no-repeat;
     mask-size: cover;
     mask-composite: intersect;
+    z-index: 1;
 }
 
 .hero-overlay {
@@ -478,6 +479,7 @@ html body {
     color: white;
 
     font-family: "Inter", sans-serif !important;
+    z-index: 3;
 }
 
 .hero-overlay-image {
@@ -665,7 +667,7 @@ html body {
     transform: translateX(-50%);
     display: flex;
     gap: 8px;
-    z-index: 10;
+    z-index: 1;
 }
 
 .hero-indicator {
@@ -1862,6 +1864,10 @@ body.ghost-clicking #heroLoadingScreen {
 .enhanced-metadata {
     opacity: 0 !important;
     transition: all 0.5s ease-out;
+}
+/* Hide description by default */
+.enhanced-description {
+    visibility: hidden;
 }
 .meta-item-container-Tj0Ib:hover .enhanced-metadata {
     opacity: 1 !important;

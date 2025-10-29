@@ -799,6 +799,32 @@
             setupHeroTrailerHover();
         }
     }
+
+    function updateHeroFromHover(card) {
+        if (!card) return;
+        const heroLogo = document.querySelector(
+            ".hero-container img.hero-overlay-image"
+        );
+        const heroImg = document.querySelector(
+            ".hero-container img.hero-image"
+        );
+        const heroDescription = document.querySelector(
+            ".hero-container p.hero-overlay-description"
+        );
+        const heroRating = document.querySelector(
+            ".hero-container p.rating-item .rating-text"
+        );
+        const cardLogo = card.querySelector(".enhanced-title img");
+        const cardImg = card.querySelector("img");
+        const cardDescription = card.querySelector(".enhanced-description");
+        const cardRaitings = card.querySelector(".enhanced-rating");
+
+        // Set hero image source to card's image source
+        heroLogo.src = cardLogo.src;
+        heroImg.src = cardImg.src;
+        heroDescription.textContent = cardDescription.textContent;
+        heroRating.textContent = cardRaitings.textContent;
+    }
     // Make sure the YouTube API script is loaded once in your page
     // <script src="https://www.youtube.com/iframe_api"></script>
 
@@ -868,7 +894,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 99;
+            z-index: 2;
             opacity: 1;
             transition: opacity 1s ease, transform 1s ease;
             transform: scale(1.65);
@@ -893,7 +919,7 @@
                     onReady: (event) => {
                         event.target.playVideo();
 
-                        console.log("array", event.target);
+                        // console.log("array", event.target);
 
                         requestAnimationFrame(() => {
                             iframeContainer.style.opacity = "1";
@@ -920,6 +946,8 @@
                 if (!trailerUrl) return;
 
                 stopAutoRotate();
+                // --- NEW: Update hero info to match the hovered card ---
+                updateHeroFromHover(card);
 
                 const existingVideo = document.getElementById("heroVideo");
                 if (existingVideo) existingVideo.remove();

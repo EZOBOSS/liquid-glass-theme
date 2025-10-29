@@ -113,6 +113,7 @@ async function getMetadata(id, type) {
             type: meta.type || type,
             poster: meta.poster,
             background: meta.background,
+            description: meta.description || null,
             logo: meta.logo,
             // ✅ Trailer extraction with YouTube support
             trailer: (() => {
@@ -231,6 +232,12 @@ function createMetadataElements(metadata) {
         genres.className = "enhanced-metadata-item";
         genres.textContent = metadata.genres.slice(0, 3).join(", ");
         elements.push(genres);
+    }
+    if (metadata.description) {
+        const description = document.createElement("span");
+        description.className = "enhanced-metadata-item enhanced-description";
+        description.textContent = metadata.description;
+        elements.push(description);
     }
 
     if (metadata.trailer) {
