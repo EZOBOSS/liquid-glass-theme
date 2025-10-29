@@ -848,6 +848,7 @@
                 stepCount++;
                 let newVolume = currentVolume + volumeStep * stepCount;
                 newVolume = Math.min(100, Math.max(0, newVolume));
+                if (typeof ytPlayer.getVolume !== "function") return;
                 ytPlayer.setVolume(newVolume);
                 if (stepCount >= steps) clearInterval(ytFadeInterval);
             }, stepTime);
@@ -867,8 +868,8 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 1;
-            opacity: 0.5;
+            z-index: 99;
+            opacity: 1;
             transition: opacity 1s ease, transform 1s ease;
             transform: scale(1.65);
         `;
@@ -876,6 +877,8 @@
 
             ytPlayer = new YT.Player("heroIframe", {
                 videoId,
+                width: "1920",
+                height: "1080",
                 playerVars: {
                     autoplay: 1,
                     loop: 1,
@@ -890,11 +893,18 @@
                     onReady: (event) => {
                         event.target.playVideo();
 
+                        console.log("array", event.target);
+
                         requestAnimationFrame(() => {
                             iframeContainer.style.opacity = "1";
 
                             fadeVolume(30, 600);
                         });
+                    },
+                    onStateChange: (event) => {
+                        if (event.data == YT.PlayerState.PLAYING) {
+                            event.target.setPlaybackQuality("hd1080");
+                        }
                     },
                 },
             });

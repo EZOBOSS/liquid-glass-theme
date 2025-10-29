@@ -660,7 +660,7 @@ html body {
 
 .hero-indicators {
     position: absolute;
-    bottom: 10px;
+    bottom: 50px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -1912,7 +1912,7 @@ body.ghost-clicking #heroLoadingScreen {
 .meta-item-container-Tj0Ib:hover .poster-image-NiV7O {
     transform: scale(1.06);
 }
-/* Seasons tab */
+/* Hero ajustments for trailer hover */
 .hero-container {
     position: sticky !important;
     top: 0 !important;
@@ -1930,8 +1930,4 @@ body.ghost-clicking #heroLoadingScreen {
 
 .board-row-CoJrZ {
     margin-top: 0 !important;
-}
-
-.meta-items-container-qcuUA:hover .hero-indicators {
-    visibility: hidden !important;
 }
