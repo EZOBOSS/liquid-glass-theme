@@ -170,8 +170,6 @@ async function getMetadata(id, type) {
 }
 
 function extractMediaInfo(titleText, element) {
-    console.log("Extracting from element:", element.parentElement);
-
     // Look for an <a> tag with href containing tt
     const findHref = (el) => {
         // Case 1: element itself is an <a> with IMDb ID
@@ -202,7 +200,6 @@ function extractMediaInfo(titleText, element) {
     const result = findHref(element.parentElement);
 
     if (result) {
-        console.log("Found from href:", result);
         return result;
     }
 

@@ -796,7 +796,10 @@
             insertedHero.addEventListener("mouseleave", () => {
                 if (isAutoRotating) startAutoRotate();
             });
-            setupHeroTrailerHover();
+            // Ensure YouTube API is ready
+            ensureYouTubeAPI().then(() => {
+                setupHeroTrailerHover();
+            });
         }
     }
 
@@ -817,29 +820,58 @@
         const cardLogo = card.querySelector(".enhanced-title img");
         const cardImg = card.querySelector("img");
         const cardDescription = card.querySelector(".enhanced-description");
-        const cardRaitings = card.querySelector(".enhanced-rating");
+        const cardRatings = card.querySelector(".enhanced-rating");
 
         // Set hero image source to card's image source
         heroLogo.src = cardLogo.src;
         heroImg.src = cardImg.src;
         heroDescription.textContent = cardDescription.textContent;
-        heroRating.textContent = cardRaitings.textContent;
+        heroRating.textContent = cardRatings ? cardRatings.textContent : "";
     }
     // Make sure the YouTube API script is loaded once in your page
     // <script src="https://www.youtube.com/iframe_api"></script>
 
     // ---- Load YouTube API only once ----
-    if (!window._ytApiLoaded) {
-        const tag = document.createElement("script");
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(tag);
-        window._ytApiLoaded = true;
-    }
-
     let ytApiReady = false;
-    window.onYouTubeIframeAPIReady = () => {
-        ytApiReady = true;
-    };
+
+    // ---- Load YouTube API only once ----
+    function ensureYouTubeAPI() {
+        return new Promise((resolve) => {
+            // 1️⃣ Case: API fully ready already
+            if (window.YT && window.YT.Player) {
+                ytApiReady = true;
+                resolve();
+                return;
+            }
+
+            // 2️⃣ Case: Script already appended but not fully ready
+            if (window._ytApiLoaded) {
+                const checkReady = () => {
+                    if (window.YT && window.YT.Player) {
+                        ytApiReady = true;
+                        resolve();
+                    } else {
+                        requestAnimationFrame(checkReady);
+                    }
+                };
+                checkReady();
+                return;
+            }
+
+            // 3️⃣ Case: Need to inject script
+            window._ytApiLoaded = true;
+
+            const tag = document.createElement("script");
+            tag.src = "https://www.youtube.com/iframe_api";
+            document.head.appendChild(tag);
+
+            // ⚡ Ensure we don't lose the callback if YouTube loads before binding
+            window.onYouTubeIframeAPIReady = () => {
+                ytApiReady = true;
+                resolve();
+            };
+        });
+    }
 
     // ---- Main setup function ----
     function setupHeroTrailerHover() {
@@ -881,58 +913,71 @@
         }
 
         function createYouTubeHero(videoId) {
-            if (!ytApiReady) {
-                console.warn("YouTube API not ready yet");
+            // Wait until API is ready
+            if (!ytApiReady || !window.YT || !window.YT.Player) {
+                console.warn("YT API not ready — deferring player creation");
+                setTimeout(() => createYouTubeHero(videoId), 200);
                 return;
             }
 
+            const heroContainer = document.querySelector(".hero-container");
+            if (!heroContainer) return;
+
+            // Create iframe container
             const iframeContainer = document.createElement("div");
             iframeContainer.id = "heroIframe";
             iframeContainer.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-            opacity: 1;
-            transition: opacity 1s ease, transform 1s ease;
-            transform: scale(1.65);
-        `;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        opacity: 1;
+        transition: opacity 1s ease, transform 1s ease;
+        transform: scale(1.65);
+    `;
             heroContainer.prepend(iframeContainer);
 
-            ytPlayer = new YT.Player("heroIframe", {
-                videoId,
-                width: "1920",
-                height: "1080",
-                playerVars: {
-                    autoplay: 1,
-                    loop: 1,
-                    playlist: videoId,
-                    modestbranding: 1,
-                    controls: 0,
-                    mute: 0,
-                    rel: 0,
-                    playsinline: 1,
-                },
-                events: {
-                    onReady: (event) => {
-                        event.target.playVideo();
+            // Wait until the div is actually in the DOM
+            requestAnimationFrame(() => {
+                if (!document.getElementById("heroIframe")) {
+                    console.warn("Iframe not yet attached, retrying...");
+                    setTimeout(() => createYouTubeHero(videoId), 100);
+                    return;
+                }
 
-                        // console.log("array", event.target);
-
-                        requestAnimationFrame(() => {
-                            iframeContainer.style.opacity = "1";
-
-                            fadeVolume(30, 600);
-                        });
+                // ✅ Safe to initialize player now
+                ytPlayer = new YT.Player("heroIframe", {
+                    videoId,
+                    width: "1920",
+                    height: "1080",
+                    playerVars: {
+                        autoplay: 1,
+                        loop: 1,
+                        playlist: videoId,
+                        modestbranding: 1,
+                        controls: 0,
+                        mute: 0,
+                        rel: 0,
+                        playsinline: 1,
                     },
-                    onStateChange: (event) => {
-                        if (event.data == YT.PlayerState.PLAYING) {
-                            event.target.setPlaybackQuality("hd1080");
-                        }
+                    events: {
+                        onReady: (event) => {
+                            event.target.playVideo();
+
+                            requestAnimationFrame(() => {
+                                iframeContainer.style.opacity = "1";
+                                fadeVolume(30, 600);
+                            });
+                        },
+                        onStateChange: (event) => {
+                            if (event.data === YT.PlayerState.PLAYING) {
+                                event.target.setPlaybackQuality("hd1080");
+                            }
+                        },
                     },
-                },
+                });
             });
         }
 
@@ -951,15 +996,22 @@
 
                 const existingVideo = document.getElementById("heroVideo");
                 if (existingVideo) existingVideo.remove();
+                if (ytPlayer && typeof ytPlayer.destroy === "function") {
+                    ytPlayer.destroy();
+                    ytPlayer = null;
+                    clearInterval(ytFadeInterval);
+                    ytFadeInterval = null;
+                }
+
                 const existingIframe = document.getElementById("heroIframe");
                 if (existingIframe) existingIframe.remove();
-                ytPlayer = null;
 
                 if (
                     trailerUrl.includes("youtube.com") ||
                     trailerUrl.includes("youtu.be")
                 ) {
                     const videoId = getYouTubeId(trailerUrl);
+                    console.log("videoId", videoId);
                     if (videoId) createYouTubeHero(videoId);
                 } else {
                     const video = document.createElement("video");
@@ -1138,9 +1190,12 @@
         }
 
         if (shouldShow && !heroExists) {
-            setTimeout(() => addHeroDiv(), 100);
-            setTimeout(() => addHeroDiv(), 500);
-            setTimeout(() => addHeroDiv(), 1000);
+            // The hero might take a few moments to appear
+            [100, 500, 1000].forEach((delay) => {
+                setTimeout(() => {
+                    addHeroDiv();
+                }, delay);
+            });
         }
 
         heroState.lastKnownHash = currentHash;

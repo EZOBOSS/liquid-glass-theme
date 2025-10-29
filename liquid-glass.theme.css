@@ -44,6 +44,7 @@
 html body {
     background: var(--background);
     overflow-y: scroll !important;
+    scroll-snap-type: y mandatory !important;
 }
 
 ::-webkit-scrollbar {
@@ -1789,7 +1790,7 @@ body.ghost-clicking #heroLoadingScreen {
     right: 0;
     height: 55%;
     background: linear-gradient(to top, rgb(0, 0, 0), transparent 90%);
-    z-index: 2;
+    z-index: 0;
     pointer-events: none;
 }
 
@@ -1854,6 +1855,7 @@ body.ghost-clicking #heroLoadingScreen {
 /* card margin */
 .meta-items-container-qcuUA {
     margin-left: 1rem !important;
+    height: 15rem !important;
 }
 
 .meta-item-container-Tj0Ib:hover [class*="title-bar-container-1Ba0x"] {
@@ -1925,15 +1927,19 @@ body.ghost-clicking #heroLoadingScreen {
     height: 60% !important;
     z-index: 10 !important;
     background: #080202;
-    background: linear-gradient(
-        0deg,
-        rgba(8, 2, 2, 0.023) 0%,
-        rgba(9, 3, 3, 0.76) 17%,
-        rgba(10, 4, 4, 1) 27%,
-        rgba(18, 13, 13, 1) 100%
-    );
+}
+.board-content-nPWv1 {
+    scroll-snap-type: y mandatory !important;
+}
+.meta-item-container-Tj0Ib {
+    scroll-snap-align: start;
 }
 
-.board-row-CoJrZ {
+.meta-row-container-xtlB1 {
     margin-top: 0 !important;
+    scroll-snap-align: start;
+    scroll-margin-top: 60vh !important;
+}
+.meta-items-container-n8vNz {
+    scroll-snap-type: y mandatory !important;
 }
