@@ -927,16 +927,16 @@
             const iframeContainer = document.createElement("div");
             iframeContainer.id = "heroIframe";
             iframeContainer.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 2;
-        opacity: 1;
-        transition: opacity 1s ease, transform 1s ease;
-        transform: scale(1.65);
-    `;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 2;
+                opacity: 1;
+                transition: opacity 1s ease, transform 1s ease;
+                transform: scale(1.65);
+            `;
             heroContainer.prepend(iframeContainer);
 
             // Wait until the div is actually in the DOM
@@ -998,6 +998,7 @@
                 if (existingVideo) existingVideo.remove();
                 if (ytPlayer && typeof ytPlayer.destroy === "function") {
                     ytPlayer.destroy();
+                    console;
                     ytPlayer = null;
                     clearInterval(ytFadeInterval);
                     ytFadeInterval = null;
@@ -1184,18 +1185,16 @@
         const shouldShow = shouldShowHero();
 
         if (!shouldShow && heroExists) {
+            stopAutoRotate();
             heroExists.remove();
             resetHeroState();
             return;
         }
 
         if (shouldShow && !heroExists) {
-            // The hero might take a few moments to appear
-            [100, 500, 1000].forEach((delay) => {
-                setTimeout(() => {
-                    addHeroDiv();
-                }, delay);
-            });
+            setTimeout(() => addHeroDiv(), 100);
+            setTimeout(() => addHeroDiv(), 500);
+            setTimeout(() => addHeroDiv(), 1000);
         }
 
         heroState.lastKnownHash = currentHash;
