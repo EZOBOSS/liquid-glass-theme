@@ -160,7 +160,6 @@ async function getMetadata(id, type) {
             })(),
         };
 
-        console.log(`Fetched metadata for ${id}:`, metadata);
         metadataCache.set(cacheKey, metadata);
         return metadata;
     } catch (error) {

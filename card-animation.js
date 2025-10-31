@@ -4,10 +4,6 @@
     function initWheelScroll(track) {
         if (!track || track.dataset.wheelScrollInitialized === "true") return;
         track.dataset.wheelScrollInitialized = "true";
-        console.log(
-            "[AppleTVWheelSmoothCtrl] Initializing smooth wheel scroll for:",
-            track
-        );
 
         // state
         track.dataset.percentage = "0";

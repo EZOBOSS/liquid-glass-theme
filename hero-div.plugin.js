@@ -787,7 +787,9 @@
             if (heroInfo)
                 heroInfo.style.transition = "opacity 0.3s ease-in-out";
 
-            startAutoRotate();
+            if (isAutoRotating) {
+                startAutoRotate();
+            }
 
             insertedHero.addEventListener("mouseenter", () => {
                 if (isAutoRotating) stopAutoRotate();
@@ -817,16 +819,49 @@
         const heroRating = document.querySelector(
             ".hero-container p.rating-item .rating-text"
         );
+        const heroButtonWatch = document.querySelector(
+            ".hero-container button.hero-overlay-button-watch"
+        );
+        const heroButtonMoreInfo = document.querySelector(
+            ".hero-container button.hero-overlay-button"
+        );
+        const heroOverlayInfo = document
+            .querySelector(".hero-container div.hero-overlay-info")
+            .querySelectorAll("p:not([class])");
         const cardLogo = card.querySelector(".enhanced-title img");
         const cardImg = card.querySelector("img");
         const cardDescription = card.querySelector(".enhanced-description");
         const cardRatings = card.querySelector(".enhanced-rating");
+        const cardIMDB = card.id;
+        const cardMetadata = card.querySelectorAll(
+            '[class="enhanced-metadata-item"]'
+        );
 
         // Set hero image source to card's image source
-        heroLogo.src = cardLogo.src;
-        heroImg.src = cardImg.src;
-        heroDescription.textContent = cardDescription.textContent;
-        heroRating.textContent = cardRatings ? cardRatings.textContent : "";
+        if (heroLogo && cardLogo) heroLogo.src = cardLogo.src;
+        if (heroImg && cardImg) heroImg.src = cardImg.src;
+        if (heroDescription) {
+            heroDescription.textContent = cardDescription?.textContent || "";
+        }
+
+        // Conditional update for rating
+        if (heroRating) {
+            heroRating.textContent = cardRatings?.textContent || "";
+        }
+        if (heroButtonWatch) {
+            heroButtonWatch.setAttribute("onclick", `playTitle('${cardIMDB}')`);
+        }
+        if (heroButtonMoreInfo) {
+            heroButtonMoreInfo.setAttribute(
+                "onclick",
+                `showMoreInfo('${cardIMDB}')`
+            );
+        }
+        heroOverlayInfo.forEach((item, index) => {
+            item.textContent = cardMetadata[index]
+                ? cardMetadata[index].textContent
+                : null;
+        });
     }
     // Make sure the YouTube API script is loaded once in your page
     // <script src="https://www.youtube.com/iframe_api"></script>
@@ -897,7 +932,7 @@
 
             const stepTime = 50;
             const steps = duration / stepTime;
-            const currentVolume = 30;
+            const currentVolume = 0;
 
             const volumeStep = (targetVolume - currentVolume) / steps;
             let stepCount = 0;
@@ -933,9 +968,9 @@
                 width: 100%;
                 height: 100%;
                 z-index: 2;
-                opacity: 1;
+                opacity: 0;
                 transition: opacity 1s ease, transform 1s ease;
-                transform: scale(1.65);
+                transform: scale(2);
             `;
             heroContainer.prepend(iframeContainer);
 
@@ -965,11 +1000,11 @@
                     events: {
                         onReady: (event) => {
                             event.target.playVideo();
-
-                            requestAnimationFrame(() => {
-                                iframeContainer.style.opacity = "1";
-                                fadeVolume(30, 600);
-                            });
+                            fadeVolume(15, 800);
+                            setTimeout(() => {
+                                heroIframe.style.opacity = "1";
+                                heroIframe.style.transform = "scale(1.67)";
+                            }, 100);
                         },
                         onStateChange: (event) => {
                             if (event.data === YT.PlayerState.PLAYING) {
@@ -1012,7 +1047,7 @@
                     trailerUrl.includes("youtu.be")
                 ) {
                     const videoId = getYouTubeId(trailerUrl);
-                    console.log("videoId", videoId);
+
                     if (videoId) createYouTubeHero(videoId);
                 } else {
                     const video = document.createElement("video");
@@ -1064,12 +1099,12 @@
 
     function startAutoRotate() {
         if (autoRotateInterval) clearInterval(autoRotateInterval);
-        if (isAutoRotating) {
-            autoRotateInterval = setInterval(() => {
-                currentIndex = (currentIndex + 1) % heroTitles.length;
-                updateHeroContent(heroTitles[currentIndex]);
-            }, ROTATION_INTERVAL);
-        }
+
+        autoRotateInterval = setInterval(() => {
+            currentIndex = (currentIndex + 1) % heroTitles.length;
+            updateHeroContent(heroTitles[currentIndex]);
+        }, ROTATION_INTERVAL);
+        isAutoRotating = true;
     }
 
     function stopAutoRotate() {
@@ -1077,6 +1112,8 @@
             clearInterval(autoRotateInterval);
             autoRotateInterval = null;
         }
+        // also reset to be safe
+        isAutoRotating = false;
     }
 
     function resetAutoRotate() {
@@ -1180,12 +1217,30 @@
     }
 
     function handleNavigation() {
+        // ✅ Always clear any lingering intervals before anything else
+        if (window.autoRotateInterval) {
+            clearInterval(window.autoRotateInterval);
+            window.autoRotateInterval = null;
+            console.log("Force-stopped any existing rotation on navigation");
+        }
+
         const currentHash = window.location.hash;
         const heroExists = document.querySelector(".hero-container");
         const shouldShow = shouldShowHero();
 
         if (!shouldShow && heroExists) {
+            console.log(
+                "Navigated away from home — stopping rotation completely"
+            );
+            isAutoRotating = false; // prevent restart
             stopAutoRotate();
+
+            // optional: destroy any YouTube trailer player
+            const iframe = document.getElementById("heroIframe");
+            const video = document.getElementById("heroVideo");
+            if (iframe) iframe.remove();
+            if (video) video.remove();
+
             heroExists.remove();
             resetHeroState();
             return;
@@ -1249,6 +1304,36 @@
         subtree: true,
         attributes: false,
         characterData: false,
+    });
+    // --- Watch for new cards dynamically ---
+    const trailerHoverObserver = new MutationObserver((mutations) => {
+        let addedNewCards = false;
+
+        mutations.forEach((mutation) => {
+            if (mutation.addedNodes.length > 0) {
+                mutation.addedNodes.forEach((node) => {
+                    if (
+                        node.nodeType === 1 &&
+                        (node.matches(".meta-item-container-Tj0Ib") ||
+                            node.querySelector?.(".meta-item-container-Tj0Ib"))
+                    ) {
+                        addedNewCards = true;
+                    }
+                });
+            }
+        });
+
+        if (addedNewCards) {
+            console.log(
+                "New cards detected — reinitializing trailer hover setup"
+            );
+            setupHeroTrailerHover();
+        }
+    });
+
+    trailerHoverObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
     });
 
     setInterval(() => {
