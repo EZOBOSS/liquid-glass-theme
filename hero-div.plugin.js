@@ -966,11 +966,11 @@
                 top: 0;
                 left: 0;
                 width: 100%;
-                height: 100%;
+                height: 100vh;
                 z-index: 2;
                 opacity: 0;
                 transition: opacity 1s ease, transform 1s ease;
-                transform: scale(2);
+                transform: scale(1);
             `;
             heroContainer.prepend(iframeContainer);
 
@@ -1003,7 +1003,7 @@
                             fadeVolume(15, 800);
                             setTimeout(() => {
                                 heroIframe.style.opacity = "1";
-                                heroIframe.style.transform = "scale(1.67)";
+                                heroIframe.style.transform = "scale(1.15)";
                             }, 100);
                         },
                         onStateChange: (event) => {
@@ -1305,6 +1305,44 @@
         attributes: false,
         characterData: false,
     });
+
+    // Card fade when scrolling above 60vh
+    function cardHide() {
+        const boards = document.querySelectorAll(".meta-row-container-xtlB1");
+        const scrollContainer = document.querySelector(".board-content-nPWv1");
+
+        if (!boards.length || !scrollContainer) return;
+
+        const viewportHeight = window.innerHeight;
+        const fadeStart = viewportHeight * 0.6;
+        const fadeEnd = viewportHeight * 0.45;
+
+        // use rAF to throttle scroll performance
+        let ticking = false;
+
+        scrollContainer.addEventListener("scroll", () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    updateFade();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
+
+        function updateFade() {
+            boards.forEach((board) => {
+                const distanceFromTop = board.getBoundingClientRect().top;
+
+                let opacity =
+                    (distanceFromTop - fadeEnd) / (fadeStart - fadeEnd);
+                opacity = Math.max(0, Math.min(1, opacity));
+
+                board.style.opacity = opacity;
+                board.style.pointerEvents = opacity === 0 ? "none" : "auto";
+            });
+        }
+    }
     // --- Watch for new cards dynamically ---
     const trailerHoverObserver = new MutationObserver((mutations) => {
         let addedNewCards = false;
@@ -1328,6 +1366,7 @@
                 "New cards detected — reinitializing trailer hover setup"
             );
             setupHeroTrailerHover();
+            cardHide();
         }
     });
 
