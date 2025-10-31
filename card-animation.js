@@ -99,7 +99,7 @@
         } catch (err) {
             console.error("[AppleTVWheelSmoothCtrl] error:", err);
         }
-    }, 500);
+    }, 1500);
 
     console.log("[AppleTVWheelSmoothCtrl] interval started");
 })();
