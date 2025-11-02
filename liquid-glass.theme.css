@@ -123,9 +123,10 @@ html {
 
 .horizontal-nav-bar-ji5GB {
     background: linear-gradient(
-        to bottom,
-        rgb(0 0 0 / 65%) 25%,
-        rgb(0 0 0 / 0%) 90%
+        0deg,
+        rgb(0 0 0 / 1%) 5% 5%,
+        rgb(9 3 3 / 18%) 45% 43%,
+        rgb(18 13 13 / 51%) 100%
     ) !important;
 }
 
@@ -471,7 +472,7 @@ html {
 
 .hero-overlay {
     position: absolute;
-    width: 100%;
+    width: 40%;
     padding-left: 6%;
     bottom: 0;
 
@@ -682,7 +683,7 @@ html {
 
 .hero-indicator:hover {
     background: rgba(255, 255, 255, 0.6);
-    transform: scale(1.2);
+    transform: scale(1.1);
 }
 
 .hero-indicator.active {
@@ -1846,11 +1847,11 @@ body.ghost-clicking #heroLoadingScreen {
     bottom: 0px !important;
     height: 100% !important;
 
-    backdrop-filter: blur(3px) contrast(1.2);
+    backdrop-filter: blur(2px) contrast(1.2);
     transition: all 0.3s ease;
 
     border-radius: inherit !important;
-    box-shadow: inset 0px 0px 30px 35px rgba(255, 255, 255, 0.313);
+    box-shadow: inset 0px 0px 15px 5px rgba(255, 255, 255, 0.229);
 }
 /* card margin */
 .meta-items-container-qcuUA {
@@ -1914,14 +1915,12 @@ body.ghost-clicking #heroLoadingScreen {
     scroll-snap-type: y mandatory !important;
     scroll-behavior: smooth !important;
 }
-.meta-item-container-Tj0Ib {
-    scroll-snap-align: start;
-}
+
 /* scroll snapping */
 .meta-row-container-xtlB1 {
     margin-top: 1rem !important;
     scroll-snap-align: start;
-    scroll-margin-top: 60vh !important;
+    scroll-margin-top: 61vh !important;
 }
 .meta-items-container-n8vNz {
     scroll-snap-type: y mandatory !important;
@@ -1952,6 +1951,9 @@ body.ghost-clicking #heroLoadingScreen {
     will-change: opacity, transform;
     position: relative;
     z-index: 11;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-20px) scale(0.5);
 }
 
 @keyframes fade-out {
@@ -1970,4 +1972,58 @@ body.ghost-clicking #heroLoadingScreen {
     animation-timeline: view();
     animation-range-start: cover 0%;
     animation-range-end: cover 30%;
+}
+.meta-row-container-xtlB1.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+/* Example CSS that must be defined elsewhere */
+/* ========================================= */
+/* 1. Set up Default/Final State (Visibility) */
+/* ========================================= */
+
+/* Apply base transition timing to all animated elements */
+.hero-container #heroLogo,
+.hero-container #heroDescription,
+.hero-container #heroInfo,
+.hero-container #heroImage {
+    transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        filter 0.6s ease;
+    will-change: opacity, transform, filter;
+}
+
+/* Fade out and lift when changing slides */
+.hero-container.is-transitioning #heroLogo,
+.hero-container.is-transitioning #heroDescription,
+.hero-container.is-transitioning #heroInfo,
+.hero-container.is-transitioning #heroImage {
+    opacity: 0;
+    transform: translateY(-25px) scale(0.97);
+    filter: blur(2px);
+}
+
+/* Add subtle staggered delays for more natural flow */
+.hero-container #heroLogo {
+    transition-delay: 0s;
+}
+.hero-container #heroDescription {
+    transition-delay: 0.05s;
+}
+.hero-container #heroInfo {
+    transition-delay: 0.1s;
+}
+.hero-container #heroImage {
+    transition-delay: 0.15s;
+}
+
+/* Once new slide comes in, fade + slide back smoothly */
+.hero-container:not(.is-transitioning) #heroLogo,
+.hero-container:not(.is-transitioning) #heroDescription,
+.hero-container:not(.is-transitioning) #heroInfo,
+.hero-container:not(.is-transitioning) #heroImage {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
 }

@@ -1,47 +1,133 @@
-/**
+/*
  * @name Dynamic Hero
  * @description Netflix-style rotating hero banner.
- * @version 1.0.1
- * @author Fxy
+ * @version 2.0.0
+ * @author Fxy, EZOBOSS
  */
 
 (function () {
-    if (window.heroObserver) {
-        window.heroObserver.disconnect();
-        delete window.heroObserver;
-    }
-
-    let heroTitles = [];
-    let currentIndex = 0;
-    let autoRotateInterval;
-    let isAutoRotating = true;
-
-    const MAX_RETRIES = 2;
-    const ROTATION_INTERVAL = 8000;
-
-    let heroState = {
-        isInitializing: false,
-        initializationComplete: false,
-        retryCount: 0,
-        titlesReady: false,
-        lastKnownHash: window.location.hash,
+    // -------------------------
+    // Configuration
+    // -------------------------
+    const CONFIG = {
+        ROTATION_INTERVAL: 8000,
+        FETCH_TIMEOUT: 10000,
+        DETAIL_TIMEOUT: 5000,
+        MAX_RETRIES: 2,
+        BATCH_SIZE: 6, // concurrent detail fetches
+        CACHE_TTL_MS: 1000 * 60 * 5, // 5 minutes
+        LOG_LEVEL: "debug", // 'silent'|'debug'|'info'
     };
 
-    const fallbackTitles = [
+    // -------------------------
+    // Lightweight logger
+    // -------------------------
+    const logger = {
+        debug: (...args) =>
+            CONFIG.LOG_LEVEL === "debug" && console.debug("[Hero]", ...args),
+        info: (...args) =>
+            (CONFIG.LOG_LEVEL === "debug" || CONFIG.LOG_LEVEL === "info") &&
+            console.info("[Hero]", ...args),
+        warn: (...args) => console.warn("[Hero]", ...args),
+        error: (...args) => console.error("[Hero]", ...args),
+    };
+
+    // -------------------------
+    // Utilities
+    // -------------------------
+    const debounce = (fn, wait = 200) => {
+        let t;
+        return (...args) => {
+            clearTimeout(t);
+            t = setTimeout(() => fn(...args), wait);
+        };
+    };
+
+    const safeFetch = async (
+        url,
+        { timeout = CONFIG.FETCH_TIMEOUT, retries = 1 } = {}
+    ) => {
+        let attempt = 0;
+        while (attempt <= retries) {
+            attempt++;
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(id);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            } catch (err) {
+                clearTimeout(id);
+                if (attempt > retries) throw err;
+                await new Promise((r) => setTimeout(r, 300 * attempt));
+            }
+        }
+    };
+
+    const cacheKey = (k) => `hero_cache_${k}`;
+    const cacheSet = (k, v) => {
+        try {
+            sessionStorage.setItem(
+                cacheKey(k),
+                JSON.stringify({ t: Date.now(), v })
+            );
+        } catch (e) {
+            logger.debug("Cache set failed", e);
+        }
+    };
+    const cacheGet = (k) => {
+        try {
+            const raw = sessionStorage.getItem(cacheKey(k));
+            if (!raw) return null;
+            const { t, v } = JSON.parse(raw);
+            if (Date.now() - t > CONFIG.CACHE_TTL_MS) {
+                sessionStorage.removeItem(cacheKey(k));
+                return null;
+            }
+            return v;
+        } catch (e) {
+            logger.debug("Cache get failed", e);
+            return null;
+        }
+    };
+    function getDaysSinceRelease(releaseDateStr) {
+        if (!releaseDateStr) return "";
+
+        const releaseDate = new Date(releaseDateStr);
+        const today = new Date();
+
+        // Normalize both to midnight to avoid partial-day rounding issues
+        releaseDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+
+        const diffMs = today - releaseDate;
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) return "Released today";
+        if (diffDays > 0)
+            return `Released ${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+        return `Releases in ${Math.abs(diffDays)} day${
+            Math.abs(diffDays) > 1 ? "s" : ""
+        }`;
+    }
+
+    // -------------------------
+    // Fallback titles
+    // -------------------------
+    const FALLBACK_TITLES = [
         {
             id: "tt0903747",
             title: "Breaking Bad",
             background:
                 "https://images.metahub.space/background/large/tt0903747/img",
             logo: "https://images.metahub.space/logo/medium/tt0903747/img",
-            description:
-                "A chemistry teacher diagnosed with inoperable lung cancer turns to manufacturing and selling methamphetamine with a former student to secure his family's future.",
+            description: "A chemistry teacher...",
             year: "2008",
             duration: "45 min",
             seasons: "5 seasons",
             rating: "9.5",
             numericRating: 9.5,
-            href: null,
             type: "series",
         },
         {
@@ -50,14 +136,12 @@
             background:
                 "https://images.metahub.space/background/large/tt1375666/img",
             logo: "https://images.metahub.space/logo/medium/tt1375666/img",
-            description:
-                "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into a CEO's mind.",
+            description: "A thief who steals...",
             year: "2010",
             duration: "148 min",
             seasons: "Movie",
             rating: "8.8",
             numericRating: 8.8,
-            href: null,
             type: "movie",
         },
         {
@@ -66,343 +150,887 @@
             background:
                 "https://images.metahub.space/background/large/tt0468569/img",
             logo: "https://images.metahub.space/logo/medium/tt0468569/img",
-            description:
-                "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests.",
+            description: "When the menace known as the Joker...",
             year: "2008",
             duration: "152 min",
             seasons: "Movie",
             rating: "9.0",
             numericRating: 9.0,
-            href: null,
             type: "movie",
         },
     ];
 
+    // -------------------------
+    // State
+    // -------------------------
+    const state = {
+        heroTitles: [],
+        currentIndex: 0,
+        isAutoRotating: true,
+        autoRotateTimer: null,
+        autoRotateInterval: null,
+        observers: [],
+        ytPlayer: null,
+        isInitializing: false,
+        retryCount: 0,
+    };
+
+    // -------------------------
+    // DOM helpers (cache once hero is created)
+    // -------------------------
+    const DOM = {};
+    function cacheDOM() {
+        DOM.hero = document.querySelector(".hero-container");
+        if (!DOM.hero) return;
+        DOM.heroOverlay = DOM.hero.querySelector(".hero-overlay");
+        DOM.heroImage = DOM.hero.querySelector("#heroImage");
+        DOM.heroLogo = DOM.hero.querySelector("#heroLogo");
+        DOM.heroDescription = DOM.hero.querySelector("#heroDescription");
+        DOM.heroInfo = DOM.hero.querySelector("#heroInfo");
+        DOM.autoToggle = DOM.hero.querySelector("#autoToggle");
+        DOM.indicators = DOM.hero.querySelector(".hero-indicators");
+        DOM.heroButtonWatch = DOM.hero.querySelector(
+            ".hero-overlay-button-watch"
+        );
+        DOM.heroButtonMoreInfo = DOM.hero.querySelector(".hero-overlay-button");
+        DOM.heroIndicators = DOM.hero.querySelector(".hero-indicators");
+        DOM.cardContainer = DOM.hero.querySelector(".board-content-nPWv1");
+    }
+
+    // -------------------------
+    // API & metadata
+    // -------------------------
     async function fetchCatalogTitles(type, limit = 10) {
+        const cache = cacheGet(`catalog_${type}`);
+        if (cache) {
+            console.log("fetched cache", cache);
+            return cache;
+        }
+
         const url = `https://cinemeta-catalogs.strem.io/top/catalog/${type}/top.json`;
-
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const metas = data.metas || [];
-
-            return metas.slice(0, limit).map((meta) => ({
-                id: meta.id,
-                title: meta.name,
-                background: `https://images.metahub.space/background/large/${meta.id}/img`,
-                logo: `https://images.metahub.space/logo/medium/${meta.id}/img`,
-                description:
-                    meta.description ||
-                    `Discover ${meta.name} and dive into an incredible viewing experience.`,
-                year: meta.year ? meta.year.toString() : "2024",
-                duration: meta.runtime ? `${meta.runtime}` : "Unknown",
-                seasons: type === "movie" ? "Movie" : "Series",
-                rating: meta.imdbRating || "na",
-                numericRating: parseFloat(meta.imdbRating) || 0,
-                type: type,
-                href: null,
-                originalElement: null,
+            const json = await safeFetch(url, {
+                timeout: CONFIG.FETCH_TIMEOUT,
+                retries: 1,
+            });
+            const metas = (json.metas || []).slice(0, limit).map((m) => ({
+                id: m.id,
+                title: m.name,
+                background: `https://images.metahub.space/background/large/${m.id}/img`,
+                logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
+                description: m.description || `Discover ${m.name}`,
+                year: m.year ? String(m.year) : "2024",
+                runtime: m.runtime || null,
+                type,
             }));
-        } catch (error) {
-            console.error(`Failed to fetch ${type} catalog:`, error);
+            cacheSet(`catalog_${type}`, metas);
+            return metas;
+        } catch (e) {
+            logger.warn("fetchCatalogTitles failed", e);
             return [];
         }
     }
 
-    function formatDuration(runtime, type) {
-        if (!runtime) return "Unknown";
-
-        // Clean up the runtime string - remove extra text like "min min", "/10", etc.
-        let cleanRuntime = runtime.toString().trim();
-
-        // Remove common suffixes that cause duplication
-        cleanRuntime = cleanRuntime.replace(/\s*min\s*min/gi, " min");
-        cleanRuntime = cleanRuntime.replace(/\s*\/\d+/g, ""); // Remove "/10" or similar
-        cleanRuntime = cleanRuntime.replace(/\s*min\s*\/\d+/gi, " min"); // Remove "min/10" patterns
-
-        // Extract just the number if it's a pure number
-        const numMatch = cleanRuntime.match(/^(\d+)/);
-        if (numMatch) {
-            const minutes = parseInt(numMatch[1]);
-            if (type === "movie" && minutes > 0) {
-                return `${minutes} min`;
-            } else if (type === "series") {
-                // For series, assume it's episode length
-                return `${minutes} min per episode`;
-            }
-        }
-
-        // If it already has "min" and looks correct, return as is
-        if (cleanRuntime.match(/^\d+\s*min$/i)) {
-            return cleanRuntime;
-        }
-
-        return cleanRuntime || "Unknown";
-    }
-
-    function formatSeasons(meta, type) {
-        if (type === "movie") {
-            return "Movie";
-        }
-
-        // For series, try to get season information
-        if (
-            meta.videos &&
-            Array.isArray(meta.videos) &&
-            meta.videos.length > 0
-        ) {
-            const seasonSet = new Set();
-            meta.videos.forEach((video) => {
-                if (video.season) seasonSet.add(video.season);
-            });
-
-            if (seasonSet.size > 1) {
-                return `${seasonSet.size} seasons`;
-            } else if (seasonSet.size === 1) {
-                const episodeCount = meta.videos.length;
-                return episodeCount > 1
-                    ? `${episodeCount} episodes`
-                    : "1 episode";
-            }
-        }
-
-        // Fallback for series
-        return "Series";
-    }
-
     async function getDetailedMetaData(id, type) {
+        const cache = cacheGet(`meta_${id}`);
+        if (cache) return cache;
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            const response = await fetch(
+            const json = await safeFetch(
                 `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`,
-                { signal: controller.signal }
+                { timeout: CONFIG.DETAIL_TIMEOUT, retries: 1 }
             );
-
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            const meta = data.meta;
-
+            const meta = json.meta;
             if (!meta) return null;
+            const actualType =
+                meta.type ||
+                (meta.videos && meta.videos.length ? "series" : type);
+            const duration = meta.runtime
+                ? `${meta.runtime}`
+                : actualType === "series"
+                ? "45 min per episode"
+                : "Unknown";
+            const releaseDate = (() => {
+                // If videos array exists and has at least one item, use the last item's release date
+                if (meta.videos && meta.videos.length > 0) {
+                    // Get the next to last episode incase upcoming season is undefined
+                    const lastIndex = meta.videos.length - 1;
+                    const lastVideo = meta.videos[lastIndex].released
+                        ? meta.videos[lastIndex]
+                        : meta.videos[lastIndex - 1];
 
-            // Determine actual type from the metadata
-            let actualType = type;
-            if (meta.type) {
-                actualType = meta.type;
-            } else if (meta.videos && meta.videos.length > 0) {
-                // If it has episodes/videos, it's likely a series
-                actualType = "series";
-            }
+                    return getDaysSinceRelease(lastVideo?.released || null);
+                }
 
-            // Format duration properly
-            let duration = "Unknown";
-            if (meta.runtime) {
-                duration = formatDuration(meta.runtime, actualType);
-            } else if (actualType === "series") {
-                duration = "45 min per episode"; // Default for series
-            }
+                // Otherwise, fallback to meta.released
+                return getDaysSinceRelease(meta.released || null);
+            })();
 
-            // Format seasons/type info
-            let seasons = formatSeasons(meta, actualType);
-
-            return {
-                year: meta.year ? meta.year.toString() : "2024",
-                duration: duration,
+            const seasons = (() => {
+                if (actualType === "movie") return "Movie";
+                if (meta.videos && meta.videos.length) {
+                    const seasonSet = new Set(
+                        meta.videos.map((v) => v.season).filter(Boolean)
+                    );
+                    if (seasonSet.size > 1) return `${seasonSet.size} seasons`;
+                    return `${meta.videos.length} episodes`;
+                }
+                return "Series";
+            })();
+            const result = {
+                year: meta.year ? String(meta.year) : "2024",
+                duration,
                 rating: meta.imdbRating || "na",
                 numericRating: parseFloat(meta.imdbRating) || 0,
-                seasons: seasons,
-                description:
-                    meta.description ||
-                    `Discover ${meta.name} and dive into an incredible viewing experience.`,
-                type: actualType, // Return the corrected type
+                seasons,
+                description: meta.description || `Discover ${meta.name}`,
+                type: actualType,
                 genres: meta.genre || meta.genres || [],
                 cast: meta.cast || [],
                 director: Array.isArray(meta.director)
                     ? meta.director.join(", ")
                     : meta.director || "",
                 awards: meta.awards || "",
+                releaseDate,
             };
-        } catch (error) {
-            console.error(
-                `Failed to fetch detailed metadata for ${id}:`,
-                error
-            );
+            cacheSet(`meta_${id}`, result);
+            return result;
+        } catch (e) {
+            logger.warn("getDetailedMetaData failed", id, e);
             return null;
         }
     }
 
-    function resetHeroState() {
-        heroState.isInitializing = false;
-        heroState.retryCount = 0;
-        stopAutoRotate();
+    // Batched details fetch using Promise.allSettled with limited concurrency
+    async function enrichTitles(titles) {
+        // Map to promises but chunk to avoid too many concurrent requests
+        const chunks = [];
+        for (let i = 0; i < titles.length; i += CONFIG.BATCH_SIZE)
+            chunks.push(titles.slice(i, i + CONFIG.BATCH_SIZE));
+        const enriched = [];
+        for (const chunk of chunks) {
+            const promises = chunk.map(async (t) => {
+                const details = await getDetailedMetaData(t.id, t.type);
+                if (details) Object.assign(t, details);
+                return t;
+            });
+            const settled = await Promise.allSettled(promises);
+            settled.forEach((s) => {
+                if (s.status === "fulfilled") enriched.push(s.value);
+            });
+        }
+        return enriched;
     }
 
+    async function collectTitlesFromAPI() {
+        const cached = cacheGet("hero_titles");
+        if (cached) {
+            logger.info("fetched cached titles", cached);
+            return cached;
+        }
+        logger.info("Collecting titles from API");
+        try {
+            const [movies, series] = await Promise.all([
+                fetchCatalogTitles("movie", 8),
+                fetchCatalogTitles("series", 8),
+            ]);
+            // interleave
+            const result = [];
+            let m = 0,
+                s = 0,
+                expectMovie = true;
+            while (
+                result.length < 10 &&
+                (m < movies.length || s < series.length)
+            ) {
+                let pick = null;
+                if (expectMovie && m < movies.length) pick = movies[m++];
+                else if (!expectMovie && s < series.length) pick = series[s++];
+                else if (m < movies.length) pick = movies[m++];
+                else if (s < series.length) pick = series[s++];
+                expectMovie = !expectMovie;
+                if (pick) result.push(pick);
+            }
+            const enriched = await enrichTitles(result);
+            cacheSet("hero_titles", enriched);
+            return enriched;
+        } catch (e) {
+            logger.warn("collectTitlesFromAPI failed", e);
+            return [];
+        }
+    }
+
+    // -------------------------
+    // UI: Create and update hero
+    // -------------------------
+    function createHeroHTML(title, titles) {
+        const info = [title.year].filter(Boolean);
+        if (title.duration && title.duration !== "Unknown")
+            info.push(title.duration);
+        if (title.seasons && title.seasons !== "Unknown")
+            info.push(title.seasons);
+        if (title.releaseDate && title.releaseDate !== "")
+            info.push(title.releaseDate);
+
+        const ratingHTML =
+            title.rating && title.rating !== "na"
+                ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}/10</span></p>`
+                : "";
+
+        const indicators = (titles || state.heroTitles)
+            .map(
+                (_, i) =>
+                    `<div class="hero-indicator ${
+                        i === state.currentIndex ? "active" : ""
+                    }" data-index="${i}" aria-label="Go to ${i + 1}"></div>`
+            )
+            .join("");
+
+        return `
+      <div class="hero-container" role="region" aria-label="Featured">
+        <img id="heroImage" class="hero-image" src="${title.background}" alt="${
+            title.title
+        } background" />
+        <div class="hero-overlay">
+          <img id="heroLogo" class="hero-overlay-image" src="${
+              title.logo
+          }" alt="${title.title} logo" />
+          <p id="heroDescription" class="hero-overlay-description">${
+              title.description
+          }</p>
+          <div id="heroInfo" class="hero-overlay-info">${info
+              .map((i) => `<p>${i}</p>`)
+              .join("")}${ratingHTML}</div>
+          <div class="hero-overlay-actions">
+            <button class="hero-overlay-button-watch" id="watchBtn">▶ Watch Now</button>
+            <button class="hero-overlay-button" id="infoBtn">ⓘ More Info</button>
+          </div>
+        </div>
+        <div class="hero-controls">
+          <button id="autoToggle">${
+              state.isAutoRotating ? "Pause" : "Play"
+          }</button>
+          <button id="prevBtn">◀</button>
+          <button id="nextBtn">▶</button>
+        </div>
+        <div class="hero-indicators">${indicators}</div>
+      </div>
+    `;
+    }
+
+    function mountHeroTo(parent, initialTitle) {
+        // Remove any existing hero
+        const existing = parent.querySelector(".hero-container");
+        if (existing) existing.remove();
+        parent.insertAdjacentHTML("afterbegin", createHeroHTML(initialTitle));
+        cacheDOM();
+
+        // wire events
+        if (DOM.hero) {
+            DOM.heroOverlay.addEventListener("mouseenter", () =>
+                stopAutoRotate()
+            );
+            DOM.heroOverlay.addEventListener("mouseleave", () => {
+                startAutoRotate();
+            });
+
+            document
+                .getElementById("nextBtn")
+                ?.addEventListener("click", nextTitle);
+            document
+                .getElementById("prevBtn")
+                ?.addEventListener("click", previousTitle);
+            document
+                .getElementById("autoToggle")
+                ?.addEventListener("click", toggleAutoRotate);
+            document
+                .getElementById("watchBtn")
+                ?.addEventListener("click", () =>
+                    playTitle(state.heroTitles[state.currentIndex]?.id)
+                );
+            document
+                .getElementById("infoBtn")
+                ?.addEventListener("click", () =>
+                    showMoreInfo(state.heroTitles[state.currentIndex]?.id)
+                );
+            // indicators click
+            DOM.indicators?.addEventListener("click", (e) => {
+                const el = e.target.closest(".hero-indicator");
+
+                if (!el) return;
+                const idx = Number(el.dataset.index);
+                goToTitle(idx);
+            });
+        }
+    }
+
+    function updateHeroContent(title, animate = true) {
+        if (!DOM.hero) return;
+
+        // --- 1. Start Fade-Out Animation ---
+        if (animate) {
+            DOM.hero.classList.add("is-transitioning");
+        }
+
+        setTimeout(
+            () => {
+                if (DOM.heroImage && title.background)
+                    DOM.heroImage.src = title.background;
+                if (DOM.heroLogo && title.logo) DOM.heroLogo.src = title.logo;
+
+                // Description Text
+                if (DOM.heroDescription)
+                    DOM.heroDescription.textContent = title.description || "";
+
+                // Info Block (Year, Duration, Seasons, Rating)
+                if (DOM.heroInfo) {
+                    const info = [title.year].filter(Boolean);
+                    if (title.duration && title.duration !== "Unknown")
+                        info.push(title.duration);
+                    if (title.seasons && title.seasons !== "Unknown")
+                        info.push(title.seasons);
+                    if (title.releaseDate && title.releaseDate !== "")
+                        info.push(title.releaseDate);
+
+                    const ratingHTML =
+                        title.rating && title.rating !== "na"
+                            ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}/10</span></p>`
+                            : "";
+
+                    DOM.heroInfo.innerHTML =
+                        info.map((i) => `<p>${i}</p>`).join("") + ratingHTML;
+                }
+
+                DOM.heroButtonWatch?.setAttribute(
+                    "onclick",
+                    `event.stopPropagation(); playTitle('${title.id}')`
+                );
+                DOM.heroButtonMoreInfo?.setAttribute(
+                    "onclick",
+                    `event.stopPropagation(); showMoreInfo('${title.id}')`
+                );
+
+                // --- 3. End Fade-In Animation ---
+                if (animate) {
+                    // Remove class to trigger CSS fade-in effect on the NEW content
+                    // Using rAF or a zero-delay timeout ensures removal happens
+                    // after the content swap is complete.
+                    requestAnimationFrame(() => {
+                        DOM.hero.classList.remove("is-transitioning");
+                    });
+                }
+            },
+            animate ? 400 : 0
+        );
+
+        // --- 4. Update Indicators (Does not need delay) ---
+        DOM.indicators
+            ?.querySelectorAll(".hero-indicator")
+            ?.forEach((ind, i) =>
+                ind.classList.toggle("active", i === state.currentIndex)
+            );
+    }
+
+    // -------------------------
+    // Rotation control
+    // -------------------------
+    function startAutoRotate() {
+        if (state.heroTitles.length === 0) {
+            console.log("Cannot start rotation: heroTitles is empty.");
+            return; // Stop execution if there's nothing to rotate
+        }
+        if (state.autoRotateTimer) clearInterval(state.autoRotateTimer);
+
+        state.autoRotateTimer = setInterval(() => {
+            state.currentIndex =
+                (state.currentIndex + 1) % state.heroTitles.length;
+            updateHeroContent(state.heroTitles[state.currentIndex]);
+        }, CONFIG.ROTATION_INTERVAL);
+
+        state.isAutoRotating = true;
+        DOM.autoToggle && (DOM.autoToggle.textContent = "Playing");
+    }
+    function stopAutoRotate() {
+        if (state.autoRotateTimer) clearInterval(state.autoRotateTimer);
+        state.autoRotateTimer = null;
+        state.isAutoRotating = false;
+        DOM.autoToggle && (DOM.autoToggle.textContent = "Pause");
+    }
+    function resetAutoRotate() {
+        if (state.isAutoRotating) {
+            stopAutoRotate();
+            startAutoRotate();
+        }
+    }
+    function toggleAutoRotate() {
+        state.isAutoRotating = !state.isAutoRotating;
+        if (state.isAutoRotating) startAutoRotate();
+        else stopAutoRotate();
+    }
+    function nextTitle() {
+        state.currentIndex = (state.currentIndex + 1) % state.heroTitles.length;
+        updateHeroContent(state.heroTitles[state.currentIndex]);
+        resetAutoRotate();
+    }
+    function previousTitle() {
+        state.currentIndex =
+            (state.currentIndex - 1 + state.heroTitles.length) %
+            state.heroTitles.length;
+        updateHeroContent(state.heroTitles[state.currentIndex]);
+        resetAutoRotate();
+    }
+    function goToTitle(idx) {
+        if (
+            idx >= 0 &&
+            idx < state.heroTitles.length &&
+            idx !== state.currentIndex
+        ) {
+            state.currentIndex = idx;
+            updateHeroContent(state.heroTitles[state.currentIndex]);
+            resetAutoRotate();
+        }
+    }
+
+    // -------------------------
+    // Navigation & visibility handling
+    // -------------------------
+    function isBoardPage() {
+        const h = window.location.hash;
+        return h === "#/" || h === "" || h === "#";
+    }
     function isBoardTabSelected() {
         const boardTab = document.querySelector(
             'a[title="Board"].selected, a[href="#/"].selected, .nav-tab-button-container-dYhs0.selected[href="#/"]'
         );
         return boardTab !== null;
     }
-
-    function isBoardPage() {
-        const currentHash = window.location.hash;
-        return (
-            currentHash === "#/" || currentHash === "" || currentHash === "#"
-        );
-    }
-
     function shouldShowHero() {
-        return isBoardTabSelected() && isBoardPage();
+        return isBoardPage() && isBoardTabSelected();
     }
 
     function findParentElement() {
-        const parentSelectors = [
+        const selectors = [
             "#app > div.router-_65XU.routes-container > div > div.route-content > div.board-container-DTN_b > div > div > div",
             ".board-container-DTN_b > div > div > div",
-            ".board-container-DTN_b > div > div",
-            ".board-container-DTN_b > div",
-            ".route-content > div",
             ".board-container-DTN_b",
-            "[class*='board-container'] > div",
-            "[class*='board-container']",
+            '[class*="board-container"]',
+            ".route-content > div",
         ];
-
-        for (const selector of parentSelectors) {
-            const element = document.querySelector(selector);
-            if (element) return element;
+        for (const s of selectors) {
+            const el = document.querySelector(s);
+            if (el) return el;
         }
-
-        const boardRows = document.querySelectorAll(".board-row-CoJrZ");
-        if (boardRows.length > 0) {
-            const parent = boardRows[0].parentElement;
-            if (parent) return parent;
-        }
-
-        const allContainers = document.querySelectorAll(
-            'div[class*="container"], div[class*="board"]'
-        );
-        for (let container of allContainers) {
-            if (container.querySelector(".board-row-CoJrZ")) {
-                return container;
-            }
-        }
-
+        const rows = document.querySelectorAll(".board-row-CoJrZ");
+        if (rows.length) return rows[0].parentElement;
         return null;
     }
 
-    async function waitForBoardElements(timeout = 5000) {
+    // -------------------------
+    // YouTube helper: singleton player
+    // -------------------------
+    let ytReady = false;
+    function ensureYouTubeAPI() {
         return new Promise((resolve) => {
-            const startTime = Date.now();
-
-            function checkForElements() {
-                if (!shouldShowHero()) {
-                    resolve(false);
-                    return;
-                }
-
-                const parent = findParentElement();
-                const boardRows = document.querySelectorAll(".board-row-CoJrZ");
-
-                if (
-                    (parent && boardRows.length > 0) ||
-                    Date.now() - startTime > timeout
-                ) {
-                    resolve(parent && boardRows.length > 0);
-                } else {
-                    setTimeout(checkForElements, 100);
-                }
+            if (window.YT && window.YT.Player) {
+                ytReady = true;
+                resolve();
+                return;
             }
-
-            checkForElements();
+            if (window._hero_yt_loading) {
+                const check = () => {
+                    if (window.YT && window.YT.Player) {
+                        ytReady = true;
+                        resolve();
+                    } else requestAnimationFrame(check);
+                };
+                check();
+                return;
+            }
+            window._hero_yt_loading = true;
+            const tag = document.createElement("script");
+            tag.src = "https://www.youtube.com/iframe_api";
+            document.head.appendChild(tag);
+            window.onYouTubeIframeAPIReady = () => {
+                ytReady = true;
+                resolve();
+            };
         });
     }
 
-    function showLoadingScreen() {
-        let loadingScreen = document.getElementById("heroLoadingScreen");
-        if (!loadingScreen) {
-            loadingScreen = document.createElement("div");
-            loadingScreen.id = "heroLoadingScreen";
-            loadingScreen.innerHTML = `
-                <div class="loading-backdrop"></div>
-                <div class="loading-content">
-                    <div class="loading-text" id="loadingText">Loading popular content...</div>
-                    <div class="loading-bar">
-                        <div class="loading-progress" id="loadingProgress"></div>
-                    </div>
-                    <div class="loading-skip" onclick="skipLoading()" id="loadingSkip" style="margin-top: 20px; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 14px;">
-                        Click to skip and use fallback content
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(loadingScreen);
-        }
-
-        loadingScreen.style.cssText = `
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 100vw !important; height: 100vh !important;
-            z-index: 999999 !important;
-            opacity: 1; visibility: visible;
-            backdrop-filter: blur(10px);
-            pointer-events: auto;
-            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 50%, #0c0c0c 100%);
-            display: flex; align-items: center; justify-content: center;
-        `;
-
-        document.body.style.overflow = "hidden";
-        return loadingScreen;
+    function getYouTubeId(url) {
+        const m = url.match(
+            /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/
+        );
+        return m ? m[1] : null;
     }
 
-    function updateLoadingStatus(text, progress = null) {
-        const loadingText = document.getElementById("loadingText");
-        const loadingProgress = document.getElementById("loadingProgress");
+    async function createOrUpdateYTPlayer(videoId) {
+        if (!ytReady) await ensureYouTubeAPI();
+        if (!window.YT || !window.YT.Player) return null;
 
-        if (loadingText) {
-            loadingText.textContent = text;
+        // create container if missing
+        let iframeContainer = document.getElementById("heroIframe");
+        if (!iframeContainer && DOM.hero) {
+            iframeContainer = document.createElement("div");
+            iframeContainer.id = "heroIframe";
+            iframeContainer.style.cssText =
+                "position:absolute;top:0;left:0;width:100%;height:100vh;z-index:2;opacity:0;transform: scale(2);transition: opacity 1s ease, transform 1s ease;pointer-events:none;";
+            DOM.hero.prepend(iframeContainer);
         }
 
-        if (progress !== null && loadingProgress) {
-            loadingProgress.style.width = `${progress}%`;
+        if (!state.ytPlayer) {
+            state.ytPlayer = new YT.Player("heroIframe", {
+                videoId,
+                width: "1920",
+                height: "1080",
+                playerVars: {
+                    autoplay: 1,
+                    loop: 1,
+                    playlist: videoId,
+                    controls: 0,
+                    rel: 0,
+                    modestbranding: 1,
+                    playsinline: 1,
+                },
+                events: {
+                    onReady: (e) => {
+                        e.target.playVideo();
+                        try {
+                            e.target.setVolume(15);
+                        } catch (e) {}
+                        if (iframeContainer) {
+                            heroIframe.style.opacity = "1";
+                            heroIframe.style.transform = "scale(1.375)";
+                        }
+                    },
+                    onStateChange: (ev) => {
+                        if (ev.data === YT.PlayerState.PLAYING)
+                            try {
+                                ev.target.setPlaybackQuality("hd1080");
+                            } catch (e) {}
+                    },
+                },
+            });
+        } else {
+            try {
+                state.ytPlayer.loadVideoById(videoId);
+            } catch (e) {
+                logger.warn("YT reload failed", e);
+            }
         }
+
+        return state.ytPlayer;
     }
 
-    function hideLoadingScreen() {
-        const loadingScreen = document.getElementById("heroLoadingScreen");
-        if (loadingScreen) {
-            loadingScreen.style.opacity = "0";
-            loadingScreen.style.visibility = "hidden";
-            loadingScreen.style.pointerEvents = "none";
-            document.body.style.overflow = "";
+    function cleanupMedia() {
+        const v = document.getElementById("heroVideo");
+        if (v) v.remove();
+        const f = document.getElementById("heroIframe");
+        if (f) f.remove();
+        if (state.ytPlayer && typeof state.ytPlayer.destroy === "function") {
+            try {
+                state.ytPlayer.destroy();
+            } catch (e) {}
+        }
+        state.ytPlayer = null;
+    }
 
-            setTimeout(() => {
-                if (loadingScreen.parentNode) {
-                    document.body.removeChild(loadingScreen);
+    // -------------------------
+    // Trailer hover setup (attach to cards)
+    // -------------------------
+    function setupHeroTrailerHover() {
+        const cards = document.querySelectorAll(
+            '.meta-item-container-Tj0Ib, [class*="meta-item-container"]'
+        );
+        const hero = document.querySelector(".hero-container");
+        if (!cards || !hero) return;
+
+        cards.forEach((card) => {
+            if (card.dataset._heroBound) return;
+            card.dataset._heroBound = "1";
+            card.addEventListener("mouseenter", async () => {
+                const link = card.querySelector("a.enhanced-trailer");
+                const url = link?.href || card.dataset.trailerUrl;
+                if (!url) return;
+                stopAutoRotate();
+                // quick UI update from card (lightweight)
+                updateHeroFromHover(card);
+                cleanupMedia();
+                if (url.includes("youtube.com") || url.includes("youtu.be")) {
+                    const id = getYouTubeId(url);
+                    if (id) await createOrUpdateYTPlayer(id);
+                } else {
+                    // create video element
+                    const v = document.createElement("video");
+                    v.id = "heroVideo";
+                    v.src = url;
+                    v.autoplay = true;
+                    v.muted = true;
+                    v.loop = true;
+                    v.playsInline = true;
+                    v.style.cssText =
+                        "position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:2;opacity:0;transition: opacity 1s ease, transform 1s ease;pointer-events:none;";
+                    DOM.hero.prepend(v);
+                    requestAnimationFrame(() => (v.style.opacity = "1"));
+                    v.play().catch(() => {});
                 }
-            }, 500);
+            });
+
+            card.addEventListener("mouseleave", () => {
+                // fade out then remove
+                const v = document.getElementById("heroVideo");
+                const f = document.getElementById("heroIframe");
+                [v, f].forEach((el) => {
+                    if (!el) return;
+                    el.style.opacity = "0";
+                    el.style.transform = "scale(2)";
+                    el.addEventListener("transitionend", () => el.remove(), {
+                        once: true,
+                    });
+                });
+                // slow fade out volume if YT
+                if (
+                    state.ytPlayer &&
+                    typeof state.ytPlayer.getVolume === "function"
+                ) {
+                    try {
+                        state.ytPlayer.setVolume(0);
+                    } catch (e) {}
+                }
+                startAutoRotate();
+            });
+        });
+    }
+
+    /**
+     * Updates the main hero section content based on the provided card element.
+     * Assumes hero DOM elements are pre-queried and stored in a global/accessible DOM object.
+     *
+     * @param {HTMLElement} card - The card element being hovered over.
+     */
+    function updateHeroFromHover(card) {
+        // Check for both the card element and the main hero container
+        if (!card || !DOM.hero) return;
+
+        // --- Card Data Extraction ---
+        // Extract data from the card, using optional chaining and nullish coalescing for safety
+        const cardLogo = card.querySelector(".enhanced-title img");
+        const cardImg = card.querySelector("img");
+        const desc =
+            card.querySelector(".enhanced-description")?.textContent || "";
+        const rating =
+            card.querySelector(".enhanced-rating")?.textContent || "";
+        const cardIMDB = card.id;
+        // Get all metadata items from the card
+        const cardMetadata = card.querySelectorAll(
+            '[class="enhanced-metadata-item"]'
+        );
+
+        // --- Hero DOM Updates ---
+
+        // 1. Logos and Main Image
+        if (DOM.heroLogo && cardLogo) DOM.heroLogo.src = cardLogo.src;
+        if (DOM.heroImage && cardImg) DOM.heroImage.src = cardImg.src;
+
+        // 2. Description
+        if (DOM.heroDescription) DOM.heroDescription.textContent = desc;
+
+        // 3. Rating (The corrected logic)
+        // Safely check for the parent info container and the rating text element inside it
+        if (DOM.heroInfo && rating) {
+            const ratingElement = DOM.heroInfo.querySelector(".rating-text");
+            if (ratingElement) {
+                ratingElement.textContent = rating;
+            }
+        }
+
+        // 4. Action Buttons (Using the DOM properties corresponding to the original queries)
+        if (DOM.heroButtonWatch) {
+            DOM.heroButtonWatch.setAttribute(
+                "onclick",
+                `playTitle('${cardIMDB}')`
+            );
+        }
+        if (DOM.heroButtonMoreInfo) {
+            DOM.heroButtonMoreInfo.setAttribute(
+                "onclick",
+                `showMoreInfo('${cardIMDB}')`
+            );
+        }
+
+        // 5. Metadata/Overlay Info
+
+        // We'll re-query the target elements here if DOM.heroOverlayInfo is not defined,
+        // or assume DOM.heroOverlayInfo has been pre-queried as the NodeList of target <p> tags.
+        const heroOverlayInfoTargets =
+            DOM.heroOverlayInfo ||
+            DOM.heroInfo?.querySelectorAll("p:not([class])") ||
+            [];
+
+        // Update each metadata field in the hero
+        heroOverlayInfoTargets.forEach((item, index) => {
+            // If there is corresponding metadata on the card, use its content, otherwise use an empty string or null.
+            item.textContent = cardMetadata[index]
+                ? cardMetadata[index].textContent
+                : null;
+        });
+    }
+
+    // -------------------------
+    // Observers & lifecycle
+    // -------------------------
+    const mutationHandler = debounce(() => {
+        try {
+            handleNavigation();
+        } catch (e) {
+            logger.warn("mutation handler error", e);
+        }
+    }, 250);
+
+    const mainObserver = new MutationObserver(mutationHandler);
+    mainObserver.observe(document.body, { childList: true, subtree: true });
+    state.observers.push(mainObserver);
+
+    // Observe card additions separately and call setup trailer hover
+    const trailerHoverObserver = new MutationObserver((mutations) => {
+        let addedNewCards = false;
+
+        mutations.forEach((mutation) => {
+            if (mutation.addedNodes.length > 0) {
+                mutation.addedNodes.forEach((node) => {
+                    if (
+                        node.nodeType === 1 &&
+                        (node.matches(".meta-item-container-Tj0Ib") ||
+                            node.querySelector?.(".meta-item-container-Tj0Ib"))
+                    ) {
+                        addedNewCards = true;
+                    }
+                });
+            }
+        });
+
+        if (addedNewCards) {
+            console.log(
+                "New cards detected — reinitializing trailer hover setup"
+            );
+            setupHeroTrailerHover();
+
+            const boards = document.querySelectorAll(
+                ".meta-row-container-xtlB1"
+            );
+
+            boards.forEach((card) => {
+                cardHideObserver.observe(card);
+            });
+        }
+    });
+
+    trailerHoverObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+    });
+    state.observers.push(trailerHoverObserver);
+
+    // card hide when scrolling above 60vh
+    const cardHideObserver = new IntersectionObserver(
+        (cards) => {
+            cards.forEach((card) => {
+                if (card.isIntersecting) {
+                    card.target.classList.add("show");
+                } else {
+                    card.target.classList.remove("show");
+                }
+            });
+        },
+        {
+            rootMargin: "-60% 0px 0px 0px",
+            threshold: 0,
+        }
+    );
+    state.observers.push(cardHideObserver);
+
+    // -------------------------
+    // Creation & destruction
+    // -------------------------
+    async function initializeTitles() {
+        if (state.isInitializing) return;
+        state.isInitializing = true;
+        try {
+            const timeout = new Promise((r) => setTimeout(() => r([]), 12000));
+            const collected = await Promise.race([
+                collectTitlesFromAPI(),
+                timeout,
+            ]);
+            if (collected && collected.length) state.heroTitles = collected;
+            else state.heroTitles = FALLBACK_TITLES.slice();
+            cacheSet("hero_titles", state.heroTitles);
+            return true;
+        } catch (e) {
+            logger.warn("initializeTitles error", e);
+            state.heroTitles = FALLBACK_TITLES.slice();
+            return true;
+        } finally {
+            state.isInitializing = false;
         }
     }
 
-    window.skipLoading = function () {
-        hideLoadingScreen();
-        heroTitles = [...fallbackTitles];
-        createHeroDirect();
-    };
+    async function addHeroDiv() {
+        if (!shouldShowHero()) return;
+        if (document.querySelector(".hero-container")) return;
+        const parent = findParentElement();
+        if (!parent) return;
 
+        if (!state.heroTitles.length) await initializeTitles();
+        if (!state.heroTitles.length)
+            state.heroTitles = FALLBACK_TITLES.slice();
+
+        state.currentIndex = 0;
+        mountHeroTo(parent, state.heroTitles[0]);
+        cacheDOM();
+        setupHeroTrailerHover();
+
+        if (state.isAutoRotating) startAutoRotate();
+    }
+
+    function cleanupAll() {
+        cleanupMedia();
+        // remove hero
+        const h = document.querySelector(".hero-container");
+        if (h) h.remove();
+        // disconnect observers
+        state.observers.forEach((o) => {
+            try {
+                o.disconnect();
+            } catch (e) {}
+        });
+        state.observers = [];
+        stopAutoRotate();
+        state.heroTitles = [];
+    }
+
+    function handleNavigation() {
+        const heroExists = !!document.querySelector(".hero-container");
+        const shouldShow = shouldShowHero();
+        if (!shouldShow && heroExists) {
+            logger.info("Navigated away; cleaning up hero");
+            cleanupAll();
+            return;
+        }
+        if (shouldShow && !heroExists) {
+            // delayed tries to allow UI to settle
+            setTimeout(() => addHeroDiv(), 100);
+            setTimeout(() => addHeroDiv(), 600);
+        }
+    }
+
+    // wire basic events
+    window.addEventListener("hashchange", handleNavigation);
+    window.addEventListener("popstate", () =>
+        setTimeout(handleNavigation, 100)
+    );
+    window.addEventListener("focus", () => setTimeout(handleNavigation, 200));
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) setTimeout(handleNavigation, 300);
+    });
     window.playTitle = function (titleId) {
         const element = document.querySelector(`a[id="${titleId}"]`);
         if (element) {
@@ -429,967 +1057,13 @@
         }
     };
 
-    window.goToTitle = function (index) {
-        if (index !== currentIndex && index >= 0 && index < heroTitles.length) {
-            currentIndex = index;
-            updateHeroContent(heroTitles[currentIndex]);
-            resetAutoRotate();
-        }
+    // initial attempt
+    setTimeout(() => handleNavigation(), 1200);
+
+    // Expose some debug utilities (safe to remove in production)
+    window._hero_debug = {
+        addHeroDiv: () => addHeroDiv(),
+        cleanupAll: () => cleanupAll(),
+        state,
     };
-
-    window.nextTitle = function () {
-        currentIndex = (currentIndex + 1) % heroTitles.length;
-        updateHeroContent(heroTitles[currentIndex]);
-        resetAutoRotate();
-    };
-
-    window.previousTitle = function () {
-        currentIndex =
-            (currentIndex - 1 + heroTitles.length) % heroTitles.length;
-        updateHeroContent(heroTitles[currentIndex]);
-        resetAutoRotate();
-    };
-
-    window.toggleAutoRotate = function () {
-        isAutoRotating = !isAutoRotating;
-        const toggleBtn = document.getElementById("autoToggle");
-        if (toggleBtn) {
-            toggleBtn.textContent = isAutoRotating ? "Pause" : "Play";
-        }
-
-        if (isAutoRotating) {
-            startAutoRotate();
-        } else {
-            stopAutoRotate();
-        }
-    };
-
-    async function collectTitlesFromAPI() {
-        const collectedTitles = [];
-        updateLoadingStatus("Fetching popular movies...", 20);
-
-        try {
-            // Fetch movies and series in parallel
-            const [movies, series] = await Promise.all([
-                fetchCatalogTitles("movie", 8),
-                fetchCatalogTitles("series", 8),
-            ]);
-
-            updateLoadingStatus("Fetching popular series...", 40);
-
-            // Interleave movies and series for variety
-            const maxTitles = 10;
-            let movieIndex = 0;
-            let seriesIndex = 0;
-            let expectMovie = true;
-
-            for (
-                let i = 0;
-                i < maxTitles &&
-                (movieIndex < movies.length || seriesIndex < series.length);
-                i++
-            ) {
-                let titleToAdd = null;
-
-                if (expectMovie && movieIndex < movies.length) {
-                    titleToAdd = movies[movieIndex];
-                    movieIndex++;
-                } else if (!expectMovie && seriesIndex < series.length) {
-                    titleToAdd = series[seriesIndex];
-                    seriesIndex++;
-                } else if (movieIndex < movies.length) {
-                    titleToAdd = movies[movieIndex];
-                    movieIndex++;
-                } else if (seriesIndex < series.length) {
-                    titleToAdd = series[seriesIndex];
-                    seriesIndex++;
-                }
-
-                expectMovie = !expectMovie;
-
-                if (titleToAdd) {
-                    updateLoadingStatus(
-                        `Getting details for ${titleToAdd.title}...`,
-                        50 + i * 4
-                    );
-
-                    // Get detailed metadata for better info
-                    const detailedMeta = await getDetailedMetaData(
-                        titleToAdd.id,
-                        titleToAdd.type
-                    );
-                    if (detailedMeta) {
-                        titleToAdd.year = detailedMeta.year;
-                        titleToAdd.duration = detailedMeta.duration;
-                        titleToAdd.rating = detailedMeta.rating;
-                        titleToAdd.numericRating = detailedMeta.numericRating;
-                        titleToAdd.seasons = detailedMeta.seasons;
-                        titleToAdd.type = detailedMeta.type; // Update with correct type
-                        titleToAdd.genres = detailedMeta.genres;
-                        titleToAdd.cast = detailedMeta.cast;
-                        titleToAdd.director = detailedMeta.director;
-                        titleToAdd.awards = detailedMeta.awards;
-                        if (
-                            detailedMeta.description &&
-                            detailedMeta.description !== titleToAdd.description
-                        ) {
-                            titleToAdd.description = detailedMeta.description;
-                        }
-                    }
-
-                    collectedTitles.push(titleToAdd);
-
-                    // Small delay to avoid overwhelming the API
-                    await new Promise((resolve) => setTimeout(resolve, 50));
-                }
-            }
-        } catch (error) {
-            console.error("Error collecting titles from API:", error);
-            updateLoadingStatus("Error occurred, using fallbacks...", 85);
-        }
-
-        return collectedTitles;
-    }
-
-    function createHeroHTML(title) {
-        const infoItems = [title.year];
-
-        // Add duration if available and not "Unknown"
-        if (title.duration && title.duration !== "Unknown") {
-            infoItems.push(title.duration);
-        }
-
-        // Add seasons/type info
-        if (title.seasons && title.seasons !== "Unknown") {
-            infoItems.push(title.seasons);
-        }
-
-        return `
-            <div class="hero-container">
-                            <img src="${
-                                title.background
-                            }" alt="Hero Background" class="hero-image" id="heroImage">
-                <div class="hero-overlay">
-                    <img src="${
-                        title.logo
-                    }" alt="Title Logo" class="hero-overlay-image" id="heroLogo">
-                    <p class="hero-overlay-description" id="heroDescription">${
-                        title.description
-                    }</p>
-                    <div class="hero-overlay-info" id="heroInfo">
-                        ${infoItems.map((item) => `<p>${item}</p>`).join("")}
-                        ${
-                            title.rating && title.rating !== "na"
-                                ? `<p class="rating-item">
-                                <span class="rating-text">⭐ ${title.rating}/10</span>
-                            </p>`
-                                : ""
-                        }
-                    </div>
-                   <div class="hero-overlay-actions">
-                        <button class="hero-overlay-button-watch" onclick="event.stopPropagation(); playTitle('${
-                            title.id
-                        }')">
-                            <span class="play-icon">▶</span> 
-                            Watch Now
-                        </button>
-                        <button class="hero-overlay-button" onclick="event.stopPropagation(); showMoreInfo('${
-                            title.id
-                        }')">
-                            <span class="info-icon">ⓘ</span>
-                            More Info
-                        </button>
-                    </div>
-                </div>
-                <div class="hero-controls">
-                    <button class="hero-control-btn" onclick="toggleAutoRotate()" id="autoToggle">
-                        ${isAutoRotating ? "Pause" : "Play"}
-                    </button>
-                    <button class="hero-control-btn" onclick="previousTitle()">◀</button>
-                    <button class="hero-control-btn" onclick="nextTitle()">▶</button>
-                </div>
-                <div class="hero-indicators">
-                    ${heroTitles
-                        .map(
-                            (_, index) =>
-                                `<div class="hero-indicator ${
-                                    index === currentIndex ? "active" : ""
-                                }" 
-                              onclick="goToTitle(${index})" data-index="${index}"></div>`
-                        )
-                        .join("")}
-                </div>
-            </div>
-        `;
-    }
-
-    function updateHeroContent(title, animate = true) {
-        const heroImage = document.getElementById("heroImage");
-        const heroLogo = document.getElementById("heroLogo");
-        const heroDescription = document.getElementById("heroDescription");
-        const heroInfo = document.getElementById("heroInfo");
-        const heroAdditionalInfo =
-            document.getElementById("heroAdditionalInfo");
-        const watchButton = document.querySelector(
-            ".hero-overlay-button-watch"
-        );
-        const moreInfoButton = document.querySelector(".hero-overlay-button");
-
-        if (!heroImage || !heroLogo || !heroDescription || !heroInfo) return;
-
-        const infoItems = [title.year];
-
-        // Add duration if available and not "Unknown"
-        if (title.duration && title.duration !== "Unknown") {
-            infoItems.push(title.duration);
-        }
-
-        // Add seasons/type info
-        if (title.seasons && title.seasons !== "Unknown") {
-            infoItems.push(title.seasons);
-        }
-
-        const infoHTML =
-            infoItems.map((item) => `<p>${item}</p>`).join("") +
-            (title.rating && title.rating !== "na"
-                ? `<p class="rating-item">
-                    <span class="rating-text">⭐ ${title.rating}/10</span>
-                </p>`
-                : "");
-
-        // Generate additional info HTML
-        let additionalInfoHTML = "";
-        if (title.genres && title.genres.length > 0) {
-            additionalInfoHTML += `<div class="hero-genres">${title.genres.join(
-                " • "
-            )}</div>`;
-        }
-        if (title.cast && title.cast.length > 0) {
-            additionalInfoHTML += `<div class="hero-cast">Starring: ${title.cast
-                .slice(0, 3)
-                .join(", ")}</div>`;
-        }
-        if (title.director) {
-            additionalInfoHTML += `<div class="hero-director">Directed by ${title.director}</div>`;
-        }
-        if (title.awards) {
-            additionalInfoHTML += `<div class="hero-awards">${title.awards}</div>`;
-        }
-
-        if (animate) {
-            heroImage.style.opacity = "0";
-            heroLogo.style.opacity = "0";
-            heroDescription.style.opacity = "0";
-            heroInfo.style.opacity = "0";
-            if (heroAdditionalInfo) heroAdditionalInfo.style.opacity = "0";
-
-            setTimeout(() => {
-                heroImage.src = title.background;
-                heroLogo.src = title.logo;
-                heroDescription.textContent = title.description;
-                heroInfo.innerHTML = infoHTML;
-                if (heroAdditionalInfo)
-                    heroAdditionalInfo.innerHTML = additionalInfoHTML;
-
-                if (watchButton) {
-                    watchButton.setAttribute(
-                        "onclick",
-                        `event.stopPropagation(); playTitle('${title.id}')`
-                    );
-                }
-                if (moreInfoButton) {
-                    moreInfoButton.setAttribute(
-                        "onclick",
-                        `event.stopPropagation(); showMoreInfo('${title.id}')`
-                    );
-                }
-
-                setTimeout(() => {
-                    heroImage.style.opacity = "1";
-                    heroLogo.style.opacity = "1";
-                    heroDescription.style.opacity = "1";
-                    heroInfo.style.opacity = "1";
-                    if (heroAdditionalInfo)
-                        heroAdditionalInfo.style.opacity = "1";
-                }, 50);
-
-                updateIndicators();
-            }, 300);
-        } else {
-            heroImage.src = title.background;
-            heroLogo.src = title.logo;
-            heroDescription.textContent = title.description;
-            heroInfo.innerHTML = infoHTML;
-            if (heroAdditionalInfo)
-                heroAdditionalInfo.innerHTML = additionalInfoHTML;
-
-            if (watchButton) {
-                watchButton.setAttribute(
-                    "onclick",
-                    `event.stopPropagation(); playTitle('${title.id}')`
-                );
-            }
-            if (moreInfoButton) {
-                moreInfoButton.setAttribute(
-                    "onclick",
-                    `event.stopPropagation(); showMoreInfo('${title.id}')`
-                );
-            }
-
-            updateIndicators();
-        }
-    }
-
-    function updateIndicators() {
-        const indicators = document.querySelectorAll(".hero-indicator");
-        indicators.forEach((indicator, index) => {
-            indicator.classList.toggle("active", index === currentIndex);
-        });
-    }
-
-    function createHeroDirect() {
-        if (!shouldShowHero()) {
-            return;
-        }
-
-        const parent = findParentElement();
-        if (!parent) {
-            return;
-        }
-
-        const existingHero = parent.querySelector(".hero-container");
-        if (existingHero) {
-            existingHero.remove();
-        }
-
-        if (heroTitles.length === 0) {
-            heroTitles = [...fallbackTitles];
-        }
-
-        currentIndex = 0;
-
-        const heroHTML = createHeroHTML(heroTitles[0]);
-        parent.insertAdjacentHTML("afterbegin", heroHTML);
-
-        const insertedHero = parent.querySelector(".hero-container");
-        if (insertedHero) {
-            const heroImage = document.getElementById("heroImage");
-            const heroLogo = document.getElementById("heroLogo");
-            const heroDescription = document.getElementById("heroDescription");
-            const heroInfo = document.getElementById("heroInfo");
-
-            if (heroImage)
-                heroImage.style.transition = "opacity 0.3s ease-in-out";
-            if (heroLogo)
-                heroLogo.style.transition = "opacity 0.3s ease-in-out";
-            if (heroDescription)
-                heroDescription.style.transition = "opacity 0.3s ease-in-out";
-            if (heroInfo)
-                heroInfo.style.transition = "opacity 0.3s ease-in-out";
-
-            if (isAutoRotating) {
-                startAutoRotate();
-            }
-
-            insertedHero.addEventListener("mouseenter", () => {
-                if (isAutoRotating) stopAutoRotate();
-            });
-
-            insertedHero.addEventListener("mouseleave", () => {
-                if (isAutoRotating) startAutoRotate();
-            });
-            // Ensure YouTube API is ready
-            ensureYouTubeAPI().then(() => {
-                setupHeroTrailerHover();
-            });
-        }
-    }
-
-    function updateHeroFromHover(card) {
-        if (!card) return;
-        const heroLogo = document.querySelector(
-            ".hero-container img.hero-overlay-image"
-        );
-        const heroImg = document.querySelector(
-            ".hero-container img.hero-image"
-        );
-        const heroDescription = document.querySelector(
-            ".hero-container p.hero-overlay-description"
-        );
-        const heroRating = document.querySelector(
-            ".hero-container p.rating-item .rating-text"
-        );
-        const heroButtonWatch = document.querySelector(
-            ".hero-container button.hero-overlay-button-watch"
-        );
-        const heroButtonMoreInfo = document.querySelector(
-            ".hero-container button.hero-overlay-button"
-        );
-        const heroOverlayInfo = document
-            .querySelector(".hero-container div.hero-overlay-info")
-            .querySelectorAll("p:not([class])");
-        const cardLogo = card.querySelector(".enhanced-title img");
-        const cardImg = card.querySelector("img");
-        const cardDescription = card.querySelector(".enhanced-description");
-        const cardRatings = card.querySelector(".enhanced-rating");
-        const cardIMDB = card.id;
-        const cardMetadata = card.querySelectorAll(
-            '[class="enhanced-metadata-item"]'
-        );
-
-        // Set hero image source to card's image source
-        if (heroLogo && cardLogo) heroLogo.src = cardLogo.src;
-        if (heroImg && cardImg) heroImg.src = cardImg.src;
-        if (heroDescription) {
-            heroDescription.textContent = cardDescription?.textContent || "";
-        }
-
-        // Conditional update for rating
-        if (heroRating) {
-            heroRating.textContent = cardRatings?.textContent || "";
-        }
-        if (heroButtonWatch) {
-            heroButtonWatch.setAttribute("onclick", `playTitle('${cardIMDB}')`);
-        }
-        if (heroButtonMoreInfo) {
-            heroButtonMoreInfo.setAttribute(
-                "onclick",
-                `showMoreInfo('${cardIMDB}')`
-            );
-        }
-        heroOverlayInfo.forEach((item, index) => {
-            item.textContent = cardMetadata[index]
-                ? cardMetadata[index].textContent
-                : null;
-        });
-    }
-    // Make sure the YouTube API script is loaded once in your page
-    // <script src="https://www.youtube.com/iframe_api"></script>
-
-    // ---- Load YouTube API only once ----
-    let ytApiReady = false;
-
-    // ---- Load YouTube API only once ----
-    function ensureYouTubeAPI() {
-        return new Promise((resolve) => {
-            // 1️⃣ Case: API fully ready already
-            if (window.YT && window.YT.Player) {
-                ytApiReady = true;
-                resolve();
-                return;
-            }
-
-            // 2️⃣ Case: Script already appended but not fully ready
-            if (window._ytApiLoaded) {
-                const checkReady = () => {
-                    if (window.YT && window.YT.Player) {
-                        ytApiReady = true;
-                        resolve();
-                    } else {
-                        requestAnimationFrame(checkReady);
-                    }
-                };
-                checkReady();
-                return;
-            }
-
-            // 3️⃣ Case: Need to inject script
-            window._ytApiLoaded = true;
-
-            const tag = document.createElement("script");
-            tag.src = "https://www.youtube.com/iframe_api";
-            document.head.appendChild(tag);
-
-            // ⚡ Ensure we don't lose the callback if YouTube loads before binding
-            window.onYouTubeIframeAPIReady = () => {
-                ytApiReady = true;
-                resolve();
-            };
-        });
-    }
-
-    // ---- Main setup function ----
-    function setupHeroTrailerHover() {
-        const cards = document.querySelectorAll(
-            ".meta-item-container-Tj0Ib, [class*='meta-item-container']"
-        );
-        const heroContainer = document.querySelector(".hero-container");
-        if (!cards.length || !heroContainer) return;
-
-        let ytPlayer = null;
-        let ytFadeInterval = null;
-
-        function getYouTubeId(url) {
-            const match = url.match(
-                /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/
-            );
-            return match ? match[1] : null;
-        }
-
-        function fadeVolume(targetVolume, duration = 300) {
-            if (!ytPlayer || typeof ytPlayer.getVolume !== "function") return;
-            clearInterval(ytFadeInterval);
-
-            const stepTime = 50;
-            const steps = duration / stepTime;
-            const currentVolume = 0;
-
-            const volumeStep = (targetVolume - currentVolume) / steps;
-            let stepCount = 0;
-
-            ytFadeInterval = setInterval(() => {
-                stepCount++;
-                let newVolume = currentVolume + volumeStep * stepCount;
-                newVolume = Math.min(100, Math.max(0, newVolume));
-                if (typeof ytPlayer.getVolume !== "function") return;
-                ytPlayer.setVolume(newVolume);
-                if (stepCount >= steps) clearInterval(ytFadeInterval);
-            }, stepTime);
-        }
-
-        function createYouTubeHero(videoId) {
-            // Wait until API is ready
-            if (!ytApiReady || !window.YT || !window.YT.Player) {
-                console.warn("YT API not ready — deferring player creation");
-                setTimeout(() => createYouTubeHero(videoId), 200);
-                return;
-            }
-
-            const heroContainer = document.querySelector(".hero-container");
-            if (!heroContainer) return;
-
-            // Create iframe container
-            const iframeContainer = document.createElement("div");
-            iframeContainer.id = "heroIframe";
-            iframeContainer.style.cssText = `
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100vh;
-                z-index: 2;
-                opacity: 0;
-                transition: opacity 1s ease, transform 1s ease;
-                transform: scale(1);
-            `;
-            heroContainer.prepend(iframeContainer);
-
-            // Wait until the div is actually in the DOM
-            requestAnimationFrame(() => {
-                if (!document.getElementById("heroIframe")) {
-                    console.warn("Iframe not yet attached, retrying...");
-                    setTimeout(() => createYouTubeHero(videoId), 100);
-                    return;
-                }
-
-                // ✅ Safe to initialize player now
-                ytPlayer = new YT.Player("heroIframe", {
-                    videoId,
-                    width: "1920",
-                    height: "1080",
-                    playerVars: {
-                        autoplay: 1,
-                        loop: 1,
-                        playlist: videoId,
-                        modestbranding: 1,
-                        controls: 0,
-                        mute: 0,
-                        rel: 0,
-                        playsinline: 1,
-                    },
-                    events: {
-                        onReady: (event) => {
-                            event.target.playVideo();
-                            fadeVolume(15, 800);
-                            setTimeout(() => {
-                                heroIframe.style.opacity = "1";
-                                heroIframe.style.transform = "scale(1.15)";
-                            }, 100);
-                        },
-                        onStateChange: (event) => {
-                            if (event.data === YT.PlayerState.PLAYING) {
-                                event.target.setPlaybackQuality("hd1080");
-                            }
-                        },
-                    },
-                });
-            });
-        }
-
-        cards.forEach((card) => {
-            if (card.dataset.trailerBound === "true") return;
-            card.dataset.trailerBound = "true";
-
-            card.addEventListener("mouseenter", () => {
-                const trailerLink = card.querySelector("a.enhanced-trailer");
-                let trailerUrl = trailerLink ? trailerLink.href : null;
-                if (!trailerUrl) return;
-
-                stopAutoRotate();
-                // --- NEW: Update hero info to match the hovered card ---
-                updateHeroFromHover(card);
-
-                const existingVideo = document.getElementById("heroVideo");
-                if (existingVideo) existingVideo.remove();
-                if (ytPlayer && typeof ytPlayer.destroy === "function") {
-                    ytPlayer.destroy();
-                    console;
-                    ytPlayer = null;
-                    clearInterval(ytFadeInterval);
-                    ytFadeInterval = null;
-                }
-
-                const existingIframe = document.getElementById("heroIframe");
-                if (existingIframe) existingIframe.remove();
-
-                if (
-                    trailerUrl.includes("youtube.com") ||
-                    trailerUrl.includes("youtu.be")
-                ) {
-                    const videoId = getYouTubeId(trailerUrl);
-
-                    if (videoId) createYouTubeHero(videoId);
-                } else {
-                    const video = document.createElement("video");
-                    video.id = "heroVideo";
-                    video.src = trailerUrl;
-                    video.autoplay = true;
-                    video.muted = true;
-                    video.loop = true;
-                    video.playsInline = true;
-                    video.style.cssText = `
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    z-index: 1;
-                    opacity: 0;
-                    transition: opacity 0.5s ease, transform 0.5s ease;
-                `;
-                    heroContainer.prepend(video);
-                    video.play().catch(console.warn);
-                    requestAnimationFrame(() => (video.style.opacity = "1"));
-                }
-            });
-
-            card.addEventListener("mouseleave", () => {
-                fadeVolume(0, 600);
-
-                const heroVideo = document.getElementById("heroVideo");
-                const heroIframe = document.getElementById("heroIframe");
-
-                [heroVideo, heroIframe].forEach((el) => {
-                    if (el) {
-                        el.style.opacity = "0";
-                        el.style.transform = "scale(2)";
-                        el.addEventListener(
-                            "transitionend",
-                            () => el.parentNode && el.remove(),
-                            { once: true }
-                        );
-                    }
-                });
-
-                startAutoRotate();
-            });
-        });
-    }
-
-    function startAutoRotate() {
-        if (autoRotateInterval) clearInterval(autoRotateInterval);
-
-        autoRotateInterval = setInterval(() => {
-            currentIndex = (currentIndex + 1) % heroTitles.length;
-            updateHeroContent(heroTitles[currentIndex]);
-        }, ROTATION_INTERVAL);
-        isAutoRotating = true;
-    }
-
-    function stopAutoRotate() {
-        if (autoRotateInterval) {
-            clearInterval(autoRotateInterval);
-            autoRotateInterval = null;
-        }
-        // also reset to be safe
-        isAutoRotating = false;
-    }
-
-    function resetAutoRotate() {
-        if (isAutoRotating) {
-            stopAutoRotate();
-            startAutoRotate();
-        }
-    }
-
-    async function initializeTitles() {
-        if (heroState.isInitializing) {
-            return false;
-        }
-        heroState.isInitializing = true;
-        showLoadingScreen();
-        updateLoadingStatus("Fetching popular content...", 10);
-
-        try {
-            const timeoutPromise = new Promise((resolve) => {
-                setTimeout(() => resolve([]), 12000);
-            });
-
-            const collectionPromise = collectTitlesFromAPI();
-            const collectedTitles = await Promise.race([
-                collectionPromise,
-                timeoutPromise,
-            ]);
-
-            updateLoadingStatus("Finalizing...", 90);
-
-            if (collectedTitles.length > 0) {
-                heroTitles = collectedTitles;
-                updateLoadingStatus(
-                    `Ready! Found ${collectedTitles.length} popular titles`,
-                    100
-                );
-            } else {
-                heroTitles = [...fallbackTitles];
-                updateLoadingStatus("Using fallback content...", 100);
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 800));
-            hideLoadingScreen();
-
-            heroState.initializationComplete = true;
-            heroState.titlesReady = true;
-            return true;
-        } catch (error) {
-            heroTitles = [...fallbackTitles];
-            heroState.titlesReady = true;
-            updateLoadingStatus("Error - using fallback content...", 100);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            hideLoadingScreen();
-            heroState.initializationComplete = true;
-            return true;
-        } finally {
-            heroState.isInitializing = false;
-        }
-    }
-
-    async function addHeroDiv() {
-        if (!shouldShowHero()) {
-            return;
-        }
-
-        const existingHero = document.querySelector(".hero-container");
-        if (existingHero) {
-            return;
-        }
-
-        if (heroState.isInitializing) {
-            return;
-        }
-
-        const boardElementsReady = await waitForBoardElements(3000);
-        if (!boardElementsReady) {
-            return;
-        }
-
-        if (heroTitles.length > 0 && heroState.titlesReady) {
-            createHeroDirect();
-            return;
-        }
-
-        if (heroTitles.length === 0 || !heroState.titlesReady) {
-            const success = await initializeTitles();
-            if (success) {
-                heroState.titlesReady = true;
-                createHeroDirect();
-            } else {
-                if (heroState.retryCount < MAX_RETRIES) {
-                    heroState.retryCount++;
-                    setTimeout(() => addHeroDiv(), 3000);
-                } else {
-                    heroTitles = [...fallbackTitles];
-                    heroState.titlesReady = true;
-                    createHeroDirect();
-                }
-            }
-        }
-    }
-
-    function handleNavigation() {
-        // ✅ Always clear any lingering intervals before anything else
-        if (window.autoRotateInterval) {
-            clearInterval(window.autoRotateInterval);
-            window.autoRotateInterval = null;
-            console.log("Force-stopped any existing rotation on navigation");
-        }
-
-        const currentHash = window.location.hash;
-        const heroExists = document.querySelector(".hero-container");
-        const shouldShow = shouldShowHero();
-
-        if (!shouldShow && heroExists) {
-            console.log(
-                "Navigated away from home — stopping rotation completely"
-            );
-            isAutoRotating = false; // prevent restart
-            stopAutoRotate();
-
-            // optional: destroy any YouTube trailer player
-            const iframe = document.getElementById("heroIframe");
-            const video = document.getElementById("heroVideo");
-            if (iframe) iframe.remove();
-            if (video) video.remove();
-
-            heroExists.remove();
-            resetHeroState();
-            return;
-        }
-
-        if (shouldShow && !heroExists) {
-            setTimeout(() => addHeroDiv(), 100);
-            setTimeout(() => addHeroDiv(), 500);
-            setTimeout(() => addHeroDiv(), 1000);
-        }
-
-        heroState.lastKnownHash = currentHash;
-    }
-
-    window.addEventListener("hashchange", () => {
-        handleNavigation();
-    });
-
-    window.addEventListener("popstate", () => {
-        setTimeout(handleNavigation, 100);
-    });
-
-    window.addEventListener("focus", () => {
-        setTimeout(handleNavigation, 200);
-    });
-
-    document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) {
-            setTimeout(handleNavigation, 300);
-        }
-    });
-
-    window.heroObserver = new MutationObserver((mutations) => {
-        let relevantMutation = false;
-
-        mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length > 0) {
-                for (let node of mutation.addedNodes) {
-                    if (node.nodeType === 1) {
-                        if (
-                            node.classList?.contains("board-container-DTN_b") ||
-                            node.querySelector?.(".board-container-DTN_b") ||
-                            node.classList?.contains("board-row-CoJrZ") ||
-                            node.querySelector?.(".board-row-CoJrZ")
-                        ) {
-                            relevantMutation = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-
-        if (relevantMutation) {
-            setTimeout(handleNavigation, 200);
-        }
-    });
-
-    window.heroObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: false,
-        characterData: false,
-    });
-
-    // Card fade when scrolling above 60vh
-    function cardHide() {
-        const boards = document.querySelectorAll(".meta-row-container-xtlB1");
-        const scrollContainer = document.querySelector(".board-content-nPWv1");
-
-        if (!boards.length || !scrollContainer) return;
-
-        const viewportHeight = window.innerHeight;
-        const fadeStart = viewportHeight * 0.6;
-        const fadeEnd = viewportHeight * 0.45;
-
-        // use rAF to throttle scroll performance
-        let ticking = false;
-
-        scrollContainer.addEventListener("scroll", () => {
-            if (!ticking) {
-                window.requestAnimationFrame(() => {
-                    updateFade();
-                    ticking = false;
-                });
-                ticking = true;
-            }
-        });
-
-        function updateFade() {
-            boards.forEach((board) => {
-                const distanceFromTop = board.getBoundingClientRect().top;
-
-                let opacity =
-                    (distanceFromTop - fadeEnd) / (fadeStart - fadeEnd);
-                opacity = Math.max(0, Math.min(1, opacity));
-
-                board.style.opacity = opacity;
-                board.style.pointerEvents = opacity === 0 ? "none" : "auto";
-            });
-        }
-    }
-    // --- Watch for new cards dynamically ---
-    const trailerHoverObserver = new MutationObserver((mutations) => {
-        let addedNewCards = false;
-
-        mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length > 0) {
-                mutation.addedNodes.forEach((node) => {
-                    if (
-                        node.nodeType === 1 &&
-                        (node.matches(".meta-item-container-Tj0Ib") ||
-                            node.querySelector?.(".meta-item-container-Tj0Ib"))
-                    ) {
-                        addedNewCards = true;
-                    }
-                });
-            }
-        });
-
-        if (addedNewCards) {
-            console.log(
-                "New cards detected — reinitializing trailer hover setup"
-            );
-            setupHeroTrailerHover();
-            cardHide();
-        }
-    });
-
-    trailerHoverObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-    });
-
-    setInterval(() => {
-        const heroExists = document.querySelector(".hero-container");
-        const shouldShow = shouldShowHero();
-
-        if (
-            shouldShow &&
-            !heroExists &&
-            !heroState.isInitializing &&
-            !document.getElementById("heroLoadingScreen")
-        ) {
-            addHeroDiv();
-        }
-    }, 3000);
-
-    setTimeout(() => {
-        handleNavigation();
-    }, 1000);
 })();
