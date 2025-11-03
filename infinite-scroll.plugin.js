@@ -101,9 +101,9 @@
     function initWheelScroll(track, fetchMoreItems) {
         if (!track || track.dataset.wheelScrollInitialized === "true") return;
         track.dataset.wheelScrollInitialized = "true";
-        const type = "movie";
+        const type = track.firstChild.href.split("/")[5];
+
         const initialCount = track.children.length;
-        console.log(initialCount);
 
         fetchProgress[type] = initialCount; // <-- START OFFSET HERE
 
@@ -123,7 +123,7 @@
                 track.scrollLeft + track.clientWidth >=
                 track.scrollWidth - 300
             ) {
-                fetchMoreItems(track);
+                fetchMoreItems(track, type);
             }
         };
 
@@ -209,15 +209,27 @@
     // --------------------------
     function findAndInitTrack() {
         const tracks = document.querySelectorAll(containerSelector);
-        if (tracks.length > 1) {
+
+        if (tracks.length > 2) {
             const track = tracks[1]; // second container
+            const track2 = tracks[2]; // third container
             initWheelScroll(track, fetchMoreItems);
+            initWheelScroll(track2, fetchMoreItems);
+
+            return true;
         }
+        return false;
     }
 
     setInterval(() => {
         try {
-            findAndInitTrack();
+            if (findAndInitTrack()) {
+                console.log("Tracks initialized and polling stopped.");
+                return;
+            } else {
+                console.log("Tracks initialized, polling again...");
+                findAndInitTrack();
+            }
         } catch (err) {
             console.error(err);
         }
