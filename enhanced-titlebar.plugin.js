@@ -1,4 +1,4 @@
-/**
+/*
  * @name Enhanced Title Bar
  * @description Enhances the title bar with additional information.
  * @version 1.0.0
@@ -332,7 +332,7 @@ async function enhanceTitleBar(titleBarElement) {
 function enhanceAllTitleBars() {
     const selectors = [
         ".title-bar-container-1Ba0x",
-        /*".meta-item-QFHCh", */
+
         '[class*="title-bar-container"]',
         '[class*="titleBarContainer"]',
         '[class*="title-container"]',

@@ -878,24 +878,31 @@
     // -------------------------
     // Observers & lifecycle
     // -------------------------
-    const mutationHandler = debounce(() => {
-        try {
-            handleNavigation();
-        } catch (e) {
-            logger.warn("mutation handler error", e);
+    function setupObservers() {
+        console.log("[Lifecycle] Setting up observers");
+        if (state.observers.length > 0) {
+            console.log("[Lifecycle] Observers already active, skipping setup");
+            return;
         }
-    }, 250);
 
-    const mainObserver = new MutationObserver(mutationHandler);
-    mainObserver.observe(document.body, { childList: true, subtree: true });
-    state.observers.push(mainObserver);
+        // --- your existing observer code ---
+        const mutationHandler = debounce(() => {
+            try {
+                handleNavigation();
+            } catch (e) {
+                logger.warn("mutation handler error", e);
+            }
+        }, 250);
 
-    // Observe card additions separately and call setup trailer hover
-    const trailerHoverObserver = new MutationObserver((mutations) => {
-        let addedNewCards = false;
+        const mainObserver = new MutationObserver(mutationHandler);
+        mainObserver.observe(document.body, { childList: true, subtree: true });
+        state.observers.push(mainObserver);
 
-        mutations.forEach((mutation) => {
-            if (mutation.addedNodes.length > 0) {
+        // Trailer hover observer (your code)
+        const trailerHoverObserver = new MutationObserver((mutations) => {
+            let addedNewCards = false;
+
+            mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
                     if (
                         node.nodeType === 1 &&
@@ -905,48 +912,41 @@
                         addedNewCards = true;
                     }
                 });
+            });
+
+            if (addedNewCards) {
+                console.log(
+                    "New cards detected — reinitializing trailer hover setup"
+                );
+                setupHeroTrailerHover();
+
+                const boards = document.querySelectorAll(
+                    ".meta-row-container-xtlB1"
+                );
+                boards.forEach((card) => cardHideObserver.observe(card));
             }
         });
 
-        if (addedNewCards) {
-            console.log(
-                "New cards detected — reinitializing trailer hover setup"
-            );
-            setupHeroTrailerHover();
+        trailerHoverObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
+        state.observers.push(trailerHoverObserver);
 
-            const boards = document.querySelectorAll(
-                ".meta-row-container-xtlB1"
-            );
-
-            boards.forEach((card) => {
-                cardHideObserver.observe(card);
-            });
-        }
-    });
-
-    trailerHoverObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-    });
-    state.observers.push(trailerHoverObserver);
-
-    // card hide when scrolling above 60vh
-    const cardHideObserver = new IntersectionObserver(
-        (cards) => {
-            cards.forEach((card) => {
-                if (card.isIntersecting) {
-                    card.target.classList.add("show");
-                } else {
-                    card.target.classList.remove("show");
-                }
-            });
-        },
-        {
-            rootMargin: "-60% 0px 0px 0px",
-            threshold: 0,
-        }
-    );
-    state.observers.push(cardHideObserver);
+        // IntersectionObserver for card visibility
+        const cardHideObserver = new IntersectionObserver(
+            (cards) => {
+                cards.forEach((card) => {
+                    if (card.isIntersecting) card.target.classList.add("show");
+                    else card.target.classList.remove("show");
+                });
+            },
+            { rootMargin: "-60% 0px 0px 0px", threshold: 0 }
+        );
+        const boards = document.querySelectorAll(".meta-row-container-xtlB1");
+        boards.forEach((card) => cardHideObserver.observe(card));
+        state.observers.push(cardHideObserver);
+    }
 
     // -------------------------
     // Creation & destruction
@@ -987,6 +987,7 @@
         mountHeroTo(parent, state.heroTitles[0]);
         cacheDOM();
         setupHeroTrailerHover();
+        setupObservers();
 
         if (state.isAutoRotating) startAutoRotate();
     }

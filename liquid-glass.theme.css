@@ -11,7 +11,7 @@
 * {
     font-family: "Inter", sans-serif !important;
 
-    scrollbar-width: none;
+    /*scrollbar-width: none; */
 }
 
 /* change the accent color from purple to white */
@@ -1754,7 +1754,7 @@ body.ghost-clicking #heroLoadingScreen {
     position: relative !important;
     border-radius: 15px !important;
     overflow: hidden !important;
-    background: transparent !important;
+    /* background: transparent !important;*/
     outline-color: transparent !important;
     transition: all 0.35s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
     padding: 0.5rem !important;
@@ -1918,7 +1918,6 @@ body.ghost-clicking #heroLoadingScreen {
 
 /* scroll snapping */
 .meta-row-container-xtlB1 {
-    margin-top: 1rem !important;
     scroll-snap-align: start;
     scroll-margin-top: 61vh !important;
 }
@@ -1947,6 +1946,7 @@ body.ghost-clicking #heroLoadingScreen {
 
     */
 .meta-row-container-xtlB1 {
+    display: flex !important;
     transition: opacity 0.4s ease, transform 0.4s ease;
     will-change: opacity, transform;
     position: relative;
@@ -2026,4 +2026,21 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 1;
     transform: translateY(0) scale(1);
     filter: blur(0);
+}
+
+/* ========================================= */
+/* Infinite scroll setup */
+/* ========================================= */
+.meta-row-container-xtlB1 .meta-items-container-qcuUA {
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    flex-shrink: 0 !important;
+    width: 100% !important;
+}
+.meta-item-container-Tj0Ib {
+    min-width: 15rem !important;
+}
+.meta-row-container-xtlB1 .header-container-tR3Ev {
+    position: absolute;
+    top: -45px;
 }
