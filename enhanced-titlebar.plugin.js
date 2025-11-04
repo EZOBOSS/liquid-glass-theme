@@ -13,6 +13,28 @@ const CONFIG = {
 
 const metadataCache = new Map();
 
+// Get days since release helper
+function getDaysSinceRelease(releaseDateStr) {
+    if (!releaseDateStr) return "";
+
+    const releaseDate = new Date(releaseDateStr);
+    const today = new Date();
+
+    // Normalize both to midnight to avoid partial-day rounding issues
+    releaseDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
+    const diffMs = today - releaseDate;
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Today";
+    if (diffDays > 365)
+        return `${Math.round(diffDays / 365)} year${
+            diffDays > 365 ? "s" : ""
+        } ago`;
+    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return "";
+}
 function injectStyles() {
     if (document.getElementById("enhanced-title-bar-styles")) return;
 
@@ -115,6 +137,19 @@ async function getMetadata(id, type) {
             background: meta.background,
             description: meta.description || null,
             logo: meta.logo,
+            releaseDate: (() => {
+                // If videos array exists and has at least one item, use the last item's release date
+                if (meta.videos && meta.videos.length > 0) {
+                    // Get the next to last episode incase upcoming season is undefined
+                    const lastIndex = meta.videos.length - 1;
+                    const lastVideo = meta.videos[lastIndex].released
+                        ? meta.videos[lastIndex]
+                        : meta.videos[lastIndex - 1];
+
+                    return getDaysSinceRelease(lastVideo?.released || null);
+                }
+                return getDaysSinceRelease(meta.released || null);
+            })(),
             // ✅ Trailer extraction with YouTube support
             trailer: (() => {
                 let url = null;
@@ -212,7 +247,7 @@ function createMetadataElements(metadata) {
     if (metadata.rating) {
         const rating = document.createElement("span");
         rating.className = "enhanced-metadata-item enhanced-rating";
-        rating.textContent = `★ ${metadata.rating}`;
+        rating.textContent = `${metadata.rating}`;
         elements.push(rating);
     }
 
@@ -244,6 +279,12 @@ function createMetadataElements(metadata) {
         trailer.rel = "noopener noreferrer";
         trailer.textContent = "";
         elements.push(trailer);
+    }
+    if (metadata.releaseDate) {
+        const releaseDate = document.createElement("span");
+        releaseDate.className = "enhanced-metadata-item enhanced-release-date";
+        releaseDate.textContent = metadata.releaseDate;
+        elements.push(releaseDate);
     }
 
     return elements;
@@ -304,12 +345,14 @@ async function enhanceTitleBar(titleBarElement) {
             const elements = createMetadataElements(metadata);
             elements.forEach((element, index) => {
                 metadataContainer.appendChild(element);
+                /*
                 if (index < elements.length - 2) {
                     const separator = document.createElement("span");
                     separator.className = "enhanced-separator";
                     separator.textContent = "•";
                     metadataContainer.appendChild(separator);
                 }
+                    */
             });
         } else {
             metadataContainer.innerHTML = "";

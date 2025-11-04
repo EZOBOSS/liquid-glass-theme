@@ -114,7 +114,7 @@
         const speedFactor = 2; // adjust scroll sensitivity
 
         const handleWheel = (e) => {
-            if (!e.ctrlKey) return; // optional: only scroll if Ctrl is pressed
+            //if (!e.ctrlKey) return; // optional: only scroll if Ctrl is pressed
             e.preventDefault();
 
             track.scrollLeft += e.deltaY * speedFactor;
@@ -221,22 +221,32 @@
         return false;
     }
 
-    setInterval(() => {
-        try {
-            if (findAndInitTrack()) {
-                console.log("Tracks initialized and polling stopped.");
-                return;
-            } else {
-                console.log("Tracks initialized, polling again...");
-                findAndInitTrack();
+    // Function to start the polling mechanism
+    function startTrackPoller() {
+        const intervalId = setInterval(() => {
+            try {
+                // Call the function and check its return value (true on success, false on failure)
+                if (findAndInitTrack()) {
+                    // Success: Clear the timer
+                    clearInterval(intervalId);
+                    console.log(
+                        "[AppleTVWheelInfiniteScroll] Tracks initialized and polling stopped."
+                    );
+                } else {
+                    // Failure: Log and wait for the next interval
+                    console.log("Tracks not found yet, polling again...");
+                }
+            } catch (err) {
+                console.error("Error during track initialization:", err);
             }
-        } catch (err) {
-            console.error(err);
-        }
-    }, 1500);
+        }, 1500);
 
-    console.log(
-        "[AppleTVWheelInfiniteScroll] Interval started for",
-        containerSelector
-    );
+        console.log(
+            "[AppleTVWheelInfiniteScroll] Interval started for",
+            containerSelector
+        );
+    }
+
+    // Call the function to start the process
+    startTrackPoller();
 })();

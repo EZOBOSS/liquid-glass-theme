@@ -736,6 +736,22 @@
 
     // -------------------------
     // Trailer hover setup (attach to cards)
+    const visibleCards = new Set();
+
+    // 🔍 Track which cards are visible
+    const intersectionObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) visibleCards.add(entry.target);
+                else visibleCards.delete(entry.target);
+            });
+        },
+        {
+            root: null, // viewport
+            rootMargin: "-50% 0px -10% 0px",
+            threshold: 0.1, // 10% visible counts as visible
+        }
+    );
     // -------------------------
     function setupHeroTrailerHover() {
         const cards = document.querySelectorAll(
@@ -745,6 +761,7 @@
         if (!cards || !hero) return;
 
         cards.forEach((card) => {
+            intersectionObserver.observe(card);
             if (card.dataset._heroBound) return;
             card.dataset._heroBound = "1";
             card.addEventListener("mouseenter", async () => {
@@ -755,6 +772,14 @@
                 // quick UI update from card (lightweight)
                 updateHeroFromHover(card);
                 cleanupMedia();
+
+                fadeTimer = setTimeout(() => {
+                    visibleCards.forEach((c) => {
+                        if (c !== card) {
+                            c.classList.add("dim");
+                        }
+                    });
+                }, 3000);
                 if (url.includes("youtube.com") || url.includes("youtu.be")) {
                     const id = getYouTubeId(url);
                     if (id) await createOrUpdateYTPlayer(id);
@@ -776,6 +801,10 @@
             });
 
             card.addEventListener("mouseleave", () => {
+                if (fadeTimer) clearTimeout(fadeTimer);
+
+                // Reset all card opacities
+                visibleCards.forEach((c) => c.classList.remove("dim"));
                 // fade out then remove
                 const v = document.getElementById("heroVideo");
                 const f = document.getElementById("heroIframe");
@@ -836,7 +865,7 @@
 
         // 3. Rating (The corrected logic)
         // Safely check for the parent info container and the rating text element inside it
-        if (DOM.heroInfo && rating) {
+        if (DOM.heroInfo) {
             const ratingElement = DOM.heroInfo.querySelector(".rating-text");
             if (ratingElement) {
                 ratingElement.textContent = rating;

@@ -3,13 +3,14 @@
  * @description A theme that takes advantage of Modern Glass Styles with Light and Dark Theme.
  * @version 1.0.0
  * @updateUrl https://github.com/Fxy6969/Streamio-Glass-Theme/tree/cover
- * @author Fxy/Moerat
+ * @author Fxy/Moerat/EZOBOSS
  */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bungee+Spice&family=Ephesis&family=Macondo&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap");
 
 * {
-    font-family: "Inter", sans-serif !important;
+    font-family: "Open Sans", sans-serif !important;
+    font-optical-sizing: auto;
 
     scrollbar-width: none;
 }
@@ -1756,7 +1757,7 @@ body.ghost-clicking #heroLoadingScreen {
     overflow: hidden !important;
     /* background: transparent !important;*/
     outline-color: transparent !important;
-    transition: all 0.35s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+    transition: all 0.6s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
     padding: 0.5rem !important;
 }
 
@@ -1797,11 +1798,11 @@ body.ghost-clicking #heroLoadingScreen {
 /* Move the title text inside the card */
 .meta-item-container-Tj0Ib > [class*="title-bar-container"] {
     position: absolute !important;
-    top: 58% !important;
+    top: 0 !important;
     left: 1rem !important;
     right: 1rem !important;
     z-index: 3 !important;
-
+    height: 100% !important;
     color: #fff !important;
 
     font-weight: 600 !important;
@@ -1809,12 +1810,12 @@ body.ghost-clicking #heroLoadingScreen {
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7) !important;
 
     white-space: nowrap !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     text-overflow: ellipsis !important;
     background: none !important;
     text-align: center !important;
     pointer-events: none !important;
-
+    justify-content: flex-end !important;
     align-items: flex-start !important;
     transition: all 0.8s ease;
 }
@@ -1856,26 +1857,78 @@ body.ghost-clicking #heroLoadingScreen {
 /* card margin */
 .meta-items-container-qcuUA {
     margin-left: 1rem !important;
-    height: 15rem !important;
+    height: 18rem !important;
 }
+/* loading effect 
+.poster-image-layer-KimPZ::after {
+    content: "";
+    position: absolute;
+    left: 0px !important;
+    right: 0px !important;
+    bottom: 0px !important;
+    height: 0px !important;
+    transition: height 2s linear;
+    background: rgba(255, 0, 0, 0.641);
+}
+.poster-image-layer-KimPZ:hover::after {
+    height: 100% !important;
+}
+    */
 
 .meta-item-container-Tj0Ib:hover [class*="title-bar-container-1Ba0x"] {
-    top: 35% !important;
-
     transition: all 0.5s ease;
 }
 .enhanced-metadata {
-    opacity: 0 !important;
     transition: all 0.5s ease-out;
+    font-size: 10px;
+}
+.enhanced-metadata-item {
+    opacity: 0;
+    font-size: 10px !important;
+    padding-bottom: 10px !important;
+}
+.enhanced-rating {
+    position: absolute !important;
+    top: 10px !important;
+    right: 0 !important;
+    opacity: 0.8 !important;
+    font-size: 18px !important;
+    font-family: "Bungee Spice", sans-serif !important;
+    text-shadow: 0 2px 2px rgb(0 0 0 / 65%) !important;
+}
+.enhanced-release-date {
+    position: absolute !important;
+    top: 10px !important;
+    left: 0 !important;
+    opacity: 0 !important;
+    font-size: 20px !important;
+    font-family: "Ephesis", cursive !important;
+    text-shadow: 0 2px 2px rgb(0 0 0 / 65%) !important;
+    color: rgba(255, 255, 255, 0.8) !important;
+    transition: all 0.5s ease;
 }
 /* Hide description by default */
 .enhanced-description {
     visibility: hidden;
+    height: 0px !important;
+    width: 0px !important;
+    display: none !important;
+    position: absolute;
 }
-.meta-item-container-Tj0Ib:hover .enhanced-metadata {
+.enhanced-title {
+    transition: all 0.5s ease;
+}
+.enhanced-trailer {
+    display: none !important;
+    position: absolute;
+}
+.meta-item-container-Tj0Ib:hover .enhanced-metadata-item {
     opacity: 1 !important;
 
     transition: all 0.5s ease;
+}
+.meta-item-container-Tj0Ib:hover .enhanced-release-date {
+    opacity: 1 !important;
 }
 /* stream picking animations */
 .label-container-XOyzm:hover {
@@ -1897,12 +1950,16 @@ body.ghost-clicking #heroLoadingScreen {
 
 /* Hover animation 
 .meta-item-container-Tj0Ib:hover {
-    transform: scale(1.04);
+    transform: scale(1.06);
 }
 */
 .meta-item-container-Tj0Ib:hover .poster-image-NiV7O {
     transform: scale(1.06);
 }
+.meta-item-container-Tj0Ib:hover .enhanced-title {
+    transform: translateY(-40px);
+}
+
 /* Hero ajustments for trailer hover */
 .hero-container {
     position: sticky !important;
@@ -1919,21 +1976,30 @@ body.ghost-clicking #heroLoadingScreen {
 /* scroll snapping */
 .meta-row-container-xtlB1 {
     scroll-snap-align: start;
-    scroll-margin-top: 61vh !important;
+    scroll-margin-top: 65vh !important;
 }
 .meta-items-container-n8vNz {
     scroll-snap-type: y mandatory !important;
 }
 
-/* card hover effect */
+/* card hover effect 
 .meta-items-container-qcuUA:hover .meta-item-container-Tj0Ib {
-    opacity: 0.2; /* dim all cards */
-    transition: opacity 0.3s ease;
+    opacity: 0.2; 
+}
+*/
+.meta-row-container-xtlB1.show {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+.meta-item-container-Tj0Ib.dim {
+    opacity: 0.2;
 }
 .meta-items-container-qcuUA:hover .meta-item-container-Tj0Ib:hover {
     opacity: 0.8; /* restore normal opacity */
     border-color: #ffffff;
-    transform: scale(1.04);
+    transform: scale(1.06);
+    transform: translateY(-8px);
 }
 
 /* fix for poster shape */
@@ -1973,11 +2039,6 @@ body.ghost-clicking #heroLoadingScreen {
     animation-range-start: cover 0%;
     animation-range-end: cover 30%;
 }
-.meta-row-container-xtlB1.show {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    pointer-events: auto;
-}
 
 /* Example CSS that must be defined elsewhere */
 /* ========================================= */
@@ -2000,8 +2061,7 @@ body.ghost-clicking #heroLoadingScreen {
 .hero-container.is-transitioning #heroInfo,
 .hero-container.is-transitioning #heroImage {
     opacity: 0;
-    transform: translateY(-25px) scale(0.97);
-    filter: blur(2px);
+    transform: translateY(-25px) scale(1.03);
 }
 
 /* Add subtle staggered delays for more natural flow */
@@ -2025,7 +2085,6 @@ body.ghost-clicking #heroLoadingScreen {
 .hero-container:not(.is-transitioning) #heroImage {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
 }
 
 /* ========================================= */
@@ -2036,11 +2095,17 @@ body.ghost-clicking #heroLoadingScreen {
     overflow-y: hidden !important;
     flex-shrink: 0 !important;
     width: 100% !important;
+    scroll-snap-type: proximity !important;
+    scroll-behavior: smooth !important;
 }
+
 .meta-item-container-Tj0Ib {
     min-width: 15rem !important;
 }
 .meta-row-container-xtlB1 .header-container-tR3Ev {
     position: absolute;
     top: -45px;
+}
+.board-row-CoJrZ {
+    margin-bottom: 5rem !important;
 }
