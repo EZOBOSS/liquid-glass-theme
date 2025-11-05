@@ -48,46 +48,55 @@
     };
 
     // --------------------------
-    // Fetch catalog titles with offset
+    // Fetch catalog titles with per-type+catalog offset
     // --------------------------
-    const fetchProgress = {}; // track current offset for each type
+    const fetchProgress = {}; // Track offsets per type+catalog combo
 
-    async function fetchCatalogTitles(type, limit = 10) {
-        const offset = fetchProgress[type] || 0;
-        const cacheKey = `catalog_${type}`;
+    async function fetchCatalogTitles(type, limit = 10, catalog = "top") {
+        if (!type) throw new Error("fetchCatalogTitles: 'type' is required");
+
+        const key = `${type}_${catalog}`;
+        const cacheKey = `catalog_${key}`;
         let allData = cacheGet(cacheKey);
+        const offset = fetchProgress[key] || 0;
 
         // Fetch from API if not cached
-        if (!allData) {
-            const url = `https://cinemeta-catalogs.strem.io/top/catalog/${type}/top.json`;
+        if (!allData || !Array.isArray(allData) || allData.length === 0) {
+            const url = `https://cinemeta-catalogs.strem.io/top/catalog/${type}/${catalog}.json`;
+            console.log(
+                `[fetchCatalogTitles] Fetching fresh data for "${key}" → ${url} ${fetchProgress[key]}`
+            );
+
             try {
                 const json = await safeFetch(url, {
                     timeout: CONFIG.FETCH_TIMEOUT,
                     retries: 1,
                 });
-                allData = json.metas || [];
+
+                if (!json || !json.metas)
+                    throw new Error("Invalid API response");
+                allData = json.metas;
                 cacheSet(cacheKey, allData);
             } catch (e) {
-                logger.warn("fetchCatalogTitles failed", e);
+                logger.warn(`[fetchCatalogTitles] failed for ${key}`, e);
                 return [];
             }
         }
 
-        // Slice the next batch
         const nextBatch = allData.slice(offset, offset + limit).map((m) => ({
             id: m.id,
             title: m.name,
             background: `https://images.metahub.space/background/large/${m.id}/img`,
             logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
             description: m.description || `Discover ${m.name}`,
-            year: m.year ? String(m.year) : "2024",
+            year: String(m.year || "2024"),
             runtime: m.runtime || null,
             type,
             href: `#/detail/${type}/${m.id}/${m.id}`,
         }));
 
         // Update offset
-        fetchProgress[type] = offset + nextBatch.length;
+        fetchProgress[key] = offset + nextBatch.length;
 
         return nextBatch;
     }
@@ -98,14 +107,14 @@
     const containerSelector =
         ".meta-row-container-xtlB1 .meta-items-container-qcuUA";
 
-    function initWheelScroll(track, fetchMoreItems) {
+    function initWheelScroll(track, catalog = "top") {
         if (!track || track.dataset.wheelScrollInitialized === "true") return;
         track.dataset.wheelScrollInitialized = "true";
         const type = track.firstChild.href.split("/")[5];
 
         const initialCount = track.children.length;
-
-        fetchProgress[type] = initialCount; // <-- START OFFSET HERE
+        const key = `${type}_${catalog}`;
+        fetchProgress[key] = initialCount; // <-- START OFFSET HERE
 
         console.log(
             `[AppleTVWheelInfiniteScroll] Initialized track with ${initialCount} existing items`
@@ -123,7 +132,7 @@
                 track.scrollLeft + track.clientWidth >=
                 track.scrollWidth - 300
             ) {
-                fetchMoreItems(track, type);
+                fetchMoreItems(track, type, catalog);
             }
         };
 
@@ -133,14 +142,14 @@
     // --------------------------
     // Fetch next batch and append
     // --------------------------
-    async function fetchMoreItems(track, type = "movie") {
+    async function fetchMoreItems(track, type = "movie", catalog = "top") {
         if (track.dataset.loading === "true") return;
         track.dataset.loading = "true";
 
         console.log("[AppleTVWheelInfiniteScroll] Fetching more items...");
 
         try {
-            const items = await fetchCatalogTitles(type, 6);
+            const items = await fetchCatalogTitles(type, 6, catalog);
 
             if (items.length === 0) {
                 console.log(
@@ -211,10 +220,14 @@
         const tracks = document.querySelectorAll(containerSelector);
 
         if (tracks.length > 2) {
-            const track = tracks[1]; // second container
-            const track2 = tracks[2]; // third container
-            initWheelScroll(track, fetchMoreItems);
-            initWheelScroll(track2, fetchMoreItems);
+            const track = tracks[1]; // second container "Popular - Movies"
+            const track2 = tracks[2]; // third container "Popular - TV Shows"
+            const track3 = tracks[3]; // fourth container "Featured - Movies"
+            const track4 = tracks[4]; // fifth container "Featured - TV Shows"
+            initWheelScroll(track, "top");
+            initWheelScroll(track2, "top");
+            initWheelScroll(track3, "imdbRating");
+            initWheelScroll(track4, "imdbRating");
 
             return true;
         }
