@@ -779,24 +779,10 @@
                             c.classList.add("dim");
                         }
                     });
-                }, 3000);
+                }, 2000);
                 if (url.includes("youtube.com") || url.includes("youtu.be")) {
                     const id = getYouTubeId(url);
                     if (id) await createOrUpdateYTPlayer(id);
-                } else {
-                    // create video element
-                    const v = document.createElement("video");
-                    v.id = "heroVideo";
-                    v.src = url;
-                    v.autoplay = true;
-                    v.muted = true;
-                    v.loop = true;
-                    v.playsInline = true;
-                    v.style.cssText =
-                        "position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:2;opacity:0;transition: opacity 1s ease, transform 1s ease;pointer-events:none;";
-                    DOM.hero.prepend(v);
-                    requestAnimationFrame(() => (v.style.opacity = "1"));
-                    v.play().catch(() => {});
                 }
             });
 
@@ -844,15 +830,15 @@
         // Extract data from the card, using optional chaining and nullish coalescing for safety
         const cardLogo = card.querySelector(".enhanced-title img");
         const cardImg = card.querySelector("img");
-        const desc =
-            card.querySelector(".enhanced-description")?.textContent || "";
+        const desc = card.querySelector(".enhanced-description");
         const rating =
             card.querySelector(".enhanced-rating")?.textContent || "";
         const cardIMDB = card.id;
         // Get all metadata items from the card
-        const cardMetadata = card.querySelectorAll(
-            '[class="enhanced-metadata-item"]'
-        );
+        const cardMetadata = [
+            ...card.querySelectorAll('[class="enhanced-metadata-item"]'),
+        ];
+        const cardReleaseDate = card.querySelector(".enhanced-release-date");
 
         // --- Hero DOM Updates ---
 
@@ -861,14 +847,15 @@
         if (DOM.heroImage && cardImg) DOM.heroImage.src = cardImg.src;
 
         // 2. Description
-        if (DOM.heroDescription) DOM.heroDescription.textContent = desc;
+        if (DOM.heroDescription)
+            DOM.heroDescription.textContent = desc.textContent;
 
         // 3. Rating (The corrected logic)
-        // Safely check for the parent info container and the rating text element inside it
+
         if (DOM.heroInfo) {
             const ratingElement = DOM.heroInfo.querySelector(".rating-text");
             if (ratingElement) {
-                ratingElement.textContent = rating;
+                ratingElement.textContent = rating ? `⭐ ${rating}` : "";
             }
         }
 
@@ -894,12 +881,22 @@
             DOM.heroOverlayInfo ||
             DOM.heroInfo?.querySelectorAll("p:not([class])") ||
             [];
+        const runTime = desc.getAttribute("runtime");
 
-        // Update each metadata field in the hero
+        const metadataWithDate = cardReleaseDate
+            ? [
+                  ...cardMetadata,
+                  { textContent: runTime || "" }, // wrap runtime string
+                  { textContent: cardReleaseDate.textContent || "" }, // wrap release date element text
+              ]
+            : [
+                  ...cardMetadata,
+                  { textContent: runTime || "" }, // fallback if no date
+              ];
+
         heroOverlayInfoTargets.forEach((item, index) => {
-            // If there is corresponding metadata on the card, use its content, otherwise use an empty string or null.
-            item.textContent = cardMetadata[index]
-                ? cardMetadata[index].textContent
+            item.textContent = metadataWithDate[index]
+                ? metadataWithDate[index].textContent
                 : null;
         });
     }

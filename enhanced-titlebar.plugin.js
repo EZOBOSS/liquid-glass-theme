@@ -312,6 +312,7 @@ function createMetadataElements(metadata) {
         const description = document.createElement("span");
         description.className = "enhanced-metadata-item enhanced-description";
         description.textContent = metadata.description;
+        description.setAttribute("runtime", metadata.runtime);
         elements.push(description);
     }
 
