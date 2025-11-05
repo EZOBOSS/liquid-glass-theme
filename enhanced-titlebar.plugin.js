@@ -17,24 +17,30 @@ const metadataCache = new Map();
 function getDaysSinceRelease(releaseDateStr) {
     if (!releaseDateStr) return "";
 
-    const releaseDate = new Date(releaseDateStr);
-    const today = new Date();
+    const oneDay = 86400000; // 1000 * 60 * 60 * 24
 
-    // Normalize both to midnight to avoid partial-day rounding issues
-    releaseDate.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
+    // Parse and compute difference in days using UTC for consistency and speed
+    const release = Date.parse(releaseDateStr);
+    if (isNaN(release)) return "";
 
-    const diffMs = today - releaseDate;
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const now = Date.now();
+    const diffDays = Math.trunc((now - release) / oneDay);
 
+    // Instead of normalizing to midnight, we use truncation to get whole days
     if (diffDays === 0) return "Today";
-    if (diffDays > 365)
-        return `${Math.round(diffDays / 365)} year${
-            diffDays > 365 ? "s" : ""
-        } ago`;
-    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-    return "";
+
+    if (diffDays > 0) {
+        if (diffDays >= 365) {
+            const years = Math.trunc(diffDays / 365);
+            return `${years} year${years > 1 ? "s" : ""} ago`;
+        }
+        return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    }
+
+    const daysAhead = Math.abs(diffDays);
+    return `in ${daysAhead} day${daysAhead > 1 ? "s" : ""}`;
 }
+
 function injectStyles() {
     if (document.getElementById("enhanced-title-bar-styles")) return;
 
@@ -119,9 +125,100 @@ async function getMetadata(id, type) {
 
         const data = await response.json();
         const meta = data.meta;
-
         if (!meta) return null;
 
+        // --- Compute releaseDate first ---
+        const releaseDate = (() => {
+            const videos = meta.videos;
+            if (!Array.isArray(videos) || videos.length === 0) {
+                return getDaysSinceRelease(meta.released || null);
+            }
+
+            const now = new Date();
+            let closestFuture = null;
+            let latestPast = null;
+
+            for (const v of videos) {
+                if (!v.released) continue;
+
+                const date = new Date(v.released);
+                if (isNaN(date)) continue;
+
+                if (date > now) {
+                    // Future release — keep the soonest one
+                    if (!closestFuture || date < closestFuture.date) {
+                        closestFuture = { released: v.released, date };
+                    }
+                } else {
+                    // Past release — keep the latest one
+                    if (!latestPast || date > latestPast.date) {
+                        latestPast = { released: v.released, date };
+                    }
+                }
+            }
+
+            if (closestFuture) {
+                return getDaysSinceRelease(closestFuture.released);
+            } else if (latestPast) {
+                return getDaysSinceRelease(latestPast.released);
+            }
+
+            return getDaysSinceRelease(meta.released || null);
+        })();
+
+        // --- Compute newTag from releaseDate ---
+        const newTag = (() => {
+            const releaseStr = releaseDate;
+            if (releaseStr && releaseStr.includes("day")) {
+                const match = releaseStr.match(/^(\d+)/);
+                if (match) {
+                    const days = parseInt(match[1], 10);
+                    if (days <= 10) return "NEW";
+                } else {
+                    return "UPCOMING";
+                }
+            }
+            return null;
+        })();
+
+        // --- Compute trailer safely ---
+        const trailer = (() => {
+            let url = null;
+
+            if (meta.trailer) url = meta.trailer;
+            else if (Array.isArray(meta.trailers) && meta.trailers.length > 0)
+                url = meta.trailers[0].source || meta.trailers[0].url;
+            else if (Array.isArray(meta.videos) && meta.videos.length > 0)
+                url = meta.videos[0].url;
+
+            if (!url) return null;
+
+            // YouTube ID or short code
+            if (!url.includes("/") && !url.includes("youtube.com")) {
+                return `https://www.youtube.com/embed/${url}?autoplay=1&mute=0&loop=1&playlist=${url}`;
+            }
+
+            try {
+                const ytUrl = new URL(url);
+                let id = null;
+
+                if (ytUrl.hostname.includes("youtube.com")) {
+                    id = ytUrl.searchParams.get("v");
+                } else if (ytUrl.hostname.includes("youtu.be")) {
+                    id = ytUrl.pathname.slice(1);
+                }
+
+                if (id) {
+                    return `https://www.youtube.com/embed/${id}?autoplay=1&mute=0&loop=1&playlist=${id}`;
+                }
+            } catch {
+                return url;
+            }
+
+            return url;
+        })();
+
+        // --- Assemble metadata object ---
         const metadata = {
             title: meta.name || meta.title,
             year: meta.year ? meta.year.toString() : null,
@@ -137,62 +234,9 @@ async function getMetadata(id, type) {
             background: meta.background,
             description: meta.description || null,
             logo: meta.logo,
-            releaseDate: (() => {
-                // If videos array exists and has at least one item, use the last item's release date
-                if (meta.videos && meta.videos.length > 0) {
-                    // Get the next to last episode incase upcoming season is undefined
-                    const lastIndex = meta.videos.length - 1;
-                    const lastVideo = meta.videos[lastIndex].released
-                        ? meta.videos[lastIndex]
-                        : meta.videos[lastIndex - 1];
-
-                    return getDaysSinceRelease(lastVideo?.released || null);
-                }
-                return getDaysSinceRelease(meta.released || null);
-            })(),
-            // ✅ Trailer extraction with YouTube support
-            trailer: (() => {
-                let url = null;
-
-                // 1️⃣ Get raw trailer URL or ID
-                if (meta.trailer) url = meta.trailer;
-                else if (
-                    Array.isArray(meta.trailers) &&
-                    meta.trailers.length > 0
-                )
-                    url = meta.trailers[0].source || meta.trailers[0].url;
-                else if (Array.isArray(meta.videos) && meta.videos.length > 0)
-                    url = meta.videos[0].url;
-
-                if (!url) return null;
-
-                // 2️⃣ Handle YouTube ID (short ID without slashes)
-                if (!url.includes("/") && !url.includes("youtube.com")) {
-                    return `https://www.youtube.com/embed/${url}?autoplay=1&mute=0&loop=1&playlist=${url}`;
-                }
-
-                // 3️⃣ Handle full YouTube URLs
-                try {
-                    const ytUrl = new URL(url);
-                    let id = null;
-
-                    if (ytUrl.hostname.includes("youtube.com")) {
-                        id = ytUrl.searchParams.get("v");
-                    } else if (ytUrl.hostname.includes("youtu.be")) {
-                        id = ytUrl.pathname.slice(1);
-                    }
-
-                    if (id) {
-                        return `https://www.youtube.com/embed/${id}?autoplay=1&mute=0&loop=1&playlist=${id}`;
-                    }
-                } catch {
-                    // Invalid URL, return original as fallback
-                    return url;
-                }
-
-                // 4️⃣ Fallback to raw URL
-                return url;
-            })(),
+            releaseDate,
+            newTag,
+            trailer,
         };
 
         metadataCache.set(cacheKey, metadata);
@@ -285,6 +329,12 @@ function createMetadataElements(metadata) {
         releaseDate.className = "enhanced-metadata-item enhanced-release-date";
         releaseDate.textContent = metadata.releaseDate;
         elements.push(releaseDate);
+    }
+    if (metadata.newTag) {
+        const newTag = document.createElement("span");
+        newTag.className = "enhanced-metadata-item enhanced-new-tag";
+        newTag.textContent = metadata.newTag;
+        elements.push(newTag);
     }
 
     return elements;
