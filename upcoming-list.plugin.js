@@ -8,7 +8,7 @@
 (function () {
     const CONFIG = {
         FETCH_TIMEOUT: 5000,
-        CACHE_TTL: 1000 * 60 * 60, // 1 hour
+        CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour
         CACHE_PREFIX: "upcoming_cache_",
     };
 
@@ -74,29 +74,6 @@
             }
         }
     };
-
-    function getDaysSinceRelease(releaseDateStr) {
-        if (!releaseDateStr) return "";
-
-        const oneDay = 86400000;
-        const release = Date.parse(releaseDateStr);
-        if (isNaN(release)) return "";
-
-        const now = Date.now();
-        const diffDays = Math.trunc((now - release) / oneDay);
-
-        if (diffDays === 0) return "Today";
-        if (diffDays > 0) {
-            if (diffDays >= 365) {
-                const years = Math.trunc(diffDays / 365);
-                return `${years} year${years > 1 ? "s" : ""} ago`;
-            }
-            return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-        }
-
-        const daysAhead = Math.abs(diffDays);
-        return `in ${daysAhead} day${daysAhead > 1 ? "s" : ""}`;
-    }
 
     async function fetchUpcomingTitles(
         type = "movie",

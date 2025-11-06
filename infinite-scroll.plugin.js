@@ -1,7 +1,7 @@
 /*
  * @name Infinite Scroll
  * @description Infinite scroll for homescreen.
- * @version 1.0.0
+ * @version 1.1.0
  * @author EZOBOSS
  */
 
@@ -13,11 +13,51 @@
     // --------------------------
     const CONFIG = {
         FETCH_TIMEOUT: 5000,
+        CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour
+        CACHE_PREFIX: "scroll_cache_",
     };
 
-    const cache = new Map();
-    const cacheGet = (k) => cache.get(k);
-    const cacheSet = (k, v) => cache.set(k, v);
+    // --------------------------
+    // Caching (Memory + localStorage)
+    // --------------------------
+    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+    const memoryCache = new Map();
+
+    const cacheKey = (key) => CONFIG.CACHE_PREFIX + key;
+
+    const cacheSet = (key, value) => {
+        const entry = { value, timestamp: Date.now() };
+        memoryCache.set(key, entry);
+        try {
+            localStorage.setItem(cacheKey(key), JSON.stringify(entry));
+        } catch {
+            // ignore quota or serialization errors
+        }
+    };
+
+    const cacheGet = (key) => {
+        const now = Date.now();
+        // Check memory first
+        const mem = memoryCache.get(key);
+        if (mem && now - mem.timestamp < CONFIG.CACHE_TTL) return mem.value;
+
+        // Check localStorage
+        try {
+            const raw = localStorage.getItem(cacheKey(key));
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (now - data.timestamp > CONFIG.CACHE_TTL) {
+                localStorage.removeItem(cacheKey(key));
+                return null;
+            }
+            memoryCache.set(key, data);
+            return data.value;
+        } catch {
+            return null;
+        }
+    };
+
     const logger = {
         warn: (...a) => console.warn("[API]", ...a),
     };
