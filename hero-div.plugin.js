@@ -493,8 +493,8 @@
 
                     const ratingHTML =
                         title.rating && title.rating !== "na"
-                            ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}/10</span></p>`
-                            : "";
+                            ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}</span></p>`
+                            : `<p class="rating-item"><span class="rating-text"></span></p>`;
 
                     DOM.heroInfo.innerHTML =
                         info.map((i) => `<p>${i}</p>`).join("") + ratingHTML;
@@ -749,7 +749,7 @@
         {
             root: null, // viewport
             rootMargin: "-50% 0px -10% 0px",
-            threshold: 0.1, // 10% visible counts as visible
+            threshold: 0,
         }
     );
     // -------------------------
@@ -758,6 +758,7 @@
             '.meta-item-container-Tj0Ib, [class*="meta-item-container"]'
         );
         const hero = document.querySelector(".hero-container");
+
         if (!cards || !hero) return;
 
         cards.forEach((card) => {
@@ -766,6 +767,7 @@
             card.dataset._heroBound = "1";
             card.addEventListener("mouseenter", async () => {
                 const link = card.querySelector("a.enhanced-trailer");
+                const upcomingList = document.querySelector(".upcoming-list");
                 const url = link?.href || card.dataset.trailerUrl;
                 if (!url) return;
                 stopAutoRotate();
@@ -774,6 +776,7 @@
                 cleanupMedia();
 
                 fadeTimer = setTimeout(() => {
+                    upcomingList?.classList.add("dim");
                     visibleCards.forEach((c) => {
                         if (c !== card) {
                             c.classList.add("dim");
@@ -782,15 +785,20 @@
                 }, 2000);
                 if (url.includes("youtube.com") || url.includes("youtu.be")) {
                     const id = getYouTubeId(url);
-                    if (id) await createOrUpdateYTPlayer(id);
+                    if (id)
+                        playTimeout = setTimeout(async () => {
+                            await createOrUpdateYTPlayer(id);
+                        }, 1000);
                 }
             });
 
             card.addEventListener("mouseleave", () => {
                 if (fadeTimer) clearTimeout(fadeTimer);
-
+                if (playTimeout) clearTimeout(playTimeout);
+                const upcomingList = document.querySelector(".upcoming-list");
                 // Reset all card opacities
                 visibleCards.forEach((c) => c.classList.remove("dim"));
+                upcomingList?.classList.remove("dim");
                 // fade out then remove
                 const v = document.getElementById("heroVideo");
                 const f = document.getElementById("heroIframe");

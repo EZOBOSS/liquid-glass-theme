@@ -110,24 +110,64 @@
     function initWheelScroll(track, catalog = "top") {
         if (!track || track.dataset.wheelScrollInitialized === "true") return;
         track.dataset.wheelScrollInitialized = "true";
-        const type = track.firstChild.href.split("/")[5];
+
+        const type = track.firstChild?.href?.split?.("/")[5];
+        if (!type) return;
 
         const initialCount = track.children.length;
         const key = `${type}_${catalog}`;
-        fetchProgress[key] = initialCount; // <-- START OFFSET HERE
+        fetchProgress[key] = initialCount;
 
         console.log(
-            `[AppleTVWheelInfiniteScroll] Initialized track with ${initialCount} existing items`
+            `[AppleTVWheelInfiniteScroll] Initialized ${key} with ${initialCount} items`
         );
 
-        const speedFactor = 2; // adjust scroll sensitivity
+        // --- Scroll physics state ---
+        let scrollTarget = track.scrollLeft;
+        let velocity = 0;
+        let isScrolling = false;
 
+        // --- Tunable motion parameters ---
+        const friction = 0.95; // momentum decay
+        const ease = 0.12; // how smoothly scrollLeft follows target
+        const minVelocity = 0.1;
+        const threshold = 0.5;
+
+        // --- Smooth momentum loop ---
+        const smoothScroll = () => {
+            scrollTarget = Math.max(
+                0,
+                Math.min(scrollTarget, track.scrollWidth - track.clientWidth)
+            );
+
+            const diff = scrollTarget - track.scrollLeft;
+            track.scrollLeft += diff * ease;
+            velocity *= friction;
+            scrollTarget += velocity;
+
+            if (
+                Math.abs(diff) > threshold ||
+                Math.abs(velocity) > minVelocity
+            ) {
+                requestAnimationFrame(smoothScroll);
+            } else {
+                isScrolling = false;
+                velocity = 0;
+            }
+        };
+
+        // --- Wheel event handler ---
         const handleWheel = (e) => {
-            //if (!e.ctrlKey) return; // optional: only scroll if Ctrl is pressed
             e.preventDefault();
 
-            track.scrollLeft += e.deltaY * speedFactor;
+            velocity += e.deltaY * 0.2;
 
+            if (!isScrolling) {
+                isScrolling = true;
+                requestAnimationFrame(smoothScroll);
+            }
+
+            // Trigger infinite scroll
             if (
                 track.scrollLeft + track.clientWidth >=
                 track.scrollWidth - 300
