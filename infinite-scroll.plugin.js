@@ -120,6 +120,10 @@
                 logger.warn(`[fetchCatalogTitles] failed for ${key}`, e);
                 return [];
             }
+        } else {
+            logger.warn(
+                `[fetchCatalogTitles] Using cached data for "${key}" → ${fetchProgress[key]}`
+            );
         }
 
         const nextBatch = allData.slice(offset, offset + limit).map((m) => ({

@@ -106,8 +106,8 @@
 
         if (diffDays === 0) return "Released today";
         if (diffDays > 0)
-            return `Released ${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-        return `Releases in ${Math.abs(diffDays)} day${
+            return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+        return `in ${Math.abs(diffDays)} day${
             Math.abs(diffDays) > 1 ? "s" : ""
         }`;
     }
@@ -250,18 +250,40 @@
                 ? "45 min per episode"
                 : "Unknown";
             const releaseDate = (() => {
-                // If videos array exists and has at least one item, use the last item's release date
-                if (meta.videos && meta.videos.length > 0) {
-                    // Get the next to last episode incase upcoming season is undefined
-                    const lastIndex = meta.videos.length - 1;
-                    const lastVideo = meta.videos[lastIndex].released
-                        ? meta.videos[lastIndex]
-                        : meta.videos[lastIndex - 1];
-
-                    return getDaysSinceRelease(lastVideo?.released || null);
+                const videos = meta.videos;
+                if (!Array.isArray(videos) || videos.length === 0) {
+                    return getDaysSinceRelease(meta.released || null);
                 }
 
-                // Otherwise, fallback to meta.released
+                const now = new Date();
+                let closestFuture = null;
+                let latestPast = null;
+
+                for (const v of videos) {
+                    if (!v.released) continue;
+
+                    const date = new Date(v.released);
+                    if (isNaN(date)) continue;
+
+                    if (date > now) {
+                        // Future release — keep the soonest one
+                        if (!closestFuture || date < closestFuture.date) {
+                            closestFuture = { released: v.released, date };
+                        }
+                    } else {
+                        // Past release — keep the latest one
+                        if (!latestPast || date > latestPast.date) {
+                            latestPast = { released: v.released, date };
+                        }
+                    }
+                }
+
+                if (closestFuture) {
+                    return getDaysSinceRelease(closestFuture.released);
+                } else if (latestPast) {
+                    return getDaysSinceRelease(latestPast.released);
+                }
+
                 return getDaysSinceRelease(meta.released || null);
             })();
 
@@ -290,7 +312,10 @@
                     ? meta.director.join(", ")
                     : meta.director || "",
                 awards: meta.awards || "",
-                releaseDate,
+                releaseDate:
+                    actualType === "series"
+                        ? `New episode ${releaseDate}`
+                        : releaseDate,
             };
             cacheSet(`meta_${id}`, result);
             return result;
