@@ -20,7 +20,6 @@
     // --------------------------
     // Caching (Memory + localStorage)
     // --------------------------
-    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
     const memoryCache = new Map();
 
@@ -132,7 +131,10 @@
             year: String(m.year || "2024"),
             runtime: m.runtime || null,
             type,
-            href: `#/detail/${type}/${m.id}/${m.id}`,
+            href:
+                type === "movie"
+                    ? `#/detail/${type}/${m.id}/${m.id}`
+                    : `#/detail/${type}/${m.id}`,
         }));
 
         // Update offset
@@ -156,32 +158,31 @@
 
         const initialCount = track.children.length;
         const key = `${type}_${catalog}`;
+        // Assuming fetchProgress is defined and accessible
         fetchProgress[key] = initialCount;
 
-        console.log(
-            `[AppleTVWheelInfiniteScroll] Initialized ${key} with ${initialCount} items`
-        );
-
-        // --- Scroll physics state ---
         let scrollTarget = track.scrollLeft;
         let velocity = 0;
         let isScrolling = false;
+        // Removed lastWheelTime as throttling is counter-productive for input
 
-        // --- Tunable motion parameters ---
-        const friction = 0.95; // momentum decay
-        const ease = 0.12; // how smoothly scrollLeft follows target
+        const friction = 0.95;
+        const ease = 0.12;
         const minVelocity = 0.1;
         const threshold = 0.5;
 
-        // --- Smooth momentum loop ---
         const smoothScroll = () => {
             scrollTarget = Math.max(
                 0,
                 Math.min(scrollTarget, track.scrollWidth - track.clientWidth)
             );
 
-            const diff = scrollTarget - track.scrollLeft;
-            track.scrollLeft += diff * ease;
+            const currentLeft = track.scrollLeft;
+            const diff = scrollTarget - currentLeft;
+
+            // DOM Write: main performance hit
+            track.scrollLeft = currentLeft + diff * ease;
+
             velocity *= friction;
             scrollTarget += velocity;
 
@@ -193,30 +194,55 @@
             } else {
                 isScrolling = false;
                 velocity = 0;
+                // Synchronize the target position when momentum ends
+                scrollTarget = track.scrollLeft;
             }
         };
 
-        // --- Wheel event handler ---
         const handleWheel = (e) => {
             e.preventDefault();
 
-            velocity += e.deltaY * 0.2;
+            // OPTIMIZATION: Check for track boundaries to stop velocity accumulation
+            const isAtStart = track.scrollLeft <= 0 && e.deltaY < 0;
+            const isAtEnd =
+                track.scrollLeft + track.clientWidth >= track.scrollWidth &&
+                e.deltaY > 0;
+
+            if (!isAtStart && !isAtEnd) {
+                velocity += e.deltaY * 0.2;
+                // Velocity clamping for robustness
+                velocity = Math.max(-100, Math.min(velocity, 100));
+            }
 
             if (!isScrolling) {
                 isScrolling = true;
                 requestAnimationFrame(smoothScroll);
             }
 
-            // Trigger infinite scroll
             if (
                 track.scrollLeft + track.clientWidth >=
                 track.scrollWidth - 300
             ) {
+                // Note: This fetchMoreItems must be non-blocking (async) and should
+                // append elements in a way that minimizes DOM reflows (e.g., DocumentFragment).
                 fetchMoreItems(track, type, catalog);
             }
         };
 
         track.addEventListener("wheel", handleWheel, { passive: false });
+
+        // FIX: Synchronize scrollTarget when the user manually scrolls
+        track.addEventListener(
+            "scroll",
+            () => {
+                if (!isScrolling) {
+                    scrollTarget = track.scrollLeft;
+                }
+            },
+            {
+                passive: true,
+            }
+        );
     }
 
     // --------------------------
@@ -229,7 +255,7 @@
         console.log("[AppleTVWheelInfiniteScroll] Fetching more items...");
 
         try {
-            const items = await fetchCatalogTitles(type, 6, catalog);
+            const items = await fetchCatalogTitles(type, 9, catalog);
 
             if (items.length === 0) {
                 console.log(

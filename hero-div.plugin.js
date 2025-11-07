@@ -894,7 +894,10 @@
         const metadataWithDate = cardReleaseDate
             ? [
                   ...cardMetadata,
-                  { textContent: runTime || "" }, // wrap runtime string
+                  {
+                      textContent:
+                          runTime === "null" || !runTime ? "" : runTime,
+                  }, // wrap runtime string
                   { textContent: cardReleaseDate.textContent || "" }, // wrap release date element text
               ]
             : [

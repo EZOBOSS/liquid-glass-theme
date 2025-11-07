@@ -106,10 +106,10 @@
 
             console.log("[UpcomingReleases] Fetched", all.length, "metas");
 
-            // --- Helper: find the closest *future* release date ---
             // --- Helper: find the closest *future* release video object ---
             function getClosestFutureVideo(meta) {
                 const now = new Date(); // Using the 'now' from the outer scope
+                now.setDate(now.getDate() - 1); // remove 1 day to the date to get todays releases
 
                 const futureVideos = [];
 
@@ -184,7 +184,7 @@
 
                         // Determine the season/episode text
                         let episodeText = "";
-                        let hfef = "";
+                        let href = "";
                         if (video.season > 0 && video.episode > 0) {
                             episodeText = `S${video.season} E${video.episode}`;
                             href = `#/detail/${m.type}/${m.id}`;
@@ -258,18 +258,8 @@
 
     // Slight delay to allow DOM readiness
     window.addEventListener("hashchange", function (event) {
-        // Check if the page is loaded from the bfcache (persisted is true)
-        // or if it's a fresh load.
-        if (event.persisted) {
-            // This means the user came back via the back/forward button.
-            console.log("Returned from bfcache, setting timer again...");
-        } else {
-            // This is the initial page load.
-            console.log("Initial page load.");
-        }
-
         // Set the timeout regardless of how the page was loaded.
-        setTimeout(renderUpcomingList, 300);
+        setTimeout(renderUpcomingList, 1000);
     });
     setTimeout(renderUpcomingList, 2000);
 })();
