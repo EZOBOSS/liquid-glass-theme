@@ -82,7 +82,7 @@
     ) {
         const baseUrl = "https://cinemeta-catalogs.strem.io/top/catalog";
         const types = ["movie", "series"];
-        const now = new Date();
+        const now = Date.now(); // milliseconds, cheaper than new Date() objects
 
         const key = `${type}_${catalog}_${limit}`;
         const cached = cacheGet(key);
@@ -92,74 +92,32 @@
         }
 
         try {
-            const settled = await Promise.allSettled(
+            // Fetch both types in parallel
+            const results = await Promise.allSettled(
                 types.map((t) => safeFetch(`${baseUrl}/${t}/${catalog}.json`))
             );
 
-            const all = settled.flatMap((res) => {
-                if (res.status !== "fulfilled" || !res.value) return [];
-                const payload = res.value;
-                if (Array.isArray(payload.metas)) return payload.metas;
-                if (Array.isArray(payload)) return payload;
-                return [];
-            });
+            // Combine fulfilled results into one metas array
+            const all = [];
+            for (const res of results) {
+                if (res.status === "fulfilled" && res.value) {
+                    const payload = res.value;
+                    const metas = Array.isArray(payload.metas)
+                        ? payload.metas
+                        : Array.isArray(payload)
+                        ? payload
+                        : [];
+                    all.push(...metas);
+                }
+            }
 
             console.log("[UpcomingReleases] Fetched", all.length, "metas");
 
-            // --- Helper: find the closest *future* release video object ---
-            function getClosestFutureVideo(meta) {
-                const now = new Date(); // Using the 'now' from the outer scope
-                now.setDate(now.getDate() - 1); // remove 1 day to the date to get todays releases
+            // --- Helpers ---
+            const dayMs = 86400000;
 
-                const futureVideos = [];
-
-                // 1. Check the main release date if it's in the future
-                if (meta.released) {
-                    const d = new Date(meta.released);
-                    if (d > now) {
-                        futureVideos.push({
-                            releaseDate: d,
-                            video: {
-                                released: meta.released,
-                                season: 0,
-                                episode: 0,
-                                title: "Series Release",
-                            }, // Add placeholder metadata for the main release
-                        });
-                    }
-                }
-
-                // 2. Check all videos/episodes for future release dates
-                if (Array.isArray(meta.videos)) {
-                    meta.videos.forEach((v) => {
-                        if (v.released) {
-                            const vd = new Date(v.released);
-                            if (vd > now) {
-                                futureVideos.push({
-                                    releaseDate: vd,
-                                    video: v, // Push the entire video object
-                                });
-                            }
-                        }
-                    });
-                }
-
-                if (futureVideos.length === 0) return null;
-
-                // Find the object with the minimum (closest) release date
-                futureVideos.sort(
-                    (a, b) => a.releaseDate.getTime() - b.releaseDate.getTime()
-                );
-
-                // Return the closest video object and its date
-                return futureVideos[0];
-            }
-
-            // --- Helper: format as “in 2 days”, “Tomorrow”, “in 1 year”, etc. ---
-            function formatDaysUntil(date) {
-                const msPerDay = 1000 * 60 * 60 * 24;
-                const diff = Math.ceil((date - now) / msPerDay);
-
+            const formatDaysUntil = (dateMs) => {
+                const diff = Math.ceil((dateMs - now) / dayMs);
                 if (diff <= 0) return "Today";
                 if (diff === 1) return "Tomorrow";
                 if (diff < 30) return `in ${diff} days`;
@@ -169,51 +127,100 @@
                 }
                 const years = Math.round(diff / 365);
                 return `in ${years} year${years > 1 ? "s" : ""}`;
+            };
+
+            const getClosestFutureVideo = (meta) => {
+                const threshold = now - dayMs; // include today
+                const futureVideos = [];
+
+                if (meta.released) {
+                    const d = Date.parse(meta.released);
+                    if (d > threshold) {
+                        futureVideos.push({
+                            dateMs: d,
+                            video: {
+                                released: meta.released,
+                                season: 0,
+                                episode: 0,
+                                title: "Series Release",
+                            },
+                        });
+                    }
+                }
+
+                if (Array.isArray(meta.videos)) {
+                    for (const v of meta.videos) {
+                        if (v.released) {
+                            const vd = Date.parse(v.released);
+                            if (vd > threshold) {
+                                futureVideos.push({ dateMs: vd, video: v });
+                            }
+                        }
+                    }
+                }
+
+                if (!futureVideos.length) return null;
+                // use reduce instead of sort for performance
+                return futureVideos.reduce((min, curr) =>
+                    curr.dateMs < min.dateMs ? curr : min
+                );
+            };
+
+            // --- Filter + map ---
+            const metadataList = [];
+            for (const m of all) {
+                const closest = getClosestFutureVideo(m);
+                if (!closest) continue;
+
+                const { dateMs, video } = closest;
+                const releaseDate = new Date(dateMs);
+
+                const episodeText =
+                    video.season > 0 && video.episode > 0
+                        ? `S${video.season} E${video.episode}`
+                        : "Movie";
+
+                const href =
+                    video.season > 0 && video.episode > 0
+                        ? `#/detail/${m.type}/${m.id}`
+                        : `#/detail/${m.type}/${m.id}/${m.id}`;
+
+                const trailer =
+                    m?.trailer ||
+                    m?.trailers?.[0]?.source ||
+                    m?.trailers?.[0]?.url ||
+                    m?.videos?.[0]?.url ||
+                    null;
+
+                metadataList.push({
+                    id: m.id,
+                    type: m.type,
+                    title: m.name,
+                    releaseDate,
+                    releaseText: formatDaysUntil(dateMs),
+                    episodeText,
+                    poster: `https://images.metahub.space/background/large/${m.id}/img`,
+                    logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
+                    href,
+                    trailer,
+                    description: m.description,
+                    rating: m.imdbRating || "",
+                    year: m.year,
+                    runtime: m.runtime,
+                    genres: Array.isArray(m.genre)
+                        ? m.genre
+                        : Array.isArray(m.genres)
+                        ? m.genres
+                        : [],
+                });
             }
 
-            // --- Filter & map to simplified metadata ---
-            // --- Filter & map to simplified metadata ---
-            const metadataList = all
-                .map((m) => {
-                    // Call the new helper
-                    const closestFuture = getClosestFutureVideo(m);
+            // Sort once at the end (in-place, minimal overhead)
+            metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
 
-                    // closestFuture will be null OR { releaseDate: Date, video: { ... } }
-                    if (closestFuture) {
-                        const { releaseDate, video } = closestFuture;
-
-                        // Determine the season/episode text
-                        let episodeText = "";
-                        let href = "";
-                        if (video.season > 0 && video.episode > 0) {
-                            episodeText = `S${video.season} E${video.episode}`;
-                            href = `#/detail/${m.type}/${m.id}`;
-                        } else {
-                            episodeText = "Movie";
-                            href = `#/detail/${m.type}/${m.id}/${m.id}`;
-                        }
-
-                        return {
-                            id: m.id,
-                            type: m.type,
-                            title: m.name,
-                            releaseDate,
-                            releaseText: formatDaysUntil(releaseDate),
-                            episodeText: episodeText, // <<--- NEW FIELD
-                            poster: `https://images.metahub.space/poster/medium/${m.id}/img`,
-                            logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
-                            href: href,
-                        };
-                    } else {
-                        return null;
-                    }
-                })
-                .filter(Boolean)
-                .sort((a, b) => a.releaseDate - b.releaseDate)
-                .slice(0, limit);
-
-            cacheSet(key, metadataList);
-            return metadataList;
+            const limited = metadataList.slice(0, limit);
+            cacheSet(key, limited);
+            return limited;
         } catch (e) {
             logger.warn("Failed to fetch upcoming titles", e);
             return [];
@@ -238,6 +245,13 @@
             card.setAttribute("tabindex", 0);
             card.className = "upcoming-card";
             card.setAttribute("href", m.href);
+            card.dataset.trailerUrl = m.trailer;
+            card.dataset.description = m.description;
+            card.id = m.id;
+            card.dataset.rating = m.rating;
+            card.dataset.year = m.year;
+            card.dataset.runtime = m.runtime;
+            card.dataset.genres = m.genres;
 
             card.innerHTML = `
                 <div class="upcoming-background-container">

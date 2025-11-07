@@ -173,7 +173,7 @@ async function getMetadata(id, type) {
                 const match = releaseStr.match(/^(\d+)/);
                 if (match) {
                     const days = parseInt(match[1], 10);
-                    if (days <= 10) return "NEW";
+                    if (days <= 14) return "NEW";
                 } else {
                     return "UPCOMING";
                 }
@@ -183,39 +183,14 @@ async function getMetadata(id, type) {
 
         // --- Compute trailer safely ---
         const trailer = (() => {
-            let url = null;
+            const url =
+                meta?.trailer ||
+                meta?.trailers?.[0]?.source ||
+                meta?.trailers?.[0]?.url ||
+                meta?.videos?.[0]?.url ||
+                null;
 
-            if (meta.trailer) url = meta.trailer;
-            else if (Array.isArray(meta.trailers) && meta.trailers.length > 0)
-                url = meta.trailers[0].source || meta.trailers[0].url;
-            else if (Array.isArray(meta.videos) && meta.videos.length > 0)
-                url = meta.videos[0].url;
-
-            if (!url) return null;
-
-            // YouTube ID or short code
-            if (!url.includes("/") && !url.includes("youtube.com")) {
-                return `https://www.youtube.com/embed/${url}?autoplay=1&mute=0&loop=1&playlist=${url}`;
-            }
-
-            try {
-                const ytUrl = new URL(url);
-                let id = null;
-
-                if (ytUrl.hostname.includes("youtube.com")) {
-                    id = ytUrl.searchParams.get("v");
-                } else if (ytUrl.hostname.includes("youtu.be")) {
-                    id = ytUrl.pathname.slice(1);
-                }
-
-                if (id) {
-                    return `https://www.youtube.com/embed/${id}?autoplay=1&mute=0&loop=1&playlist=${id}`;
-                }
-            } catch {
-                return url;
-            }
-
-            return url;
+            return url || null;
         })();
 
         // --- Assemble metadata object ---
@@ -311,15 +286,15 @@ function createMetadataElements(metadata) {
     if (metadata.description) {
         const description = document.createElement("span");
         description.className = "enhanced-metadata-item enhanced-description";
-        description.textContent = metadata.description;
-        description.setAttribute("runtime", metadata.runtime);
+        description.dataset.description = metadata.description;
+        description.dataset.runtime = metadata.runtime;
         elements.push(description);
     }
 
     if (metadata.trailer) {
         const trailer = document.createElement("a");
         trailer.className = "enhanced-metadata-item enhanced-trailer";
-        trailer.href = metadata.trailer;
+        trailer.dataset.trailerUrl = metadata.trailer;
         trailer.target = "_blank";
         trailer.rel = "noopener noreferrer";
         trailer.textContent = "";

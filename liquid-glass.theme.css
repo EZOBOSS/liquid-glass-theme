@@ -2077,6 +2077,13 @@ body.ghost-clicking #heroLoadingScreen {
 /* ========================================= */
 /* 1. Set up Default/Final State (Visibility) */
 /* ========================================= */
+.hero-container.updating #heroLogo,
+.hero-container.updating #heroDescription,
+.hero-container.updating #heroInfo,
+.hero-container.updating #heroImage {
+    opacity: 0 !important;
+    transform: translateY(-25px) scale(1.03) !important;
+}
 
 /* Apply base transition timing to all animated elements */
 .hero-container #heroLogo,
@@ -2264,8 +2271,18 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 .upcoming-list:hover .upcoming-card {
-    opacity: 0.2;
+    opacity: 0.5;
 }
+.upcoming-card.dim {
+    opacity: 0.2 !important;
+}
+.upcoming-list.dim {
+    transform: translateX(35%);
+}
+.upcoming-card.hover {
+    transform: translate(-35%) !important;
+}
+
 .upcoming-card:hover {
     opacity: 1 !important;
     transform: scale(1.1);
@@ -2278,10 +2295,7 @@ body.ghost-clicking #heroLoadingScreen {
 .upcoming-list .upcoming-card:last-child {
     border-radius: 0 0 0 10px;
 }
-.upcoming-list.dim {
-    opacity: 0.2;
-    transform: translateX(35%);
-}
+
 .upcoming-episode {
     font-size: 10px;
     font-weight: 600;

@@ -681,13 +681,6 @@
         });
     }
 
-    function getYouTubeId(url) {
-        const m = url.match(
-            /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/
-        );
-        return m ? m[1] : null;
-    }
-
     async function createOrUpdateYTPlayer(videoId) {
         if (!ytReady) await ensureYouTubeAPI();
         if (!window.YT || !window.YT.Player) return null;
@@ -774,7 +767,7 @@
     // -------------------------
     function setupHeroTrailerHover() {
         const containers = document.querySelectorAll(
-            ".meta-items-container-qcuUA"
+            ".meta-items-container-qcuUA, .upcoming-list"
         );
         const hero = document.querySelector(".hero-container");
         if (!containers.length || !hero) return;
@@ -796,7 +789,11 @@
             container.addEventListener(
                 "mouseenter",
                 async (e) => {
-                    if (e.target.matches(".meta-item-container-Tj0Ib")) {
+                    if (
+                        e.target.matches(
+                            ".meta-item-container-Tj0Ib, .upcoming-card"
+                        )
+                    ) {
                         const card = e.target;
 
                         if (!card || !container.contains(card)) return;
@@ -810,40 +807,45 @@
                         stopAutoRotate();
 
                         const link = card.querySelector("a.enhanced-trailer");
+                        const upcomingCards =
+                            document.querySelectorAll(".upcoming-card");
                         const upcomingList =
                             document.querySelector(".upcoming-list");
-                        const url = link?.href || card.dataset.trailerUrl;
+
+                        const url =
+                            link?.dataset.trailerUrl || card.dataset.trailerUrl;
 
                         // lightweight update first
                         updateHeroFromHover(card);
                         cleanupMedia();
-                        if (!url) return;
+                        if (!url || url === "null") return;
 
                         fadeTimer = setTimeout(() => {
                             upcomingList?.classList.add("dim");
+                            upcomingCards?.forEach((c) => {
+                                if (c !== card) c.classList.add("dim");
+                                else c.classList.add("hover");
+                            });
                             visibleCards.forEach((c) => {
                                 if (c !== card) c.classList.add("dim");
                             });
                         }, 2000);
 
                         let playTimeout;
-                        if (
-                            url.includes("youtube.com") ||
-                            url.includes("youtu.be")
-                        ) {
-                            const id = getYouTubeId(url);
-                            if (id)
-                                playTimeout = setTimeout(async () => {
-                                    // check if the card is still hovered before playing
-                                    if (card.matches(":hover")) {
-                                        await createOrUpdateYTPlayer(id);
-                                    } else {
-                                        console.log(
-                                            "Skipped trailer play — user already left card"
-                                        );
-                                    }
-                                }, 1000);
-                        }
+
+                        //const id = getYouTubeId(url);
+                        if (url)
+                            playTimeout = setTimeout(async () => {
+                                // check if the card is still hovered before playing
+                                if (card.matches(":hover")) {
+                                    await createOrUpdateYTPlayer(url);
+                                } else {
+                                    console.log(
+                                        "Skipped trailer play — user already left card"
+                                    );
+                                }
+                            }, 1000);
+
                         cardTimers.set(card, { fadeTimer, playTimeout });
                     }
                 },
@@ -853,7 +855,11 @@
             container.addEventListener(
                 "mouseleave",
                 (e) => {
-                    if (e.target.matches(".meta-item-container-Tj0Ib")) {
+                    if (
+                        e.target.matches(
+                            ".meta-item-container-Tj0Ib, .upcoming-card"
+                        )
+                    ) {
                         const card = e.target;
                         if (!card || !container.contains(card)) return;
 
@@ -864,9 +870,14 @@
                             cardTimers.delete(card);
                         }
 
+                        const upcomingCards =
+                            document.querySelectorAll(".upcoming-card");
                         const upcomingList =
                             document.querySelector(".upcoming-list");
                         visibleCards.forEach((c) => c.classList.remove("dim"));
+                        upcomingCards?.forEach((c) =>
+                            c.classList.remove("dim", "hover")
+                        );
                         upcomingList?.classList.remove("dim");
 
                         const v = document.getElementById("heroVideo");
@@ -907,23 +918,43 @@
      *
      * @param {HTMLElement} card - The card element being hovered over.
      */
-    function updateHeroFromHover(card) {
+    async function updateHeroFromHover(card) {
         // Check for both the card element and the main hero container
         if (!card || !DOM.hero) return;
+        // Fade out
+        DOM.hero.classList.add("updating");
+
+        // Wait for transition to complete (matches your CSS duration)
+        await new Promise((r) => setTimeout(r, 400));
 
         // --- Card Data Extraction ---
         // Extract data from the card, using optional chaining and nullish coalescing for safety
-        const cardLogo = card.querySelector(".enhanced-title img");
+        const cardLogo =
+            card.querySelector(".enhanced-title img") ||
+            card.querySelector(".upcoming-logo");
         const cardImg = card.querySelector("img");
-        const desc = card.querySelector(".enhanced-description");
+        const desc =
+            card.querySelector(".enhanced-description")?.dataset.description ||
+            card.dataset.description;
         const rating =
-            card.querySelector(".enhanced-rating")?.textContent || "";
-        const cardIMDB = card.id;
+            card.querySelector(".enhanced-rating")?.textContent ||
+            card.dataset.rating ||
+            "";
+
+        const cardIMDB = card.id || card.dataset.id;
         // Get all metadata items from the card
         const cardMetadata = [
             ...card.querySelectorAll('[class="enhanced-metadata-item"]'),
         ];
+
         const cardReleaseDate = card.querySelector(".enhanced-release-date");
+        const cardRuntime =
+            card.querySelector(".enhanced-description")?.dataset.runtime ||
+            card.dataset.runtime;
+
+        const cardYear = card.dataset.year;
+        const cardGenres = card.dataset.genres;
+        console.log(cardGenres);
 
         // --- Hero DOM Updates ---
 
@@ -932,8 +963,7 @@
         if (DOM.heroImage && cardImg) DOM.heroImage.src = cardImg.src;
 
         // 2. Description
-        if (DOM.heroDescription)
-            DOM.heroDescription.textContent = desc.textContent;
+        if (DOM.heroDescription && desc) DOM.heroDescription.textContent = desc;
 
         // 3. Rating (The corrected logic)
 
@@ -945,16 +975,16 @@
         }
 
         // 4. Action Buttons (Using the DOM properties corresponding to the original queries)
-        if (DOM.heroButtonWatch) {
+        if (DOM.heroButtonWatch && cardIMDB) {
             DOM.heroButtonWatch.setAttribute(
                 "onclick",
-                `playTitle('${cardIMDB}')`
+                `event.stopPropagation(); playTitle('${cardIMDB}')`
             );
         }
-        if (DOM.heroButtonMoreInfo) {
+        if (DOM.heroButtonMoreInfo && cardIMDB) {
             DOM.heroButtonMoreInfo.setAttribute(
                 "onclick",
-                `showMoreInfo('${cardIMDB}')`
+                `event.stopPropagation(); showMoreInfo('${cardIMDB}')`
             );
         }
 
@@ -966,20 +996,34 @@
             DOM.heroOverlayInfo ||
             DOM.heroInfo?.querySelectorAll("p:not([class])") ||
             [];
-        const runTime = desc.getAttribute("runtime");
+        let runTime = cardRuntime || "";
+        // --- Define an array to hold the optional items ---
+        let optionalMetadata = [];
+
+        // 1. Add Year if it exists
+        if (cardYear && cardYear !== "null") {
+            // Note: We wrap it in an object that matches the expected structure { textContent: '...' }
+            optionalMetadata.push({ textContent: cardYear });
+        }
+
+        // 2. Add Runtime (using your existing null/empty check)
+        const runtimeText = runTime === "null" || !runTime ? "" : runTime;
+        if (runtimeText) {
+            optionalMetadata.push({ textContent: runtimeText });
+        }
+        if (cardGenres && cardGenres.length > 0) {
+            optionalMetadata.push({ textContent: cardGenres });
+        }
 
         const metadataWithDate = cardReleaseDate
             ? [
-                  ...cardMetadata,
-                  {
-                      textContent:
-                          runTime === "null" || !runTime ? "" : runTime,
-                  }, // wrap runtime string
-                  { textContent: cardReleaseDate.textContent || "" }, // wrap release date element text
+                  ...cardMetadata, // Original metadata items
+                  ...optionalMetadata, // New: Year and Runtime
+                  { textContent: cardReleaseDate.textContent || "" }, // Release Date is last
               ]
             : [
-                  ...cardMetadata,
-                  { textContent: runTime || "" }, // fallback if no date
+                  ...cardMetadata, // Original metadata items
+                  ...optionalMetadata, // Fallback list: Year and Runtime
               ];
 
         heroOverlayInfoTargets.forEach((item, index) => {
@@ -987,6 +1031,8 @@
                 ? metadataWithDate[index].textContent
                 : null;
         });
+        // Fade back in
+        DOM.hero.classList.remove("updating");
     }
 
     // -------------------------
