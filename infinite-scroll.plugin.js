@@ -291,7 +291,7 @@
                 img.className = "poster-image-NiV7O";
                 img.src = meta.background;
                 img.alt = ""; // Set to empty string for purely decorative images
-                img.loading = "lazy";
+                img.loading = "eager";
 
                 const titleContainer = document.createElement("div");
                 titleContainer.className = "title-bar-container-1Ba0x";

@@ -710,12 +710,6 @@
                     },
                 },
             });
-        } else {
-            try {
-                state.ytPlayer.loadVideoById(videoId);
-            } catch (e) {
-                logger.warn("YT reload failed", e);
-            }
         }
 
         return state.ytPlayer;
@@ -754,73 +748,131 @@
     );
     // -------------------------
     function setupHeroTrailerHover() {
-        const cards = document.querySelectorAll(
-            '.meta-item-container-Tj0Ib, [class*="meta-item-container"]'
+        const containers = document.querySelectorAll(
+            ".meta-items-container-qcuUA"
         );
         const hero = document.querySelector(".hero-container");
+        if (!containers.length || !hero) return;
 
-        if (!cards || !hero) return;
+        const cardTimers = new WeakMap();
 
-        cards.forEach((card) => {
-            intersectionObserver.observe(card);
-            if (card.dataset._heroBound) return;
-            card.dataset._heroBound = "1";
-            card.addEventListener("mouseenter", async () => {
-                const link = card.querySelector("a.enhanced-trailer");
-                const upcomingList = document.querySelector(".upcoming-list");
-                const url = link?.href || card.dataset.trailerUrl;
-                if (!url) return;
-                stopAutoRotate();
-                // quick UI update from card (lightweight)
-                updateHeroFromHover(card);
-                cleanupMedia();
-
-                fadeTimer = setTimeout(() => {
-                    upcomingList?.classList.add("dim");
-                    visibleCards.forEach((c) => {
-                        if (c !== card) {
-                            c.classList.add("dim");
-                        }
-                    });
-                }, 2000);
-                if (url.includes("youtube.com") || url.includes("youtu.be")) {
-                    const id = getYouTubeId(url);
-                    if (id)
-                        playTimeout = setTimeout(async () => {
-                            await createOrUpdateYTPlayer(id);
-                        }, 1000);
-                }
-            });
-
-            card.addEventListener("mouseleave", () => {
-                if (fadeTimer) clearTimeout(fadeTimer);
-                if (playTimeout) clearTimeout(playTimeout);
-                const upcomingList = document.querySelector(".upcoming-list");
-                // Reset all card opacities
-                visibleCards.forEach((c) => c.classList.remove("dim"));
-                upcomingList?.classList.remove("dim");
-                // fade out then remove
-                const v = document.getElementById("heroVideo");
-                const f = document.getElementById("heroIframe");
-                [v, f].forEach((el) => {
-                    if (!el) return;
-                    el.style.opacity = "0";
-                    el.style.transform = "scale(2)";
-                    el.addEventListener("transitionend", () => el.remove(), {
-                        once: true,
-                    });
+        containers.forEach((container) => {
+            // Observe any cards currently in this container
+            container
+                .querySelectorAll(
+                    '.meta-item-container-Tj0Ib, [class*="meta-item-container"]'
+                )
+                .forEach((card) => {
+                    if (!card.dataset._observed) {
+                        intersectionObserver.observe(card);
+                        card.dataset._observed = "1";
+                    }
                 });
-                // slow fade out volume if YT
-                if (
-                    state.ytPlayer &&
-                    typeof state.ytPlayer.getVolume === "function"
-                ) {
-                    try {
-                        state.ytPlayer.setVolume(0);
-                    } catch (e) {}
-                }
-                startAutoRotate();
-            });
+            container.addEventListener(
+                "mouseenter",
+                async (e) => {
+                    if (e.target.matches(".meta-item-container-Tj0Ib")) {
+                        const card = e.target;
+
+                        if (!card || !container.contains(card)) return;
+
+                        const existing = cardTimers.get(card);
+                        if (existing) {
+                            clearTimeout(existing.fadeTimer);
+                            clearTimeout(existing.playTimeout);
+                        }
+
+                        stopAutoRotate();
+
+                        const link = card.querySelector("a.enhanced-trailer");
+                        const upcomingList =
+                            document.querySelector(".upcoming-list");
+                        const url = link?.href || card.dataset.trailerUrl;
+
+                        // lightweight update first
+                        updateHeroFromHover(card);
+                        cleanupMedia();
+                        if (!url) return;
+
+                        fadeTimer = setTimeout(() => {
+                            upcomingList?.classList.add("dim");
+                            visibleCards.forEach((c) => {
+                                if (c !== card) c.classList.add("dim");
+                            });
+                        }, 2000);
+
+                        let playTimeout;
+                        if (
+                            url.includes("youtube.com") ||
+                            url.includes("youtu.be")
+                        ) {
+                            const id = getYouTubeId(url);
+                            if (id)
+                                playTimeout = setTimeout(async () => {
+                                    // check if the card is still hovered before playing
+                                    if (card.matches(":hover")) {
+                                        await createOrUpdateYTPlayer(id);
+                                    } else {
+                                        console.log(
+                                            "Skipped trailer play — user already left card"
+                                        );
+                                    }
+                                }, 1000);
+                        }
+                        cardTimers.set(card, { fadeTimer, playTimeout });
+                    }
+                },
+                true
+            );
+
+            container.addEventListener(
+                "mouseleave",
+                (e) => {
+                    if (e.target.matches(".meta-item-container-Tj0Ib")) {
+                        const card = e.target;
+                        if (!card || !container.contains(card)) return;
+
+                        const timers = cardTimers.get(card);
+                        if (timers) {
+                            clearTimeout(timers.fadeTimer);
+                            clearTimeout(timers.playTimeout);
+                            cardTimers.delete(card);
+                        }
+
+                        const upcomingList =
+                            document.querySelector(".upcoming-list");
+                        visibleCards.forEach((c) => c.classList.remove("dim"));
+                        upcomingList?.classList.remove("dim");
+
+                        const v = document.getElementById("heroVideo");
+                        const f = document.getElementById("heroIframe");
+                        [v, f].forEach((el) => {
+                            if (!el) return;
+                            el.style.opacity = "0";
+                            el.style.transform = "scale(2)";
+                            el.addEventListener(
+                                "transitionend",
+                                () => el.remove(),
+                                {
+                                    once: true,
+                                }
+                            );
+                        });
+
+                        if (
+                            state.ytPlayer &&
+                            typeof state.ytPlayer.getVolume === "function"
+                        ) {
+                            try {
+                                state.ytPlayer.setVolume(0);
+                            } catch (e) {}
+                        }
+
+                        startAutoRotate();
+                    }
+                },
+                true
+            );
         });
     }
 
@@ -943,8 +995,7 @@
                 mutation.addedNodes.forEach((node) => {
                     if (
                         node.nodeType === 1 &&
-                        (node.matches(".meta-item-container-Tj0Ib") ||
-                            node.querySelector?.(".meta-item-container-Tj0Ib"))
+                        node.matches(".meta-row-container-xtlB1")
                     ) {
                         addedNewCards = true;
                     }
@@ -953,7 +1004,7 @@
 
             if (addedNewCards) {
                 console.log(
-                    "New cards detected — reinitializing trailer hover setup"
+                    "New boards detected — reinitializing trailer hover setup"
                 );
                 setupHeroTrailerHover();
 
