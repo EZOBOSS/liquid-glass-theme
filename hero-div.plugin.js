@@ -1218,11 +1218,4 @@
 
     // initial attempt
     setTimeout(() => handleNavigation(), 1200);
-
-    // Expose some debug utilities (safe to remove in production)
-    window._hero_debug = {
-        addHeroDiv: () => addHeroDiv(),
-        cleanupAll: () => cleanupAll(),
-        state,
-    };
 })();

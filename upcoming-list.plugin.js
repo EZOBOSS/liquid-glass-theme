@@ -81,6 +81,7 @@
         limit = 10
     ) {
         const baseUrl = "https://cinemeta-catalogs.strem.io/top/catalog";
+        const metaUrl = "https://cinemeta-live.strem.io/meta";
         const types = ["movie", "series"];
         const now = Date.now(); // milliseconds, cheaper than new Date() objects
 
@@ -219,8 +220,47 @@
             metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
 
             const limited = metadataList.slice(0, limit);
-            cacheSet(key, limited);
-            return limited;
+
+            // --- 🔹 Fetch full meta for these items and keep only latest season episodes ---
+            const enriched = await Promise.allSettled(
+                limited.map(async (item) => {
+                    const url = `${metaUrl}/${item.type}/${item.id}.json`;
+                    try {
+                        const data = await safeFetch(url);
+                        const videos = data?.meta?.videos || [];
+
+                        if (videos.length && item.type === "series") {
+                            // find highest (latest) season number
+                            const seasons = videos
+                                .map((v) => v.season)
+                                .filter((s) => typeof s === "number" && s > 0);
+                            const latestSeason = Math.max(...seasons);
+
+                            // filter and sort that season's episodes
+                            item.latestSeasonEpisodes = videos
+                                .filter((v) => v.season === latestSeason)
+                                .map((v) => ({
+                                    name: v.title,
+                                    episode: v.episode,
+                                    season: v.season,
+                                    released: v.released,
+                                    thumbnail: v.thumbnail,
+                                }))
+                                .sort((a, b) => a.episode - b.episode);
+                        }
+                    } catch (err) {
+                        console.warn("Failed to fetch meta for", item.id, err);
+                    }
+                    return item;
+                })
+            );
+
+            const finalList = enriched
+                .filter((r) => r.status === "fulfilled")
+                .map((r) => r.value);
+
+            cacheSet(key, finalList);
+            return finalList;
         } catch (e) {
             logger.warn("Failed to fetch upcoming titles", e);
             return [];
@@ -231,45 +271,122 @@
         const heroContainer = document.querySelector(".hero-container");
         if (!heroContainer) return;
 
+        // Use fast array for-loop for iteration
         const upcoming = await fetchUpcomingTitles("movie", "top", 6);
         if (upcoming.length === 0) return;
 
-        const list = document.createElement("div");
-        list.className = "upcoming-list";
+        // Define constants and date formatting once
+        const twoDaysMs = 86400000 * 2;
+        const thresholdMs = Date.now() - twoDaysMs;
 
-        const grid = document.createElement("div");
-        grid.className = "upcoming-grid";
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            const day = date.getDate(); // returns 1–31 without leading zero
+            const month = date.toLocaleDateString("en-GB", { month: "short" });
+            return `${day}<br>${month}`;
+        };
 
-        upcoming.forEach((m) => {
-            const card = document.createElement("a");
-            card.setAttribute("tabindex", 0);
-            card.className = "upcoming-card";
-            card.setAttribute("href", m.href);
-            card.dataset.trailerUrl = m.trailer;
-            card.dataset.description = m.description;
-            card.id = m.id;
-            card.dataset.rating = m.rating;
-            card.dataset.year = m.year;
-            card.dataset.runtime = m.runtime;
-            card.dataset.genres = m.genres;
+        let gridHtml = "";
 
-            card.innerHTML = `
+        // Use a standard for...of loop for better performance than forEach
+        for (const m of upcoming) {
+            let episodesContainerHtml = "";
+
+            // --- 🔹 Episode Rendering Logic ---
+            if (
+                Array.isArray(m.latestSeasonEpisodes) &&
+                m.latestSeasonEpisodes.length
+            ) {
+                // Parse next episode only if videos exist
+                let nextUp = null;
+                const match = m.episodeText?.match(/^S(\d+)\sE(\d+)$/);
+                if (match) {
+                    nextUp = { season: +match[1], episode: +match[2] };
+                }
+
+                let episodesHtml = "";
+
+                // Inner loop: Pure string building
+                for (const ep of m.latestSeasonEpisodes) {
+                    const released = Date.parse(ep.released) <= thresholdMs;
+                    let stateClass = "released";
+
+                    if (!released) {
+                        if (
+                            nextUp &&
+                            ep.season === nextUp.season &&
+                            ep.episode === nextUp.episode
+                        ) {
+                            stateClass = "upcoming-next";
+                        } else {
+                            stateClass = "upcoming";
+                        }
+                    }
+
+                    // Thumbnail HTML uses single-line logic
+                    const thumbnailHtml = ep.thumbnail
+                        ? `<img src="${ep.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'" />`
+                        : `<div class="upcoming-episode-placeholder">No image</div>`;
+
+                    episodesHtml += `
+                    <div class="upcoming-episode-card ${stateClass}">
+                        <div class="upcoming-episode-number">${ep.episode}</div>
+                        <div class="upcoming-episode-title">${
+                            ep.name || "Untitled"
+                        }</div>
+                        <div class="upcoming-episode-date">
+                            ${formatDate(ep.released)}
+                        </div>
+                        <div class="upcoming-episode-thumbnail">
+                            ${thumbnailHtml}
+                        </div>
+                    </div>
+                `;
+                }
+
+                // Wrap episodes in their container
+                episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtml}</div>`;
+            }
+
+            // --- Card Structure Builder (Pure string) ---
+            // Replace all card creation/attribute setting with a single string
+            gridHtml += `
+            <a 
+                tabindex="0" 
+                class="upcoming-card" 
+                href="${m.href}"
+                data-trailer-url="${m.trailer || ""}"
+                data-description="${m.description || ""}"
+                id="${m.id}"
+                data-rating="${m.rating || ""}"
+                data-year="${m.year || ""}"
+                data-runtime="${m.runtime || ""}"
+                data-genres="${m.genres || ""}"
+            >
                 <div class="upcoming-background-container">
-                    <img src="${m.poster}" alt="${m.title}" />
+                    <img src="${m.poster}" alt="${m.title}" loading="lazy" />
                 </div>
                 <div class="upcoming-info">
-                    <img class="upcoming-logo" src="${m.logo}" alt="${m.title}" />
+                    <img class="upcoming-logo" src="${m.logo}" alt="${
+                m.title
+            }" loading="lazy" />
                     <div class="upcoming-release-date">${m.releaseText}</div>
                     <div class="upcoming-episode">${m.episodeText}</div>
-                </div>
-            `;
-            grid.appendChild(card);
-        });
+                    ${episodesContainerHtml} </div>
+            </a>
+        `;
+        }
 
-        list.appendChild(grid);
-        heroContainer.appendChild(list);
+        // 3. 🎯 CRITICAL SPEEDUP: Single DOM Injection
+        heroContainer.insertAdjacentHTML(
+            "beforeend",
+            `<div class="upcoming-list">
+            <div class="upcoming-grid">
+                ${gridHtml}
+            </div>
+        </div>`
+        );
     }
-
     // Slight delay to allow DOM readiness
     window.addEventListener("hashchange", function (event) {
         // Set the timeout regardless of how the page was loaded.

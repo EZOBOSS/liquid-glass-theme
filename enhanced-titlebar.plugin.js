@@ -130,6 +130,7 @@ async function getMetadata(id, type) {
         // --- Compute releaseDate first ---
         const releaseDate = (() => {
             const videos = meta.videos;
+
             if (!Array.isArray(videos) || videos.length === 0) {
                 return getDaysSinceRelease(meta.released || null);
             }
