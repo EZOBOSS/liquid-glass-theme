@@ -816,9 +816,9 @@
                             link?.dataset.trailerUrl || card.dataset.trailerUrl;
 
                         // lightweight update first
-                        updateHeroFromHover(card);
+
                         cleanupMedia();
-                        if (!url || url === "null") return;
+                        updateHeroFromHover(card);
 
                         fadeTimer = setTimeout(() => {
                             upcomingList?.classList.add("dim");
@@ -834,7 +834,7 @@
                         let playTimeout;
 
                         //const id = getYouTubeId(url);
-                        if (url)
+                        if (url && url !== "null")
                             playTimeout = setTimeout(async () => {
                                 // check if the card is still hovered before playing
                                 if (card.matches(":hover")) {
@@ -925,7 +925,7 @@
         DOM.hero.classList.add("updating");
 
         // Wait for transition to complete (matches your CSS duration)
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 200));
 
         // --- Card Data Extraction ---
         // Extract data from the card, using optional chaining and nullish coalescing for safety
@@ -954,7 +954,6 @@
 
         const cardYear = card.dataset.year;
         const cardGenres = card.dataset.genres;
-        console.log(cardGenres);
 
         // --- Hero DOM Updates ---
 

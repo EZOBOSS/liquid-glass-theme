@@ -307,8 +307,10 @@ html {
 }
 
 .menu-container-B6cqK {
-    background-color: transparent !important;
-    box-shadow: none !important;
+    background-color: rgba(0, 0, 0, 0.703) !important;
+    backdrop-filter: var(--backdrop-filter);
+
+    box-shadow: var(--box-shadow) !important;
 }
 
 .modal-container-OuxEF .modal-dialog-container-DZMKq {
@@ -2034,6 +2036,15 @@ body.ghost-clicking #heroLoadingScreen {
     transform: scale(1.06);
     transform: translateY(-5px);
 }
+/*
+.meta-item-container-Tj0Ib:hover ~ .meta-item-container-Tj0Ib {
+    transform: translateX(130px);
+}
+   
+.meta-item-container-Tj0Ib:not(:first-child) {
+    margin-left: -130px;
+}
+     */
 
 /* fix for poster shape */
 .meta-item-container-Tj0Ib .poster-container-qkw48 .poster-image-layer-KimPZ {
@@ -2082,7 +2093,6 @@ body.ghost-clicking #heroLoadingScreen {
 .hero-container.updating #heroInfo,
 .hero-container.updating #heroImage {
     opacity: 0 !important;
-    transform: translateY(-25px) scale(1.03) !important;
 }
 
 /* Apply base transition timing to all animated elements */
@@ -2090,7 +2100,7 @@ body.ghost-clicking #heroLoadingScreen {
 .hero-container #heroDescription,
 .hero-container #heroInfo,
 .hero-container #heroImage {
-    transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+    transition: opacity 0.5s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
         filter 0.6s ease;
     will-change: opacity, transform, filter;
 }
@@ -2218,7 +2228,7 @@ body.ghost-clicking #heroLoadingScreen {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.7;
+    opacity: 1;
 }
 .upcoming-background-container {
     width: 100%;
@@ -2236,7 +2246,7 @@ body.ghost-clicking #heroLoadingScreen {
     background: linear-gradient(
         191deg,
         rgb(0 0 0 / 4%) 5%,
-        rgb(18 13 13 / 71%) 90%
+        rgba(18, 13, 13, 0.851) 90%
     );
 }
 .upcoming-logo {
@@ -2323,4 +2333,17 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .upcoming-card:hover .upcoming-release-date {
     opacity: 0 !important;
+}
+
+/* Card dimensions */
+.poster-container-qkw48 {
+    padding-top: 69% !important;
+    border-radius: 15px !important;
+}
+.meta-item-container-Tj0Ib {
+    min-width: 20.7rem !important;
+    max-height: 15rem !important;
+}
+.meta-items-container-n8vNz .meta-item-container-Tj0Ib {
+    min-width: auto !important;
 }

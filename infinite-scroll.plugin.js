@@ -170,10 +170,11 @@
         let isScrolling = false;
         // Removed lastWheelTime as throttling is counter-productive for input
 
-        const friction = 0.95;
-        const ease = 0.12;
-        const minVelocity = 0.1;
-        const threshold = 0.5;
+        const friction = 0.97;
+        const ease = 0.03;
+        const wheelForce = 0.35;
+        const minVelocity = 0.05;
+        const threshold = 0.4;
 
         const smoothScroll = () => {
             scrollTarget = Math.max(
@@ -211,12 +212,11 @@
             const isAtEnd =
                 track.scrollLeft + track.clientWidth >= track.scrollWidth &&
                 e.deltaY > 0;
+            if (isAtStart || isAtEnd) return;
 
-            if (!isAtStart && !isAtEnd) {
-                velocity += e.deltaY * 0.2;
-                // Velocity clamping for robustness
-                velocity = Math.max(-100, Math.min(velocity, 100));
-            }
+            velocity += e.deltaY * wheelForce;
+            // Velocity clamping for robustness
+            velocity = Math.max(-120, Math.min(velocity, 120));
 
             if (!isScrolling) {
                 isScrolling = true;
