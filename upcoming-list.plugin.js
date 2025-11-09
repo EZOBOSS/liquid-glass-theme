@@ -8,15 +8,19 @@
 (function () {
     const CONFIG = {
         FETCH_TIMEOUT: 5000,
-        CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour
+        CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour for the main catalog list
         CACHE_PREFIX: "upcoming_cache_",
+        VIDEO_CACHE_EXPIRY_MS: 30 * 24 * 60 * 60 * 1000, // 30 days for individual series videos
+        VIDEO_CACHE_PREFIX: "videos_cache_", // New prefix for long-term video cache
     };
 
     // --- Local + in-memory cache ---
     const memoryCache = new Map();
 
     const cacheKey = (key) => CONFIG.CACHE_PREFIX + key;
+    const videoCacheKey = (key) => CONFIG.VIDEO_CACHE_PREFIX + key; // Separate prefix
 
+    // --- Short-Term Cache Logic (For main catalog) ---
     const cacheSet = (key, value) => {
         const entry = { value, timestamp: Date.now() };
         memoryCache.set(key, entry);
@@ -49,9 +53,37 @@
         }
     };
 
-    const logger = {
-        warn: (...a) => console.warn("[UpcomingReleases]", ...a),
+    // --- NEW: Long-Term Cache Logic (For individual videos array) ---
+    const videoCacheSet = (key, value) => {
+        const entry = { value, timestamp: Date.now() };
+        try {
+            // Use the video-specific key and prefix
+            localStorage.setItem(videoCacheKey(key), JSON.stringify(entry));
+        } catch {
+            // ignore quota or serialization errors
+        }
     };
+
+    const videoCacheGet = (key) => {
+        const now = Date.now();
+        try {
+            const raw = localStorage.getItem(videoCacheKey(key));
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+
+            // Check against the special long-term expiry (VIDEO_CACHE_EXPIRY_MS)
+            if (now - data.timestamp > CONFIG.VIDEO_CACHE_EXPIRY_MS) {
+                localStorage.removeItem(videoCacheKey(key));
+                return null;
+            }
+            // Return only the stored array of videos
+            return data.value;
+        } catch {
+            return null;
+        }
+    };
+
+    // --- Helper Functions ---
 
     const safeFetch = async (
         url,
@@ -75,6 +107,12 @@
         }
     };
 
+    const logger = {
+        warn: (...a) => console.warn("[UpcomingReleases]", ...a),
+    };
+
+    // --- Main Logic ---
+
     async function fetchUpcomingTitles(
         type = "movie",
         catalog = "top",
@@ -83,8 +121,9 @@
         const baseUrl = "https://cinemeta-catalogs.strem.io/top/catalog";
         const metaUrl = "https://cinemeta-live.strem.io/meta";
         const types = ["movie", "series"];
-        const now = Date.now(); // milliseconds, cheaper than new Date() objects
+        const now = Date.now();
 
+        // Short-term cache check for the final catalog output (e.g., daily refresh)
         const key = `${type}_${catalog}_${limit}`;
         const cached = cacheGet(key);
         if (cached) {
@@ -93,12 +132,11 @@
         }
 
         try {
-            // Fetch both types in parallel
+            // 1. Initial Catalog Fetch (Movies + Series)
             const results = await Promise.allSettled(
                 types.map((t) => safeFetch(`${baseUrl}/${t}/${catalog}.json`))
             );
 
-            // Combine fulfilled results into one metas array
             const all = [];
             for (const res of results) {
                 if (res.status === "fulfilled" && res.value) {
@@ -111,8 +149,62 @@
                     all.push(...metas);
                 }
             }
-
             console.log("[UpcomingReleases] Fetched", all.length, "metas");
+
+            // 2. Optimized Series Videos Fetch
+            const seriesMetas = all.filter((m) => m.type === "series");
+            const movieMetas = all.filter((m) => m.type === "movie");
+
+            console.log(
+                `[UpcomingReleases] Checking cache/fetching meta for ${seriesMetas.length} series...`
+            );
+
+            const seriesEnrichmentResults = await Promise.allSettled(
+                seriesMetas.map(async (m) => {
+                    const vidCacheKey = `videos:${m.id}`;
+                    let videos = videoCacheGet(vidCacheKey); // 💡 CHECK LONG-TERM CACHE FIRST
+
+                    if (!videos) {
+                        // Cache miss: must fetch full meta
+                        const url = `${metaUrl}/${m.type}/${m.id}.json`;
+                        try {
+                            const data = await safeFetch(url);
+                            videos = data?.meta?.videos || [];
+
+                            // 💡 SET LONG-TERM CACHE
+                            if (videos.length) {
+                                videoCacheSet(videoCacheKey, videos);
+                            }
+                        } catch (err) {
+                            logger.warn(
+                                "Failed to pre-fetch meta for",
+                                m.id,
+                                err
+                            );
+                        }
+                    } else {
+                        console.log(
+                            `[UpcomingReleases] Videos cache hit for ${m.id}`
+                        );
+                    }
+
+                    // Attach videos to the meta object regardless of source (cache or fetch)
+                    m.videos = videos || [];
+                    return m;
+                })
+            );
+
+            // Recombine all metas (movies + enriched series)
+            const allMetasWithVideos = [
+                ...movieMetas,
+                ...seriesEnrichmentResults
+                    .filter((r) => r.status === "fulfilled")
+                    .map((r) => r.value),
+            ];
+
+            console.log(
+                "[UpcomingReleases] Completed pre-fetch/cache check for series."
+            );
 
             // --- Helpers ---
             const dayMs = 86400000;
@@ -161,15 +253,14 @@
                 }
 
                 if (!futureVideos.length) return null;
-                // use reduce instead of sort for performance
                 return futureVideos.reduce((min, curr) =>
                     curr.dateMs < min.dateMs ? curr : min
                 );
             };
 
-            // --- Filter + map ---
+            // 3. Filter and Map the List
             const metadataList = [];
-            for (const m of all) {
+            for (const m of allMetasWithVideos) {
                 const closest = getClosestFutureVideo(m);
                 if (!closest) continue;
 
@@ -192,7 +283,14 @@
                     m?.trailers?.[0]?.url ||
                     m?.videos?.[0]?.url ||
                     null;
-
+                let latestSeasonVideos = [];
+                if (video.season > 0) {
+                    latestSeasonVideos = m.videos.filter(
+                        (v) =>
+                            v.season === video.season ||
+                            (v.season === 0 && v.episode === 0)
+                    );
+                }
                 metadataList.push({
                     id: m.id,
                     type: m.type,
@@ -213,52 +311,20 @@
                         : Array.isArray(m.genres)
                         ? m.genres
                         : [],
+                    videos: latestSeasonVideos || [],
                 });
             }
 
-            // Sort once at the end (in-place, minimal overhead)
+            // 4. Sort and Limit
             metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
-
-            const limited = metadataList.slice(0, limit);
-
-            // --- 🔹 Fetch full meta for these items and keep only latest season episodes ---
-            const enriched = await Promise.allSettled(
-                limited.map(async (item) => {
-                    const url = `${metaUrl}/${item.type}/${item.id}.json`;
-                    try {
-                        const data = await safeFetch(url);
-                        const videos = data?.meta?.videos || [];
-
-                        if (videos.length && item.type === "series") {
-                            // find highest (latest) season number
-                            const seasons = videos
-                                .map((v) => v.season)
-                                .filter((s) => typeof s === "number" && s > 0);
-                            const latestSeason = Math.max(...seasons);
-
-                            // filter and sort that season's episodes
-                            item.latestSeasonEpisodes = videos
-                                .filter((v) => v.season === latestSeason)
-                                .map((v) => ({
-                                    name: v.title,
-                                    episode: v.episode,
-                                    season: v.season,
-                                    released: v.released,
-                                    thumbnail: v.thumbnail,
-                                }))
-                                .sort((a, b) => a.episode - b.episode);
-                        }
-                    } catch (err) {
-                        console.warn("Failed to fetch meta for", item.id, err);
-                    }
-                    return item;
-                })
+            console.log(
+                "[UpcomingReleases] Sorted",
+                metadataList.length,
+                "items"
             );
+            const finalList = metadataList.slice(0, limit);
 
-            const finalList = enriched
-                .filter((r) => r.status === "fulfilled")
-                .map((r) => r.value);
-
+            // 5. Final Result
             cacheSet(key, finalList);
             return finalList;
         } catch (e) {
@@ -281,8 +347,15 @@
 
         const formatDate = (dateString) => {
             const date = new Date(dateString);
-            const day = date.getDate(); // returns 1–31 without leading zero
-            const month = date.toLocaleDateString("en-GB", { month: "short" });
+            // Use getUTCDate() to get the day component based on the UTC date
+            const day = date.getUTCDate();
+
+            // Use toLocaleDateString() but force the time zone to UTC
+            const month = date.toLocaleDateString("en-GB", {
+                month: "short",
+                timeZone: "UTC",
+            });
+
             return `${day}<br>${month}`;
         };
 
@@ -293,10 +366,7 @@
             let episodesContainerHtml = "";
 
             // --- 🔹 Episode Rendering Logic ---
-            if (
-                Array.isArray(m.latestSeasonEpisodes) &&
-                m.latestSeasonEpisodes.length
-            ) {
+            if (Array.isArray(m.videos) && m.videos.length) {
                 // Parse next episode only if videos exist
                 let nextUp = null;
                 const match = m.episodeText?.match(/^S(\d+)\sE(\d+)$/);
@@ -305,9 +375,8 @@
                 }
 
                 let episodesHtml = "";
-
                 // Inner loop: Pure string building
-                for (const ep of m.latestSeasonEpisodes) {
+                for (const ep of m.videos) {
                     const released = Date.parse(ep.released) <= thresholdMs;
                     let stateClass = "released";
 

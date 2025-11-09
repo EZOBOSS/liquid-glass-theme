@@ -1,171 +1,120 @@
 /*
- * @name Enhanced Title Bar
- * @description Enhances the title bar with additional information.
- * @version 1.0.0
- * @author Fxy
+ * @name Enhanced Title Bar Optimized
+ * @description Optimized version with concurrency limit and better DOM handling.
+ * @version 1.1.0
+ * @author Fxy, EZOBOSS
  */
 
 const CONFIG = {
     apiBase: "https://v3-cinemeta.strem.io/meta",
     timeout: 5000,
-    updateInterval: 2000,
+    updateInterval: 10000, // refresh every 10s
+    concurrency: 4, // limit simultaneous fetches
 };
 
 const metadataCache = new Map();
 
-// Get days since release helper
 function getDaysSinceRelease(releaseDateStr) {
     if (!releaseDateStr) return "";
-
-    const oneDay = 86400000; // 1000 * 60 * 60 * 24
-
-    // Parse and compute difference in days using UTC for consistency and speed
+    const oneDay = 86400000;
     const release = Date.parse(releaseDateStr);
     if (isNaN(release)) return "";
 
-    const now = Date.now();
-    const diffDays = Math.trunc((now - release) / oneDay);
+    // 1. Calculate difference in milliseconds, then days
+    const diffMs = Date.now() - release;
+    const diffDays = diffMs / oneDay;
 
-    // Instead of normalizing to midnight, we use truncation to get whole days
-    if (diffDays === 0) return "Today";
+    if (diffDays >= 0) {
+        // Past or current day
+        const days = Math.trunc(diffDays); // Use Math.trunc for whole days passed
+        if (days === 0) return "Today";
 
-    if (diffDays > 0) {
-        if (diffDays >= 365) {
-            const years = Math.trunc(diffDays / 365);
+        if (days >= 365) {
+            const years = Math.trunc(days / 365);
+            // 3. FIX: Pluralize based on the calculated number of years
             return `${years} year${years > 1 ? "s" : ""} ago`;
         }
-        return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+        return `${days} day${days > 1 ? "s" : ""} ago`;
     }
 
-    const daysAhead = Math.abs(diffDays);
+    // Future release
+    // 1. FIX: Use Math.ceil on the absolute difference to correctly count days ahead
+    const daysAhead = Math.ceil(Math.abs(diffDays));
     return `in ${daysAhead} day${daysAhead > 1 ? "s" : ""}`;
 }
 
 function injectStyles() {
     if (document.getElementById("enhanced-title-bar-styles")) return;
-
     const style = document.createElement("style");
     style.id = "enhanced-title-bar-styles";
     style.textContent = `
-        .enhanced-title-bar {
-            position: relative !important;
-            padding: 5px 4px !important;
-            padding-right: 10px !important;
-            overflow: hidden !important;
-            max-width: 400px !important;
-            transform: translateZ(0) !important;
-        }
-            
-        .enhanced-title {
-            font-size: 16px !important;
-            font-weight: 600 !important;
-            color: #ffffff !important;
-            margin-bottom: 3px !important;
-            line-height: 1.3 !important;
-        }
-        
-        .enhanced-metadata {
-            display: flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-            flex-wrap: wrap !important;
-            font-size: 12px !important;
-            color: #999 !important;
-        }
-        
-        .enhanced-metadata-item {
-            display: inline-flex !important;
-            align-items: center !important;
-            gap: 4px !important;
-        }
-        
-        .enhanced-separator {
-            color: #666 !important;
-            margin: 0 4px !important;
-        }
-            
-        .enhanced-loading {
-            background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%) !important;
-            background-size: 200% 100% !important;
-            animation: enhanced-loading 1.5s infinite !important;
-            border-radius: 3px !important;
-            height: 12px !important;
-            width: 60px !important;
-            display: inline-block !important;
-        }
-        
-        @keyframes enhanced-loading {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
+        .enhanced-title-bar { position: relative !important; padding: 5px 10px !important; overflow: hidden !important; max-width: 400px !important; transform: translateZ(0) !important; }
+        .enhanced-title { font-size: 16px !important; font-weight: 600 !important; color: #fff !important; margin-bottom: 3px !important; line-height: 1.3 !important; }
+        .enhanced-metadata { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; font-size: 12px !important; color: #999 !important; }
+        .enhanced-metadata-item { display: inline-flex !important; align-items: center !important; gap: 4px !important; }
+        .enhanced-separator { color: #666 !important; margin: 0 4px !important; }
+        .enhanced-loading { background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%) !important; background-size: 200% 100% !important; animation: enhanced-loading 1.5s infinite !important; border-radius: 3px !important; height: 12px !important; width: 60px !important; display: inline-block !important; }
+        @keyframes enhanced-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     `;
     document.head.appendChild(style);
 }
 
-async function getMetadata(id, type) {
-    const cacheKey = `${type}-${id}`;
+async function fetchMetadataLimited(tasks, limit = CONFIG.concurrency) {
+    const results = [];
+    let index = 0;
 
-    if (metadataCache.has(cacheKey)) {
-        return metadataCache.get(cacheKey);
+    async function worker() {
+        while (index < tasks.length) {
+            const i = index++;
+            try {
+                results[i] = await tasks[i]();
+            } catch {
+                results[i] = null;
+            }
+        }
     }
+
+    const workers = Array.from({ length: limit }, worker);
+    await Promise.all(workers);
+    return results;
+}
+
+async function getMetadata(id, type) {
+    const key = `${type}-${id}`;
+    if (metadataCache.has(key)) return metadataCache.get(key);
 
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
-
-        const response = await fetch(`${CONFIG.apiBase}/${type}/${id}.json`, {
+        const res = await fetch(`${CONFIG.apiBase}/${type}/${id}.json`, {
             signal: controller.signal,
         });
-
         clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
+        if (!res.ok) throw new Error(res.statusText);
+        const data = await res.json();
         const meta = data.meta;
         if (!meta) return null;
 
-        // --- Compute releaseDate first ---
-        const releaseDate = (() => {
-            const videos = meta.videos;
+        // Compute release date
+        const videos = meta.videos || [];
+        let closestFuture = null,
+            latestPast = null;
+        const now = new Date();
 
-            if (!Array.isArray(videos) || videos.length === 0) {
-                return getDaysSinceRelease(meta.released || null);
-            }
+        for (const v of videos) {
+            if (!v.released) continue;
+            const date = new Date(v.released);
+            if (isNaN(date)) continue;
+            if (date > now && (!closestFuture || date < closestFuture.date))
+                closestFuture = { date, released: v.released };
+            if (date <= now && (!latestPast || date > latestPast.date))
+                latestPast = { date, released: v.released };
+        }
 
-            const now = new Date();
-            let closestFuture = null;
-            let latestPast = null;
-
-            for (const v of videos) {
-                if (!v.released) continue;
-
-                const date = new Date(v.released);
-                if (isNaN(date)) continue;
-
-                if (date > now) {
-                    // Future release — keep the soonest one
-                    if (!closestFuture || date < closestFuture.date) {
-                        closestFuture = { released: v.released, date };
-                    }
-                } else {
-                    // Past release — keep the latest one
-                    if (!latestPast || date > latestPast.date) {
-                        latestPast = { released: v.released, date };
-                    }
-                }
-            }
-
-            if (closestFuture) {
-                return getDaysSinceRelease(closestFuture.released);
-            } else if (latestPast) {
-                return getDaysSinceRelease(latestPast.released);
-            }
-
-            return getDaysSinceRelease(meta.released || null);
-        })();
+        const releaseDate = getDaysSinceRelease(
+            (closestFuture || latestPast || { released: meta.released })
+                .released
+        );
 
         // --- Compute newTag from releaseDate ---
         const newTag = (() => {
@@ -182,23 +131,17 @@ async function getMetadata(id, type) {
             return null;
         })();
 
-        // --- Compute trailer safely ---
-        const trailer = (() => {
-            const url =
-                meta?.trailer ||
-                meta?.trailers?.[0]?.source ||
-                meta?.trailers?.[0]?.url ||
-                meta?.videos?.[0]?.url ||
-                null;
+        const trailer =
+            meta?.trailer ||
+            meta?.trailers?.[0]?.source ||
+            meta?.trailers?.[0]?.url ||
+            meta?.videos?.[0]?.url ||
+            null;
 
-            return url || null;
-        })();
-
-        // --- Assemble metadata object ---
         const metadata = {
             title: meta.name || meta.title,
-            year: meta.year ? meta.year.toString() : null,
-            rating: meta.imdbRating ? meta.imdbRating.toString() : null,
+            year: meta.year?.toString() || null,
+            rating: meta.imdbRating?.toString() || null,
             genres: Array.isArray(meta.genre)
                 ? meta.genre
                 : Array.isArray(meta.genres)
@@ -215,49 +158,29 @@ async function getMetadata(id, type) {
             trailer,
         };
 
-        metadataCache.set(cacheKey, metadata);
+        metadataCache.set(key, metadata);
         return metadata;
-    } catch (error) {
-        console.log(`Failed to fetch ${id}:`, error);
+    } catch {
         return null;
     }
 }
 
-function extractMediaInfo(titleText, element) {
-    // Look for an <a> tag with href containing tt
-    const findHref = (el) => {
-        // Case 1: element itself is an <a> with IMDb ID
-        if (el.tagName === "A" && el.href && el.href.includes("tt")) {
-            const match = el.href.match(/tt\d{7,}/);
-            if (match) {
-                const typeMatch = el.href.match(/\/(movie|series)\//i);
-                const type = typeMatch ? typeMatch[1].toLowerCase() : "movie";
-                return { id: match[0], type };
-            }
+function extractMediaInfo(element) {
+    let el = element;
+    for (let i = 0; i < 5 && el; i++, el = el.parentElement) {
+        const link =
+            el.querySelector("a[href*='tt']") ||
+            (el.tagName === "A" && el.href.includes("tt") ? el : null);
+        if (link) {
+            const idMatch = link.href.match(/tt\d{7,}/);
+            if (!idMatch) continue;
+            const typeMatch = link.href.match(/\/(movie|series)\//i);
+            return {
+                id: idMatch[0],
+                type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
+            };
         }
-
-        // Case 2: element contains one or more <a> links
-        const links = el.querySelectorAll("a[href*='tt']");
-        for (let a of links) {
-            const match = a.href.match(/tt\d{7,}/);
-            if (match) {
-                const typeMatch = a.href.match(/\/(movie|series)\//i);
-                const type = typeMatch ? typeMatch[1].toLowerCase() : "movie";
-                return { id: match[0], type };
-            }
-        }
-
-        return null;
-    };
-
-    // Try element first, then parent
-    const result = findHref(element.parentElement);
-
-    if (result) {
-        return result;
     }
-
-    console.log("No IMDb ID found, using fallback");
     return { id: "tt0000000", type: "movie" };
 }
 
@@ -317,135 +240,90 @@ function createMetadataElements(metadata) {
     return elements;
 }
 
-async function enhanceTitleBar(titleBarElement) {
-    if (titleBarElement.classList.contains("enhanced-title-bar")) return;
+async function enhanceTitleBar(titleBar) {
+    if (titleBar.classList.contains("enhanced-title-bar")) return;
+    const titleEl = titleBar.querySelector(
+        ".title-label-VnEAc,[class*='title-label'],[class*='title']"
+    );
+    if (!titleEl) return;
+    const originalTitle = titleEl.textContent.trim();
+    if (!originalTitle) return;
 
-    const titleElement =
-        titleBarElement.querySelector(".title-label-VnEAc") ||
-        titleBarElement.querySelector('[class*="title-label"]') ||
-        titleBarElement.querySelector('[class*="title"]');
+    titleBar.classList.add("enhanced-title-bar");
+    titleBar.dataset.originalHtml = titleBar.innerHTML;
+    titleBar.innerHTML = "";
 
-    if (!titleElement) return;
+    const mediaInfo = extractMediaInfo(titleBar);
 
-    const originalTitle = titleElement.textContent.trim();
-    if (!originalTitle || originalTitle.length < 1) return;
+    const titleContainer = Object.assign(document.createElement("div"), {
+        className: "enhanced-title",
+    });
+    titleBar.appendChild(titleContainer);
 
-    titleBarElement.classList.add("enhanced-title-bar");
-    titleBarElement.dataset.originalHtml = titleBarElement.innerHTML;
-    titleBarElement.innerHTML = "";
-
-    const mediaInfo = extractMediaInfo(originalTitle, titleBarElement);
-
-    // Create title container (image or text)
-    const titleContainer = document.createElement("div");
-    titleContainer.className = "enhanced-title";
-    titleBarElement.appendChild(titleContainer);
-
-    const metadataContainer = document.createElement("div");
-    metadataContainer.className = "enhanced-metadata";
-
-    const loading = document.createElement("div");
-    loading.className = "enhanced-loading";
+    const metadataContainer = Object.assign(document.createElement("div"), {
+        className: "enhanced-metadata",
+    });
+    const loading = Object.assign(document.createElement("div"), {
+        className: "enhanced-loading",
+    });
     metadataContainer.appendChild(loading);
+    titleBar.appendChild(metadataContainer);
 
-    titleBarElement.appendChild(metadataContainer);
+    const metadata = await getMetadata(mediaInfo.id, mediaInfo.type);
+    metadataContainer.innerHTML = "";
 
-    try {
-        const metadata = await getMetadata(mediaInfo.id, mediaInfo.type);
-
-        if (metadata) {
-            // Use logo if exists, else fallback to title text
-            if (metadata.logo && metadata.logo.length > 0) {
-                const logoImg = document.createElement("img");
-                logoImg.src = metadata.logo;
-                logoImg.alt = metadata.title || originalTitle;
-                logoImg.style.width = "75%"; // adjust size as needed
-                logoImg.style.height = "65px";
-                logoImg.style.objectFit = "contain";
-                titleContainer.appendChild(logoImg);
-            } else {
-                titleContainer.textContent = metadata.title || originalTitle;
-            }
-
-            // Build metadata elements
-            metadataContainer.innerHTML = "";
-            const elements = createMetadataElements(metadata);
-            elements.forEach((element, index) => {
-                metadataContainer.appendChild(element);
-                /*
-                if (index < elements.length - 2) {
-                    const separator = document.createElement("span");
-                    separator.className = "enhanced-separator";
-                    separator.textContent = "•";
-                    metadataContainer.appendChild(separator);
-                }
-                    */
+    if (metadata) {
+        if (metadata.logo) {
+            const logoImg = Object.assign(document.createElement("img"), {
+                src: metadata.logo,
+                alt: metadata.title || originalTitle,
+                style: "max-width:75%;height:65px;object-fit:contain;",
             });
+            titleContainer.appendChild(logoImg);
         } else {
-            metadataContainer.innerHTML = "";
-            const fallback = document.createElement("span");
-            fallback.className = "enhanced-metadata-item";
-            fallback.textContent = originalTitle;
-            fallback.style.color = "#ffffffff";
-            metadataContainer.appendChild(fallback);
+            titleContainer.textContent = metadata.title || originalTitle;
         }
-    } catch (error) {
-        metadataContainer.innerHTML = "";
-        const errorText = document.createElement("span");
-        errorText.className = "enhanced-metadata-item";
-        errorText.textContent = "Loading failed";
-        errorText.style.color = "#666";
-        metadataContainer.appendChild(errorText);
+
+        const elements = createMetadataElements(metadata);
+        elements.forEach((el) => metadataContainer.appendChild(el));
+    } else {
+        const fallback = Object.assign(document.createElement("span"), {
+            className: "enhanced-metadata-item",
+            textContent: originalTitle,
+            style: "color:#fff;",
+        });
+        metadataContainer.appendChild(fallback);
     }
 }
 
-function enhanceAllTitleBars() {
-    const selectors = [
-        ".title-bar-container-1Ba0x",
+async function enhanceAllTitleBars() {
+    const elements = document.querySelectorAll(
+        ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container'],[class*='media-title']"
+    );
 
-        '[class*="title-bar-container"]',
-        '[class*="titleBarContainer"]',
-        '[class*="title-container"]',
-        '[class*="media-title"]',
-    ];
-
-    selectors.forEach((selector) => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach((element) => {
-            enhanceTitleBar(element).catch(() => {});
-        });
-    });
+    const tasks = Array.from(elements, (el) => () => enhanceTitleBar(el));
+    await fetchMetadataLimited(tasks);
 }
 
 function init() {
     injectStyles();
     enhanceAllTitleBars();
 
-    setInterval(() => {
-        enhanceAllTitleBars();
-    }, CONFIG.updateInterval);
+    setInterval(enhanceAllTitleBars, CONFIG.updateInterval);
 
+    let timeoutId = null;
     if (typeof MutationObserver !== "undefined") {
-        const observer = new MutationObserver((mutations) => {
-            let shouldCheck = false;
-            mutations.forEach((mutation) => {
-                if (
-                    mutation.type === "childList" &&
-                    mutation.addedNodes.length > 0
-                ) {
-                    shouldCheck = true;
-                }
-            });
-
-            if (shouldCheck) {
-                setTimeout(enhanceAllTitleBars, 100);
+        const observer = new MutationObserver((muts) => {
+            if (
+                muts.some(
+                    (m) => m.type === "childList" && m.addedNodes.length > 0
+                )
+            ) {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(enhanceAllTitleBars, 100);
             }
         });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-        });
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 }
 
@@ -454,5 +332,3 @@ if (document.readyState === "loading") {
 } else {
     init();
 }
-
-setTimeout(init, 100);
