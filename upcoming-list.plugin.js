@@ -170,6 +170,9 @@
                         try {
                             const data = await safeFetch(url);
                             videos = data?.meta?.videos || [];
+                            console.log(
+                                `[UpcomingReleases] Fetched meta for ${m.id}`
+                            );
 
                             // 💡 SET LONG-TERM CACHE
                             if (videos.length) {
