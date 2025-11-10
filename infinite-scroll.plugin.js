@@ -48,6 +48,7 @@
             const data = JSON.parse(raw);
             if (now - data.timestamp > CONFIG.CACHE_TTL) {
                 localStorage.removeItem(cacheKey(key));
+                memoryCache.delete(key);
                 return null;
             }
             memoryCache.set(key, data);
@@ -91,7 +92,12 @@
     // --------------------------
     const fetchProgress = {}; // Track offsets per type+catalog combo
 
-    async function fetchCatalogTitles(type, limit = 10, catalog = "top") {
+    async function fetchCatalogTitles(
+        type,
+        limit = 10,
+        catalog = "top",
+        track
+    ) {
         if (!type) throw new Error("fetchCatalogTitles: 'type' is required");
 
         const key = `${type}_${catalog}`;
@@ -115,6 +121,24 @@
                 if (!json || !json.metas)
                     throw new Error("Invalid API response");
                 allData = json.metas;
+                // Filter out existing items in the track
+                if (track && track.children.length > 0) {
+                    const existingIds = new Set();
+                    const children = track.children; // Get the live HTMLCollection/NodeList
+                    const maxItems = Math.min(children.length, 9); // Determine how many times to loop
+
+                    for (let i = 0; i < maxItems; i++) {
+                        const item = children[i];
+                        // Assuming the <a> element has the ID set directly.
+                        if (item.id) {
+                            existingIds.add(item.id);
+                        }
+                    }
+
+                    allData = allData.filter(
+                        (item) => !existingIds.has(item.id)
+                    );
+                }
                 cacheSet(cacheKey, allData);
             } catch (e) {
                 logger.warn(`[fetchCatalogTitles] failed for ${key}`, e);
@@ -160,10 +184,10 @@
         const type = track.firstChild?.href?.split?.("/")[5];
         if (!type) return;
 
-        const initialCount = track.children.length;
+        //const initialCount = track.children.length;
         const key = `${type}_${catalog}`;
         // Assuming fetchProgress is defined and accessible
-        fetchProgress[key] = initialCount;
+        fetchProgress[key] = 0;
 
         let scrollTarget = track.scrollLeft;
         let velocity = 0;
@@ -259,7 +283,7 @@
         console.log("[AppleTVWheelInfiniteScroll] Fetching more items...");
 
         try {
-            const items = await fetchCatalogTitles(type, 9, catalog);
+            const items = await fetchCatalogTitles(type, 9, catalog, track);
             if (!items?.length) {
                 console.log(
                     "[AppleTVWheelInfiniteScroll] No more items to load."

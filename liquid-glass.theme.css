@@ -307,8 +307,8 @@ html {
 }
 
 .menu-container-B6cqK {
-    background-color: rgba(0, 0, 0, 0.703) !important;
-    backdrop-filter: var(--backdrop-filter);
+    background-color: rgba(0, 0, 0, 0.9) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
 
     box-shadow: var(--box-shadow) !important;
 }
@@ -1967,11 +1967,16 @@ body.ghost-clicking #heroLoadingScreen {
 }
 /* stream picking animations */
 .label-container-XOyzm:hover {
-    background-color: var(--bg-color) !important;
+    background: radial-gradient(
+        circle,
+        rgb(29 28 28 / 69%) 0%,
+        rgb(0 0 0 / 54%) 100%
+    );
+    box-shadow: var(--box-shadow) !important;
 
     border-radius: 1rem !important;
-    transition: all 0.5s ease;
 }
+/*
 .label-container-XOyzm:hover .addon-name-tC8PX {
     color: black !important;
 }
@@ -1982,6 +1987,7 @@ body.ghost-clicking #heroLoadingScreen {
 .label-container-XOyzm:hover .title-container-NcfV9 {
     color: black !important;
 }
+    */
 
 /* Hover animation 
 .meta-item-container-Tj0Ib:hover {
@@ -1991,7 +1997,7 @@ body.ghost-clicking #heroLoadingScreen {
 .meta-item-container-Tj0Ib:hover .poster-image-NiV7O {
     transform: scale(1.06);
 }
-.meta-item-container-Tj0Ib:hover .enhanced-title {
+.meta-row-container-xtlB1 .meta-item-container-Tj0Ib:hover .enhanced-title {
     transform: translateY(-80%);
 }
 
@@ -2144,9 +2150,10 @@ body.ghost-clicking #heroLoadingScreen {
     overflow-x: scroll !important;
     overflow-y: hidden !important;
     flex-shrink: 0 !important;
-    width: 100% !important;
+    width: 99% !important;
     scroll-snap-type: proximity !important;
     scroll-behavior: smooth !important;
+    padding-right: 1rem !important;
 }
 
 .meta-item-container-Tj0Ib {
@@ -2439,6 +2446,20 @@ body.ghost-clicking #heroLoadingScreen {
     font-family: "Montserrat", sans-serif !important;
     opacity: 1;
     z-index: 11;
+}
+.upcoming-new-season {
+    position: absolute;
+    top: 0;
+    left: 3%;
+    z-index: 11;
+    padding: 3px;
+    width: 100%;
+    font-family: "Montserrat", sans-serif !important;
+    opacity: 1;
+    z-index: 11;
+}
+.upcoming-card.new-season {
+    border: solid 2px #ff0000;
 }
 .upcoming-episode-title {
     display: none;

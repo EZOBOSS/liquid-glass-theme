@@ -18,7 +18,7 @@
     const memoryCache = new Map();
 
     const cacheKey = (key) => CONFIG.CACHE_PREFIX + key;
-    const videoCacheKey = (key) => CONFIG.VIDEO_CACHE_PREFIX + key; // Separate prefix
+    //const videoCacheKey = (key) => CONFIG.VIDEO_CACHE_PREFIX + key; // Separate prefix
 
     // --- Short-Term Cache Logic (For main catalog) ---
     const cacheSet = (key, value) => {
@@ -53,35 +53,59 @@
         }
     };
 
-    // --- NEW: Long-Term Cache Logic (For individual videos array) ---
-    const videoCacheSet = (key, value) => {
-        const entry = { value, timestamp: Date.now() };
-        try {
-            // Use the video-specific key and prefix
-            localStorage.setItem(videoCacheKey(key), JSON.stringify(entry));
-        } catch {
-            // ignore quota or serialization errors
-        }
-    };
+    // --- NEW: Grouped Long-Term Video Cache ---
+    const VIDEO_CACHE_KEY = CONFIG.VIDEO_CACHE_PREFIX + "all";
 
-    const videoCacheGet = (key) => {
-        const now = Date.now();
-        try {
-            const raw = localStorage.getItem(videoCacheKey(key));
-            if (!raw) return null;
-            const data = JSON.parse(raw);
+    // --- in-memory cache ---
+    let videoMemoryCache = null;
 
-            // Check against the special long-term expiry (VIDEO_CACHE_EXPIRY_MS)
-            if (now - data.timestamp > CONFIG.VIDEO_CACHE_EXPIRY_MS) {
-                localStorage.removeItem(videoCacheKey(key));
-                return null;
+    function loadVideoCache() {
+        if (videoMemoryCache) return videoMemoryCache;
+
+        try {
+            const raw = localStorage.getItem(VIDEO_CACHE_KEY);
+            const cache = raw ? JSON.parse(raw) : {};
+            const now = Date.now();
+            let dirty = false;
+
+            for (const k in cache) {
+                if (now - cache[k].timestamp > CONFIG.VIDEO_CACHE_EXPIRY_MS) {
+                    delete cache[k];
+                    dirty = true;
+                }
             }
-            // Return only the stored array of videos
-            return data.value;
-        } catch {
-            return null;
+
+            if (dirty) saveVideoCache(cache);
+
+            videoMemoryCache = cache; // store in memory
+            return cache;
+        } catch (err) {
+            console.log("[UpcomingReleases] Failed to load video cache", err);
+            videoMemoryCache = {};
+            return {};
         }
-    };
+    }
+
+    function saveVideoCache(cache) {
+        try {
+            localStorage.setItem(VIDEO_CACHE_KEY, JSON.stringify(cache));
+            videoMemoryCache = cache;
+        } catch (err) {
+            console.warn("[UpcomingReleases] Failed to save video cache", err);
+        }
+    }
+
+    function videoCacheSet(key, value) {
+        const cache = loadVideoCache();
+        cache[key] = { value, timestamp: Date.now() };
+        saveVideoCache(cache);
+    }
+
+    function videoCacheGet(key) {
+        const cache = loadVideoCache(); // already pruned
+        const entry = cache[key];
+        return entry ? entry.value : null; // simple read
+    }
 
     // --- Helper Functions ---
 
@@ -176,7 +200,7 @@
 
                             // 💡 SET LONG-TERM CACHE
                             if (videos.length) {
-                                videoCacheSet(videoCacheKey, videos);
+                                videoCacheSet(vidCacheKey, videos);
                             }
                         } catch (err) {
                             logger.warn(
@@ -294,6 +318,10 @@
                             (v.season === 0 && v.episode === 0)
                     );
                 }
+                let isNewSeason = false;
+                if (video.episode === 1) {
+                    isNewSeason = true;
+                }
                 metadataList.push({
                     id: m.id,
                     type: m.type,
@@ -315,15 +343,17 @@
                         ? m.genres
                         : [],
                     videos: latestSeasonVideos || [],
+                    isNewSeason,
                 });
             }
 
             // 4. Sort and Limit
             metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
+
             console.log(
                 "[UpcomingReleases] Sorted",
                 metadataList.length,
-                "items"
+                "upcomingitems"
             );
             const finalList = metadataList.slice(0, limit);
 
@@ -419,16 +449,29 @@
                 // Wrap episodes in their container
                 episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtml}</div>`;
             }
+            // 💡 NEW LOGIC: Create the "New Season" indicator HTML
+            const upcomingSeasonNumber = m.isNewSeason
+                ? m.videos[0]?.season
+                : 0;
+            const newSeasonClass = m.isNewSeason ? " new-season" : "";
+
+            // 2. Build the indicator string using template literals
+            const newSeasonIndicator = m.isNewSeason
+                ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERES</div>`
+                : "";
 
             // --- Card Structure Builder (Pure string) ---
             // Replace all card creation/attribute setting with a single string
             gridHtml += `
             <a 
                 tabindex="0" 
-                class="upcoming-card" 
+                class="upcoming-card${newSeasonClass}"
                 href="${m.href}"
                 data-trailer-url="${m.trailer || ""}"
-                data-description="${m.description || ""}"
+                data-description="${(m.description || "").replace(
+                    /"/g,
+                    "&quot;"
+                )}"
                 id="${m.id}"
                 data-rating="${m.rating || ""}"
                 data-year="${m.year || ""}"
@@ -442,6 +485,7 @@
                     <img class="upcoming-logo" src="${m.logo}" alt="${
                 m.title
             }" loading="lazy" />
+                    ${newSeasonIndicator}
                     <div class="upcoming-release-date">${m.releaseText}</div>
                     <div class="upcoming-episode">${m.episodeText}</div>
                     ${episodesContainerHtml} </div>
