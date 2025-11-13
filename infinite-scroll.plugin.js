@@ -134,7 +134,7 @@
                             existingIds.add(item.id);
                         }
                     }
-
+                    // Remove any items that are already in the track
                     allData = allData.filter(
                         (item) => !existingIds.has(item.id)
                     );
