@@ -2152,7 +2152,7 @@ body.ghost-clicking #heroLoadingScreen {
     flex-shrink: 0 !important;
     width: 99% !important;
     scroll-snap-type: proximity !important;
-    scroll-behavior: smooth !important;
+
     padding-right: 1rem !important;
 }
 

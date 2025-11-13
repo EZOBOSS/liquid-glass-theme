@@ -195,7 +195,7 @@
                             const data = await safeFetch(url);
                             videos = data?.meta?.videos || [];
                             console.log(
-                                `[UpcomingReleases] Fetched meta for ${m.id}`
+                                `[UpcomingReleases] Fetched meta for ${m.id} - ${m.name}`
                             );
 
                             // 💡 SET LONG-TERM CACHE
@@ -211,7 +211,7 @@
                         }
                     } else {
                         console.log(
-                            `[UpcomingReleases] Videos cache hit for ${m.id}`
+                            `[UpcomingReleases] Videos cache hit for ${m.id} - ${m.name}`
                         );
                     }
 
