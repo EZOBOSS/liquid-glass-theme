@@ -15,8 +15,11 @@
         DETAIL_TIMEOUT: 5000,
         MAX_RETRIES: 2,
         BATCH_SIZE: 6, // concurrent detail fetches
-        CACHE_TTL_MS: 1000 * 60 * 5, // 5 minutes
+        CACHE_TTL_MS: 1000 * 60 * 60 * 6, // 6 hours
         LOG_LEVEL: "debug", // 'silent'|'debug'|'info'
+        PLAY_TRAILER_ON_HOVER:
+            JSON.parse(localStorage.getItem("custom_setting") || "{}")
+                .play_trailer_on_hover ?? true, // default to true
     };
 
     // -------------------------
@@ -820,6 +823,7 @@
                         cleanupMedia();
                         updateHeroFromHover(card);
                         if (!url) return;
+                        if (!CONFIG.PLAY_TRAILER_ON_HOVER) return;
                         fadeTimer = setTimeout(() => {
                             upcomingList?.classList.add("dim");
                             upcomingCards?.forEach((c) => {
