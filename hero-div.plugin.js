@@ -819,7 +819,7 @@
 
                         cleanupMedia();
                         updateHeroFromHover(card);
-
+                        if (!url) return;
                         fadeTimer = setTimeout(() => {
                             upcomingList?.classList.add("dim");
                             upcomingCards?.forEach((c) => {
@@ -1144,8 +1144,8 @@
         state.currentIndex = 0;
         mountHeroTo(parent, state.heroTitles[0]);
         cacheDOM();
-        setupHeroTrailerHover();
         setupObservers();
+        setTimeout(() => setupHeroTrailerHover(), 2000);
 
         if (state.isAutoRotating) startAutoRotate();
     }

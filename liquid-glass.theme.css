@@ -2189,9 +2189,17 @@ body.ghost-clicking #heroLoadingScreen {
     backdrop-filter: blur(10px);
     border-radius: 10px 0 0 10px;
     box-shadow: var(--box-shadow);
-    transition: all 0.3s ease;
+    transition: all 0.5s ease;
     overflow: visible;
+    transform: translateX(0);
+    opacity: 1;
 }
+/* ➡️ FADE OUT (For the old list) */
+.upcoming-list.fade-out {
+    opacity: 0;
+    transform: translateX(35px);
+}
+
 .upcoming-grid {
     display: flex;
     flex-direction: column;
@@ -2302,7 +2310,8 @@ body.ghost-clicking #heroLoadingScreen {
 
 .upcoming-card:hover {
     opacity: 1 !important;
-    transform: scale(1.2) translateX(-7%);
+    transform: scale(1.2) translateX(-8%);
+    z-index: 15;
     border-radius: 0.5rem;
 }
 
@@ -2457,6 +2466,10 @@ body.ghost-clicking #heroLoadingScreen {
     font-family: "Montserrat", sans-serif !important;
     opacity: 1;
     z-index: 11;
+    font-size: 5px;
+}
+.upcoming-card:hover .upcoming-new-season {
+    opacity: 0 !important;
 }
 .upcoming-card.new-season {
     border: solid 2px #ff0000;
@@ -2483,6 +2496,53 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .upcoming-episode-card.released .upcoming-episode-date {
     opacity: 0 !important;
+}
+.upcoming-toggle-bar {
+    position: absolute;
+    top: 15%;
+    right: 0;
+    width: 12%;
+    height: 5%;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px 0 0 10px;
+    backdrop-filter: blur(8px);
+    box-shadow: var(--box-shadow);
+    transition: all 0.3s ease;
+    z-index: 10;
+    opacity: 0;
+}
+.upcoming-toggle-bar:hover {
+    opacity: 1;
+}
+.toggle-btn {
+    background: var(--colorAccent, #666);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    cursor: pointer;
+    opacity: 0.3;
+    width: 100%;
+    height: 100%;
+    transition: opacity 0.4s, background 0.2s;
+}
+
+.toggle-btn:hover {
+    opacity: 1;
+    background: #4444448f;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15),
+        inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.toggle-btn.active {
+    transform: translateY(0);
+    background: rgba(0, 0, 0, 0.835);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1),
+        inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    opacity: 1;
 }
 
 /* Card dimensions */

@@ -136,6 +136,194 @@
     };
 
     // --- Main Logic ---
+    // --- NEW: Load user's library (only series) ---
+    function getUserLibrarySeries() {
+        try {
+            const raw = localStorage.getItem("library_recent");
+            if (!raw) return [];
+            const library = JSON.parse(raw);
+            const libraryItems = Object.values(library.items || {});
+
+            return libraryItems.filter((item) => {
+                // Check if it's a series AND the _id property (the unique identifier) starts with "tt"
+                const isSeries = item?.type === "series";
+                const idStartsTt = item?._id?.startsWith("tt");
+
+                return isSeries && idStartsTt;
+            });
+        } catch (err) {
+            console.warn(
+                "[UpcomingReleases] Failed to read library_recent",
+                err
+            );
+            return [];
+        }
+    }
+
+    // --- NEW: Fetch Upcoming for Library Series Only ---
+    async function fetchLibraryUpcoming(limit = 6) {
+        const metaUrl = "https://cinemeta-live.strem.io/meta";
+        const key = `userLibrary_${limit}`;
+        const cached = cacheGet(key);
+        if (cached) {
+            console.log("[UpcomingReleases] Fetched cached", key);
+            return cached;
+        }
+        const seriesIds = getUserLibrarySeries();
+
+        if (!seriesIds.length) {
+            console.log("[UpcomingReleases] No series found in library_recent");
+            return [];
+        }
+
+        const results = await Promise.allSettled(
+            seriesIds.map(async (meta) => {
+                const id = meta._id;
+                const metaCacheKey = `fullmeta:${id}`;
+                let cachedMeta = videoCacheGet(metaCacheKey);
+
+                if (!cachedMeta) {
+                    try {
+                        const data = await safeFetch(
+                            `${metaUrl}/series/${id}.json`
+                        );
+                        const fetchedMeta = data?.meta;
+
+                        if (fetchedMeta) {
+                            videoCacheSet(metaCacheKey, fetchedMeta);
+                            cachedMeta = fetchedMeta;
+                        }
+                    } catch (err) {
+                        logger.warn("Failed to fetch meta for", id, err);
+                        return null;
+                    }
+                }
+                if (cachedMeta) {
+                    // Merge all properties from the fetched/cached meta into the library meta
+                    Object.assign(meta, cachedMeta);
+                }
+                return meta;
+            })
+        );
+
+        // Filter out null/failed results
+        const metas = results
+            .filter((r) => r.status === "fulfilled" && r.value)
+            .map((r) => r.value);
+
+        // Reuse filtering logic for upcoming episodes
+        const now = Date.now();
+        const dayMs = 86400000;
+
+        // --- Helpers ---
+
+        const formatDaysUntil = (dateMs) => {
+            const diff = Math.ceil((dateMs - now) / dayMs);
+            if (diff <= 0) return "Today";
+            if (diff === 1) return "Tomorrow";
+            if (diff < 30) return `in ${diff} days`;
+            if (diff < 365) {
+                const months = Math.round(diff / 30);
+                return `in ${months} month${months > 1 ? "s" : ""}`;
+            }
+            const years = Math.round(diff / 365);
+            return `in ${years} year${years > 1 ? "s" : ""}`;
+        };
+
+        const getClosestFutureVideo = (meta) => {
+            const threshold = now - dayMs; // include today
+            const futureVideos = [];
+
+            if (meta.released) {
+                const d = Date.parse(meta.released);
+                if (d > threshold) {
+                    futureVideos.push({
+                        dateMs: d,
+                        video: {
+                            released: meta.released,
+                            season: 0,
+                            episode: 0,
+                            title: "Series Release",
+                        },
+                    });
+                }
+            }
+
+            if (Array.isArray(meta.videos)) {
+                for (const v of meta.videos) {
+                    if (v.released) {
+                        const vd = Date.parse(v.released);
+                        if (vd > threshold) {
+                            futureVideos.push({ dateMs: vd, video: v });
+                        }
+                    }
+                }
+            }
+
+            if (!futureVideos.length) return null;
+            return futureVideos.reduce((min, curr) =>
+                curr.dateMs < min.dateMs ? curr : min
+            );
+        };
+
+        const list = [];
+        for (const m of metas) {
+            const closest = getClosestFutureVideo(m);
+            if (!closest) continue;
+            const { dateMs, video } = closest;
+
+            const releaseDate = new Date(video.released);
+            const episodeText =
+                video.season && video.episode
+                    ? `S${video.season} E${video.episode}`
+                    : "Upcoming";
+            const href = `#/detail/${m.type}/${m._id}`;
+            let latestSeasonVideos = [];
+            if (video.season > 0) {
+                latestSeasonVideos = m.videos.filter(
+                    (v) =>
+                        v.season === video.season ||
+                        (v.season === 0 && v.episode === 0)
+                );
+            }
+            const trailer =
+                m?.trailer ||
+                m?.trailers?.[0]?.source ||
+                m?.trailers?.[0]?.url ||
+                m?.videos?.[0]?.url ||
+                null;
+
+            list.push({
+                id: m._id,
+                type: m.type,
+                title: m.name,
+                releaseDate,
+                releaseText: formatDaysUntil(dateMs),
+                episodeText,
+                poster: `https://images.metahub.space/background/large/${m._id}/img`,
+                logo: `https://images.metahub.space/logo/medium/${m._id}/img`,
+                href,
+                trailer,
+                description: m.description,
+                rating: m.imdbRating || "",
+                year: m.releaseInfo || "",
+                runtime: m.runtime,
+                genres: Array.isArray(m.genre)
+                    ? m.genre
+                    : Array.isArray(m.genres)
+                    ? m.genres
+                    : [],
+                videos: latestSeasonVideos || [],
+                isNewSeason: video.episode === 1,
+            });
+        }
+
+        list.sort((a, b) => a.releaseDate - b.releaseDate);
+        const finalList = list.slice(0, limit);
+
+        cacheSet(key, finalList);
+        return finalList;
+    }
 
     async function fetchUpcomingTitles(
         type = "movie",
@@ -185,22 +373,22 @@
 
             const seriesEnrichmentResults = await Promise.allSettled(
                 seriesMetas.map(async (m) => {
-                    const vidCacheKey = `videos:${m.id}`;
-                    let videos = videoCacheGet(vidCacheKey); // 💡 CHECK LONG-TERM CACHE FIRST
+                    const metaCacheKey = `fullmeta:${m.id}`;
+                    let cachedMeta = videoCacheGet(metaCacheKey); // 💡 CHECK LONG-TERM CACHE FIRST
 
-                    if (!videos) {
+                    if (!cachedMeta) {
                         // Cache miss: must fetch full meta
                         const url = `${metaUrl}/${m.type}/${m.id}.json`;
                         try {
                             const data = await safeFetch(url);
-                            videos = data?.meta?.videos || [];
+                            cachedMeta = data?.meta || [];
                             console.log(
                                 `[UpcomingReleases] Fetched meta for ${m.id} - ${m.name}`
                             );
 
                             // 💡 SET LONG-TERM CACHE
-                            if (videos.length) {
-                                videoCacheSet(vidCacheKey, videos);
+                            if (cachedMeta.length) {
+                                videoCacheSet(metaCacheKey, cachedMeta);
                             }
                         } catch (err) {
                             logger.warn(
@@ -216,7 +404,10 @@
                     }
 
                     // Attach videos to the meta object regardless of source (cache or fetch)
-                    m.videos = videos || [];
+                    if (cachedMeta) {
+                        // Merge all properties from the fetched/cached meta into the library meta
+                        Object.assign(m, cachedMeta);
+                    }
                     return m;
                 })
             );
@@ -369,10 +560,65 @@
     async function renderUpcomingList() {
         const heroContainer = document.querySelector(".hero-container");
         if (!heroContainer) return;
+        // --- 🔘 Toggle Buttons ---
+        let buttonBar = document.querySelector(".upcoming-toggle-bar");
+        const lastMode = localStorage.getItem("upcoming_mode") || "all";
 
-        // Use fast array for-loop for iteration
-        const upcoming = await fetchUpcomingTitles("movie", "top", 6);
-        if (upcoming.length === 0) return;
+        if (!buttonBar) {
+            buttonBar = document.createElement("div");
+            buttonBar.className = "upcoming-toggle-bar";
+            buttonBar.innerHTML = `
+                <button class="toggle-btn ${
+                    lastMode === "all" ? "active" : ""
+                }" data-mode="all">All Upcoming</button>
+                <button class="toggle-btn ${
+                    lastMode === "library" ? "active" : ""
+                }" data-mode="library">My Library</button>
+            `;
+            heroContainer.insertAdjacentElement("beforeend", buttonBar);
+
+            buttonBar.addEventListener("click", (e) => {
+                if (!e.target.matches(".toggle-btn")) return;
+                buttonBar
+                    .querySelectorAll(".toggle-btn")
+                    .forEach((b) => b.classList.remove("active"));
+                e.target.classList.add("active");
+                const mode = e.target.dataset.mode;
+                localStorage.setItem("upcoming_mode", mode);
+                renderUpcomingListMode(mode);
+            });
+        }
+
+        renderUpcomingListMode(lastMode);
+    }
+
+    // --- NEW: Mode Handler (All vs Library) ---
+    async function renderUpcomingListMode(mode = "all") {
+        const heroContainer = document.querySelector(".hero-container");
+        if (!heroContainer) return;
+
+        const existingList = heroContainer.querySelector(".upcoming-list");
+        if (existingList) {
+            // 1. Add class to start fade-out
+            existingList.classList.add("fade-out");
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+            existingList.remove();
+        }
+
+        const upcoming =
+            mode === "library"
+                ? await fetchLibraryUpcoming(6)
+                : await fetchUpcomingTitles("movie", "top", 6);
+
+        if (!upcoming.length) {
+            heroContainer.insertAdjacentHTML(
+                "beforeend",
+                `<div class="upcoming-list empty"><p>No upcoming releases found.</p></div>`
+            );
+            return;
+        }
 
         // Define constants and date formatting once
         const twoDaysMs = 86400000 * 2;
