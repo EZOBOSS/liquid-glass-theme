@@ -570,7 +570,7 @@
             buttonBar.innerHTML = `
                 <button class="toggle-btn ${
                     lastMode === "all" ? "active" : ""
-                }" data-mode="all">All Upcoming</button>
+                }" data-mode="all">Popular</button>
                 <button class="toggle-btn ${
                     lastMode === "library" ? "active" : ""
                 }" data-mode="library">My Library</button>
@@ -703,7 +703,7 @@
 
             // 2. Build the indicator string using template literals
             const newSeasonIndicator = m.isNewSeason
-                ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERES</div>`
+                ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERE</div>`
                 : "";
 
             // --- Card Structure Builder (Pure string) ---

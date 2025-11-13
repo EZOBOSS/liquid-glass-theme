@@ -2459,14 +2459,14 @@ body.ghost-clicking #heroLoadingScreen {
 .upcoming-new-season {
     position: absolute;
     top: 0;
-    left: 3%;
+    left: 0;
     z-index: 11;
     padding: 3px;
-    width: 100%;
     font-family: "Montserrat", sans-serif !important;
     opacity: 1;
     z-index: 11;
-    font-size: 5px;
+    font-size: 7px;
+    background: rgba(255, 0, 0, 0.75);
 }
 .upcoming-card:hover .upcoming-new-season {
     opacity: 0 !important;
@@ -2555,5 +2555,8 @@ body.ghost-clicking #heroLoadingScreen {
     max-height: 15rem !important;
 }
 .meta-items-container-n8vNz .meta-item-container-Tj0Ib {
+    min-width: auto !important;
+}
+.meta-items-container-IKrND .meta-item-container-Tj0Ib {
     min-width: auto !important;
 }
