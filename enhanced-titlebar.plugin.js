@@ -1,7 +1,7 @@
 /*
  * @name Enhanced Title Bar Optimized
  * @description Optimized version with concurrency limit and better DOM handling.
- * @version 1.1.0
+ * @version 1.1.1 (Persistent Caching & Smart Update)
  * @author Fxy, EZOBOSS
  */
 
@@ -10,9 +10,79 @@ const CONFIG = {
     timeout: 5000,
     updateInterval: 10000, // refresh every 10s
     concurrency: 4, // limit simultaneous fetches
+    // ADDED: Persistent Cache TTL (12 hours)
+    CACHE_TTL: 1000 * 60 * 60 * 12,
+    CACHE_PREFIX: "etb_meta_cache_", // New prefix for localStorage
 };
 
 const metadataCache = new Map();
+
+// --- Persistent Grouped Cache With Memory Cache ---
+
+const GROUP_KEY = CONFIG.CACHE_PREFIX + "all"; // single localStorage key
+
+// Load grouped cache into memory once at startup
+let persistentCache = (() => {
+    try {
+        const raw = localStorage.getItem(GROUP_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+        console.warn("[ETB] Failed to load grouped cache, clearing", e);
+        localStorage.removeItem(GROUP_KEY);
+        return {};
+    }
+})();
+
+/**
+ * Save in-memory grouped cache to localStorage
+ */
+function flushCache() {
+    try {
+        localStorage.setItem(GROUP_KEY, JSON.stringify(persistentCache));
+    } catch (e) {
+        console.warn("[ETB] Failed to save grouped cache", e);
+    }
+}
+
+/**
+ * Get metadata from memory OR persistent cache
+ */
+function getCachedMetadata(key) {
+    const memKey = GROUP_KEY + "_" + key; // differentiate memory key entries
+
+    // Fast: check in-memory Map first
+    if (metadataCache.has(memKey)) {
+        return metadataCache.get(memKey);
+    }
+
+    const entry = persistentCache[key];
+    if (!entry) return null;
+
+    const now = Date.now();
+    if (now - entry.timestamp > CONFIG.CACHE_TTL) {
+        console.log("[ETB] Expired cache for", key);
+        delete persistentCache[key];
+        flushCache();
+        return null;
+    }
+
+    // Cache into memory for next time
+    metadataCache.set(memKey, entry.data);
+    return entry.data;
+}
+
+/**
+ * Set metadata into memory + persistent grouped storage
+ */
+function setCachedMetadata(key, data) {
+    persistentCache[key] = {
+        data,
+        timestamp: Date.now(),
+    };
+
+    metadataCache.set(GROUP_KEY + "_" + key, data);
+    flushCache();
+}
 
 function getDaysSinceRelease(releaseDateStr) {
     if (!releaseDateStr) return "";
@@ -48,14 +118,14 @@ function injectStyles() {
     const style = document.createElement("style");
     style.id = "enhanced-title-bar-styles";
     style.textContent = `
-        .enhanced-title-bar { position: relative !important; padding: 5px 10px !important; overflow: hidden !important; max-width: 400px !important; transform: translateZ(0) !important; }
-        .enhanced-title { font-size: 16px !important; font-weight: 600 !important; color: #fff !important; margin-bottom: 3px !important; line-height: 1.3 !important; }
-        .enhanced-metadata { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; font-size: 12px !important; color: #999 !important; }
-        .enhanced-metadata-item { display: inline-flex !important; align-items: center !important; gap: 4px !important; }
-        .enhanced-separator { color: #666 !important; margin: 0 4px !important; }
-        .enhanced-loading { background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%) !important; background-size: 200% 100% !important; animation: enhanced-loading 1.5s infinite !important; border-radius: 3px !important; height: 12px !important; width: 60px !important; display: inline-block !important; }
-        @keyframes enhanced-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    `;
+            .enhanced-title-bar { position: relative !important; padding: 5px 10px !important; overflow: hidden !important; max-width: 400px !important; transform: translateZ(0) !important; }
+            .enhanced-title { font-size: 16px !important; font-weight: 600 !important; color: #fff !important; margin-bottom: 3px !important; line-height: 1.3 !important; }
+            .enhanced-metadata { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; font-size: 12px !important; color: #999 !important; }
+            .enhanced-metadata-item { display: inline-flex !important; align-items: center !important; gap: 4px !important; }
+            .enhanced-separator { color: #666 !important; margin: 0 4px !important; }
+            .enhanced-loading { background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%) !important; background-size: 200% 100% !important; animation: enhanced-loading 1.5s infinite !important; border-radius: 3px !important; height: 12px !important; width: 60px !important; display: inline-block !important; }
+            @keyframes enhanced-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        `;
     document.head.appendChild(style);
 }
 
@@ -81,7 +151,10 @@ async function fetchMetadataLimited(tasks, limit = CONFIG.concurrency) {
 
 async function getMetadata(id, type) {
     const key = `${type}-${id}`;
-    if (metadataCache.has(key)) return metadataCache.get(key);
+    const cachedData = getCachedMetadata(key);
+    if (cachedData) {
+        return cachedData;
+    }
 
     try {
         const controller = new AbortController();
@@ -158,7 +231,7 @@ async function getMetadata(id, type) {
             trailer,
         };
 
-        metadataCache.set(key, metadata);
+        setCachedMetadata(key, metadata);
         return metadata;
     } catch {
         return null;
@@ -301,8 +374,12 @@ async function enhanceAllTitleBars() {
         ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container'],[class*='media-title']"
     );
 
-    const tasks = Array.from(elements, (el) => () => enhanceTitleBar(el));
-    await fetchMetadataLimited(tasks);
+    const tasks = [];
+    elements.forEach((el) => {
+        if (!el.classList.contains("enhanced-title-bar"))
+            tasks.push(() => enhanceTitleBar(el));
+    });
+    if (tasks.length) await fetchMetadataLimited(tasks);
 }
 
 function init() {

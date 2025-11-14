@@ -581,20 +581,41 @@
             buttonBar.innerHTML = `
                 <button class="toggle-btn ${
                     lastMode === "all" ? "active" : ""
-                }" data-mode="all">Popular</button>
+                }" data-mode="all" aria-label="Popular">
+                    <span class="btn-icon" aria-hidden="true">
+                    <!-- Star / Popular -->
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+                    </svg>
+                    </span>
+                    <span class="btn-label">Popular</span>
+                </button>
                 <button class="toggle-btn ${
                     lastMode === "library" ? "active" : ""
-                }" data-mode="library">My Library</button>
-            `;
+                }" data-mode="library" aria-label="My Library">
+                    <span class="btn-icon" aria-hidden="true">
+                    <!-- Folder + Play (Library) -->
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+                        <path d="M3 6.5A1.5 1.5 0 014.5 5h3.55l1.2 1.6H19a1 1 0 011 1V18.5A1.5 1.5 0 0118.5 20h-14A1.5 1.5 0 013 18.5v-12z" fill="currentColor" />
+                        <path d="M10 9.5v5l4-2.5-4-2.5z" fill="#fff" opacity="0.95" />
+                    </svg>
+                    </span>
+                    <span class="btn-label">My Library</span>
+                </button>
+                `;
             heroContainer.insertAdjacentElement("beforeend", buttonBar);
 
             buttonBar.addEventListener("click", (e) => {
-                if (!e.target.matches(".toggle-btn")) return;
+                const btn = e.target.closest(".toggle-btn");
+                if (!btn) return; // Not a valid click
+
                 buttonBar
                     .querySelectorAll(".toggle-btn")
                     .forEach((b) => b.classList.remove("active"));
-                e.target.classList.add("active");
-                const mode = e.target.dataset.mode;
+
+                btn.classList.add("active");
+
+                const mode = btn.dataset.mode;
                 localStorage.setItem("upcoming_mode", mode);
                 renderUpcomingListMode(mode);
             });
