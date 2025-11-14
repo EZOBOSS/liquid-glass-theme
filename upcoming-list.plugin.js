@@ -12,6 +12,7 @@
         CACHE_PREFIX: "upcoming_cache_",
         VIDEO_CACHE_EXPIRY_MS: 30 * 24 * 60 * 60 * 1000, // 30 days for individual series videos
         VIDEO_CACHE_PREFIX: "videos_cache_", // New prefix for long-term video cache
+        CACHE_DEBOUNCE_MS: 500, // Debounce cache updates to prevent spamming
     };
 
     // --- Local + in-memory cache ---
@@ -58,6 +59,7 @@
 
     // --- in-memory cache ---
     let videoMemoryCache = null;
+    let videoCacheTimeoutId = null;
 
     function loadVideoCache() {
         if (videoMemoryCache) return videoMemoryCache;
@@ -87,6 +89,7 @@
     }
 
     function saveVideoCache(cache) {
+        if (!cache) return;
         try {
             localStorage.setItem(VIDEO_CACHE_KEY, JSON.stringify(cache));
             videoMemoryCache = cache;
@@ -98,7 +101,15 @@
     function videoCacheSet(key, value) {
         const cache = loadVideoCache();
         cache[key] = { value, timestamp: Date.now() };
-        saveVideoCache(cache);
+
+        if (videoCacheTimeoutId) {
+            clearTimeout(videoCacheTimeoutId);
+        }
+        // 4. Schedule a single write to localStorage after a delay
+        videoCacheTimeoutId = setTimeout(() => {
+            saveVideoCache(cache);
+            videoCacheTimeoutId = null;
+        }, CONFIG.CACHE_DEBOUNCE_MS);
     }
 
     function videoCacheGet(key) {
@@ -387,7 +398,7 @@
                             );
 
                             // 💡 SET LONG-TERM CACHE
-                            if (cachedMeta.length) {
+                            if (cachedMeta) {
                                 videoCacheSet(metaCacheKey, cachedMeta);
                             }
                         } catch (err) {
@@ -602,7 +613,7 @@
             // 1. Add class to start fade-out
             existingList.classList.add("fade-out");
 
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 300));
 
             existingList.remove();
         }
