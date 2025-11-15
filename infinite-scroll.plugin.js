@@ -359,7 +359,7 @@
                                 class="poster-image-NiV7O"
                                 src="${meta.background}"
                                 alt=""
-                                loading="eager"
+                                loading="lazy"
                             />
                         </div>
                     </div>

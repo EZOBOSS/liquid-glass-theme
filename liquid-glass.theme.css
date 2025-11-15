@@ -1769,7 +1769,7 @@ body.ghost-clicking #heroLoadingScreen {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    content-visibility: auto;
+    content-visibility: auto !important;
 }
 
 /* Poster image */
@@ -2032,7 +2032,9 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 1;
     transform: translateY(0) scale(1);
     pointer-events: auto;
+    content-visibility: visible;
 }
+
 .meta-item-container-Tj0Ib.dim {
     opacity: 0.2;
     transform: scale(0.9);
@@ -2071,6 +2073,7 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 0;
     pointer-events: none;
     transform: translateY(-20px) scale(0.5);
+    content-visibility: auto;
 }
 
 @keyframes fade-out {
