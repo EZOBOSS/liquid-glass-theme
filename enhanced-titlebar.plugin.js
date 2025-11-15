@@ -151,22 +151,49 @@ async function fetchMetadataLimited(tasks, limit = CONFIG.concurrency) {
 
 async function getMetadata(id, type) {
     const key = `${type}-${id}`;
+
+    // 1. Check for short-term cache (using the passed 'key')
     const cachedData = getCachedMetadata(key);
     if (cachedData) {
         return cachedData;
     }
 
+    let meta = null;
+
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
-        const res = await fetch(`${CONFIG.apiBase}/${type}/${id}.json`, {
-            signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (!res.ok) throw new Error(res.statusText);
-        const data = await res.json();
-        const meta = data.meta;
-        if (!meta) return null;
+        const longTermCacheKey = `fullmeta:${id}`;
+
+        const cacheString = localStorage.getItem("videos_cache_all");
+
+        if (cacheString) {
+            const cache = JSON.parse(cacheString);
+            const cachedMeta = cache[longTermCacheKey];
+
+            if (cachedMeta) {
+                meta = cachedMeta.value;
+            }
+        }
+
+        if (!meta) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(
+                () => controller.abort(),
+                CONFIG.timeout
+            );
+            const res = await fetch(`${CONFIG.apiBase}/${type}/${id}.json`, {
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (!res.ok) throw new Error(res.statusText);
+
+            const data = await res.json();
+            meta = data.meta; // Assign fetched data to the 'meta' variable
+
+            if (!meta) return null;
+        }
+
+        // --- Metadata Processing (Runs for both cached and fetched data) ---
 
         // Compute release date
         const videos = meta.videos || [];
@@ -211,6 +238,8 @@ async function getMetadata(id, type) {
             meta?.videos?.[0]?.url ||
             null;
 
+        // --- Final Metadata Object Construction ---
+
         const metadata = {
             title: meta.name || meta.title,
             year: meta.year?.toString() || null,
@@ -233,11 +262,11 @@ async function getMetadata(id, type) {
 
         setCachedMetadata(key, metadata);
         return metadata;
-    } catch {
+    } catch (e) {
+        console.error(`Error fetching/processing metadata for ${id}:`, e);
         return null;
     }
 }
-
 function extractMediaInfo(element) {
     let el = element;
     for (let i = 0; i < 5 && el; i++, el = el.parentElement) {

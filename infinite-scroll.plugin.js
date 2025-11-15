@@ -13,7 +13,7 @@
     // --------------------------
     const CONFIG = {
         FETCH_TIMEOUT: 5000,
-        CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour
+        CACHE_TTL: 1000 * 60 * 60 * 12, // 12 hour
         CACHE_PREFIX: "scroll_cache_",
     };
 
@@ -86,7 +86,25 @@
             }
         }
     };
-
+    // Helper function to map the full API metadata to the minimal list item format
+    function mapToListItem(m, type) {
+        return {
+            id: m.id,
+            title: m.name,
+            background: `https://images.metahub.space/background/large/${m.id}/img`,
+            logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
+            // Note: Keeping description, year, runtime, and type for the list view,
+            // but removing large arrays/objects if they aren't needed.
+            description: m.description || `Discover ${m.name}`,
+            year: String(m.year || "2024"),
+            runtime: m.runtime || null,
+            type: m.type || type,
+            href:
+                type === "movie"
+                    ? `#/detail/${type}/${m.id}/${m.id}`
+                    : `#/detail/${type}/${m.id}`,
+        };
+    }
     // --------------------------
     // Fetch catalog titles with per-type+catalog offset
     // --------------------------
@@ -102,70 +120,104 @@
 
         const key = `${type}_${catalog}`;
         const cacheKey = `catalog_${key}`;
-        let allData = cacheGet(cacheKey);
+        let allData = cacheGet(cacheKey) || []; // Initialize to empty array if not found
         const offset = fetchProgress[key] || 0;
 
-        // Fetch from API if not cached
-        if (!allData || !Array.isArray(allData) || allData.length === 0) {
-            const url = `https://cinemeta-catalogs.strem.io/top/catalog/${type}/${catalog}.json`;
+        // Determine the base URL for the catalog
+        const baseUrl = `https://cinemeta-catalogs.strem.io/top/catalog/${type}/${catalog}`;
+        let fetchUrl = `${baseUrl}.json`;
+
+        // ----------------------------------------------------------------------
+        // 1. Determine if a new API fetch is needed
+        // A fetch is needed if:
+        // a) No data is cached (allData.length === 0)
+        // b) The current offset exceeds the length of the cached data (allData is exhausted)
+        // ----------------------------------------------------------------------
+        const itemsRemainingInCache = allData.length - offset;
+
+        // Check if the cache is empty OR if the items remaining are less than or equal to the limit
+        const needsFetch =
+            allData.length === 0 || itemsRemainingInCache <= limit;
+
+        if (needsFetch) {
+            const skip = allData.length + 10;
+
+            if (skip > 0) {
+                fetchUrl = `${baseUrl}/skip=${skip}.json`;
+            }
+
             console.log(
-                `[fetchCatalogTitles] Fetching fresh data for "${key}" → ${url} ${fetchProgress[key]}`
+                `[fetchCatalogTitles] Fetching data (skip=${skip}) for "${key}" → ${fetchUrl}`
             );
 
             try {
-                const json = await safeFetch(url, {
+                const json = await safeFetch(fetchUrl, {
                     timeout: CONFIG.FETCH_TIMEOUT,
                     retries: 1,
                 });
 
-                if (!json || !json.metas)
-                    throw new Error("Invalid API response");
-                allData = json.metas;
-                // Filter out existing items in the track
-                if (track && track.children.length > 0) {
-                    const existingIds = new Set();
-                    const children = track.children; // Get the live HTMLCollection/NodeList
-                    const maxItems = Math.min(children.length, 9); // Determine how many times to loop
+                if (!json || !json.metas) {
+                    // If API returns no more metas (e.g., end of catalog), return what we have
+                    if (allData.length > 0) {
+                        console.log(
+                            `[fetchCatalogTitles] End of catalog reached for "${key}"`
+                        );
+                        return []; // Indicate no new items, stopping further attempts
+                    }
+                    throw new Error("Invalid API response or empty catalog");
+                }
 
-                    for (let i = 0; i < maxItems; i++) {
-                        const item = children[i];
-                        // Assuming the <a> element has the ID set directly.
+                const newMetas = json.metas;
+
+                let filteredMetas = newMetas;
+
+                // Create a Set of all IDs currently in the cache (`allData`)
+                const existingCacheIds = new Set(
+                    allData.map((item) => item.id)
+                );
+
+                // Add all IDs currently in the DOM (`track.children`) to the Set
+                if (track && track.children.length > 0) {
+                    for (const item of track.children) {
                         if (item.id) {
-                            existingIds.add(item.id);
+                            existingCacheIds.add(item.id);
                         }
                     }
-                    // Remove any items that are already in the track
-                    allData = allData.filter(
-                        (item) => !existingIds.has(item.id)
-                    );
                 }
+
+                // Filter the new metas against the combined set of existing IDs
+                filteredMetas = newMetas.filter(
+                    (item) => !existingCacheIds.has(item.id)
+                );
+
+                // Map the slimmed metas to the list item format
+                const slimmedMetas = filteredMetas.map((m) =>
+                    mapToListItem(m, type)
+                );
+
+                // 3. Append new, filtered data to the existing cache
+                allData = [...allData, ...slimmedMetas];
                 cacheSet(cacheKey, allData);
             } catch (e) {
-                logger.warn(`[fetchCatalogTitles] failed for ${key}`, e);
+                logger.warn(
+                    `[fetchCatalogTitles] failed for ${key} at skip=${skip}`,
+                    e
+                );
                 return [];
             }
         } else {
             logger.warn(
-                `[fetchCatalogTitles] Using cached data for "${key}" → ${fetchProgress[key]}`
+                `[fetchCatalogTitles] Using cached data for "${key}" starting at offset ${offset}`
             );
         }
 
-        const nextBatch = allData.slice(offset, offset + limit).map((m) => ({
-            id: m.id,
-            title: m.name,
-            background: `https://images.metahub.space/background/large/${m.id}/img`,
-            logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
-            description: m.description || `Discover ${m.name}`,
-            year: String(m.year || "2024"),
-            runtime: m.runtime || null,
-            type,
-            href:
-                type === "movie"
-                    ? `#/detail/${type}/${m.id}/${m.id}`
-                    : `#/detail/${type}/${m.id}`,
-        }));
+        // ----------------------------------------------------------------------
+        // 4. Return the next batch from the (now possibly updated) allData
+        // ----------------------------------------------------------------------
 
-        // Update offset
+        const nextBatch = allData.slice(offset, offset + limit);
+
+        // 5. Update offset for the next call
         fetchProgress[key] = offset + nextBatch.length;
 
         return nextBatch;
@@ -249,10 +301,8 @@
 
             if (
                 track.scrollLeft + track.clientWidth >=
-                track.scrollWidth - 300
+                track.scrollWidth - 600
             ) {
-                // Note: This fetchMoreItems must be non-blocking (async) and should
-                // append elements in a way that minimizes DOM reflows (e.g., DocumentFragment).
                 fetchMoreItems(track, type, catalog);
             }
         };
@@ -373,11 +423,6 @@
                 console.error("Error during track initialization:", err);
             }
         }, 1500);
-
-        console.log(
-            "[AppleTVWheelInfiniteScroll] Interval started for",
-            containerSelector
-        );
     }
 
     // Call the function to start the process
