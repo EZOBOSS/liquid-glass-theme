@@ -171,67 +171,45 @@
         }
     }
     function getUserData(list) {
-        // 2. Retrieve the library_recent string from localStorage
-        // We assume the stored data is a JSON string of an object where keys are item IDs.
-        const recentLibraryString = localStorage.getItem("library_recent");
+        const recentStr = localStorage.getItem("library_recent");
+        if (!recentStr) return list;
 
-        // If the library is empty or not a string, we cannot proceed with enrichment.
-        if (!recentLibraryString) {
-            console.warn(
-                "localStorage key 'library_recent' is missing or empty."
-            );
+        let recent;
+        try {
+            recent = JSON.parse(recentStr);
+        } catch {
             return list;
         }
 
-        let recentLibrary = {};
-        try {
-            // 3. Parse the string into a JavaScript object
-            recentLibrary = JSON.parse(recentLibraryString);
-        } catch (e) {
-            console.error(
-                "Error parsing 'library_recent' from localStorage:",
-                e
-            );
-            return list; // Return the list unenriched on error
-        }
+        const recentItems = recent.items;
+        if (!recentItems) return list;
 
         for (const item of list) {
             if (item.type !== "series") continue;
-            const itemId = item.id;
-            const libraryItem = recentLibrary.items[itemId];
 
-            if (itemId && libraryItem) {
-                const watchedState = libraryItem?.state?.watched;
+            const lib = recentItems[item.id];
+            if (!lib) continue;
 
-                if (watchedState) {
-                    // Parse the watched string: id:season:episode:...
-                    const parts = watchedState.split(":");
+            const watchedState = lib.state && lib.state.watched;
+            if (!watchedState) continue;
 
-                    // Ensure there are enough parts to extract season and episode
-                    if (parts.length >= 3) {
-                        const currentSeason = parseInt(parts[1], 10);
-                        const currentEpisode = parseInt(parts[2], 10);
+            // Minimal parsing: only split into 3 parts max
+            const parts = watchedState.split(":", 3);
+            if (parts.length < 3) continue;
 
-                        item.watched = watchedState;
+            const season = +parts[1];
+            const episode = +parts[2];
 
-                        if (item.season && currentSeason === item.season) {
-                            const episodesToMark = currentEpisode;
+            item.watched = watchedState;
 
-                            // Assuming item.videos is an array of episode objects
-                            for (
-                                let i = 0;
-                                i < episodesToMark && item.videos;
-                                i++
-                            ) {
-                                const episodeIndex = i;
+            if (item.season !== season) continue;
 
-                                if (item.videos[episodeIndex]) {
-                                    item.videos[episodeIndex].watched = true;
-                                }
-                            }
-                        }
-                    }
-                }
+            const videos = item.videos;
+            if (!videos) continue;
+
+            const limit = Math.min(episode, videos.length);
+            for (let i = 0; i < limit; i++) {
+                videos[i].watched = true;
             }
         }
 
@@ -401,7 +379,6 @@
         let finalList = list.slice(0, limit);
         // 4. Enrich the list with user data
         finalList = getUserData(finalList);
-        console.log("Got user data to enrich list", finalList);
 
         cacheSet(key, finalList);
         return finalList;
@@ -617,6 +594,7 @@
                         : [],
                     videos: latestSeasonVideos || [],
                     isNewSeason,
+                    season: video.season,
                 });
             }
 
@@ -628,7 +606,9 @@
                 metadataList.length,
                 "upcomingitems"
             );
-            const finalList = metadataList.slice(0, limit);
+            let finalList = metadataList.slice(0, limit);
+            // 4. Enrich the list with user data
+            finalList = getUserData(finalList);
 
             // 5. Final Result
             cacheSet(key, finalList);
