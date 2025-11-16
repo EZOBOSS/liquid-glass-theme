@@ -60,7 +60,6 @@ function getCachedMetadata(key) {
 
     const now = Date.now();
     if (now - entry.timestamp > CONFIG.CACHE_TTL) {
-        console.log("[ETB] Expired cache for", key);
         delete persistentCache[key];
         flushCache();
         return null;
@@ -190,7 +189,9 @@ async function getMetadata(id, type) {
             const data = await res.json();
             meta = data.meta; // Assign fetched data to the 'meta' variable
 
-            if (!meta) return null;
+            if (!meta) {
+                return null;
+            }
         }
 
         // --- Metadata Processing (Runs for both cached and fetched data) ---
@@ -200,7 +201,8 @@ async function getMetadata(id, type) {
         let closestFuture = null,
             latestPast = null;
         const now = new Date();
-
+        // Adjust for UTC offset and include videos released today at 00:00
+        now.setDate(now.getDate() - 1);
         for (const v of videos) {
             if (!v.released) continue;
             const date = new Date(v.released);
@@ -242,7 +244,7 @@ async function getMetadata(id, type) {
 
         const metadata = {
             title: meta.name || meta.title,
-            year: meta.year?.toString() || null,
+            year: meta.year?.toString() || meta.releaseInfo?.toString() || null,
             rating: meta.imdbRating?.toString() || null,
             genres: Array.isArray(meta.genre)
                 ? meta.genre
@@ -251,10 +253,8 @@ async function getMetadata(id, type) {
                 : [],
             runtime: meta.runtime || null,
             type: meta.type || type,
-            poster: meta.poster,
-            background: meta.background,
             description: meta.description || null,
-            logo: meta.logo,
+            logo: `https://images.metahub.space/logo/medium/${id}/img`,
             releaseDate,
             newTag,
             trailer,
@@ -269,23 +269,69 @@ async function getMetadata(id, type) {
 }
 function extractMediaInfo(element) {
     let el = element;
+
+    // Define the ID regex once outside the loop for slight performance gain
+    const idRegex = /tt\d{7,}/;
+    const typeRegex = /\/(movie|series)\//i;
+
+    // Iterate up to 5 parent elements, starting with the element itself
     for (let i = 0; i < 5 && el; i++, el = el.parentElement) {
-        const link =
-            el.querySelector("a[href*='tt']") ||
-            (el.tagName === "A" && el.href.includes("tt") ? el : null);
-        if (link) {
-            const idMatch = link.href.match(/tt\d{7,}/);
-            if (!idMatch) continue;
-            const typeMatch = link.href.match(/\/(movie|series)\//i);
-            return {
-                id: idMatch[0],
-                type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
-            };
+        // 1. Check if the current element is an <a> tag
+        if (el.tagName === "A" && el.href.includes("tt")) {
+            const href = el.href;
+            const idMatch = href.match(idRegex);
+
+            if (idMatch) {
+                const typeMatch = href.match(typeRegex);
+                return {
+                    id: idMatch[0],
+                    type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
+                };
+            }
         }
+
+        // 2. Use querySelectorAll to check for both <a> and <img> children in one DOM query.
+        // This is the most significant change.
+        const children = el.querySelectorAll("a[href*='tt'], img[src*='tt']");
+
+        for (const child of children) {
+            // Check Anchor tags
+            if (child.tagName === "A") {
+                const href = child.href;
+                const idMatch = href.match(idRegex);
+
+                if (idMatch) {
+                    const typeMatch = href.match(typeRegex);
+
+                    return {
+                        id: idMatch[0],
+                        type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
+                    };
+                }
+            }
+
+            // Check Image tags
+            else if (child.tagName === "IMG") {
+                const src = child.src;
+                const idMatch = src.match(idRegex);
+
+                if (idMatch) {
+                    return {
+                        id: idMatch[0],
+                        type: "movie", // Default to 'movie' for image sources
+                    };
+                }
+            }
+        }
+
+        // Optimization: if we are at the top element (i=4) and still haven't returned,
+        // we can skip the next parentElement assignment (which will be null).
+        if (!el.parentElement) break;
     }
+
+    // Default return if nothing is found
     return { id: "tt0000000", type: "movie" };
 }
-
 function createMetadataElements(metadata) {
     const elements = [];
 
@@ -296,10 +342,10 @@ function createMetadataElements(metadata) {
         elements.push(rating);
     }
 
-    if (metadata.year) {
+    if (metadata.year || metadata.releaseInfo) {
         const year = document.createElement("span");
         year.className = "enhanced-metadata-item";
-        year.textContent = metadata.year;
+        year.textContent = metadata.year || metadata.releaseInfo;
         elements.push(year);
     }
 
@@ -352,7 +398,7 @@ async function enhanceTitleBar(titleBar) {
     if (!originalTitle) return;
 
     titleBar.classList.add("enhanced-title-bar");
-    titleBar.dataset.originalHtml = titleBar.innerHTML;
+    titleBar.dataset.originalHtml = titleBar.innerHTML.trim();
     titleBar.innerHTML = "";
 
     const mediaInfo = extractMediaInfo(titleBar);

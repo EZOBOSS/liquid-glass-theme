@@ -170,6 +170,73 @@
             return [];
         }
     }
+    function getUserData(list) {
+        // 2. Retrieve the library_recent string from localStorage
+        // We assume the stored data is a JSON string of an object where keys are item IDs.
+        const recentLibraryString = localStorage.getItem("library_recent");
+
+        // If the library is empty or not a string, we cannot proceed with enrichment.
+        if (!recentLibraryString) {
+            console.warn(
+                "localStorage key 'library_recent' is missing or empty."
+            );
+            return list;
+        }
+
+        let recentLibrary = {};
+        try {
+            // 3. Parse the string into a JavaScript object
+            recentLibrary = JSON.parse(recentLibraryString);
+        } catch (e) {
+            console.error(
+                "Error parsing 'library_recent' from localStorage:",
+                e
+            );
+            return list; // Return the list unenriched on error
+        }
+
+        for (const item of list) {
+            if (item.type !== "series") continue;
+            const itemId = item.id;
+            const libraryItem = recentLibrary.items[itemId];
+
+            if (itemId && libraryItem) {
+                const watchedState = libraryItem?.state?.watched;
+
+                if (watchedState) {
+                    // Parse the watched string: id:season:episode:...
+                    const parts = watchedState.split(":");
+
+                    // Ensure there are enough parts to extract season and episode
+                    if (parts.length >= 3) {
+                        const currentSeason = parseInt(parts[1], 10);
+                        const currentEpisode = parseInt(parts[2], 10);
+
+                        item.watched = watchedState;
+
+                        if (item.season && currentSeason === item.season) {
+                            const episodesToMark = currentEpisode;
+
+                            // Assuming item.videos is an array of episode objects
+                            for (
+                                let i = 0;
+                                i < episodesToMark && item.videos;
+                                i++
+                            ) {
+                                const episodeIndex = i;
+
+                                if (item.videos[episodeIndex]) {
+                                    item.videos[episodeIndex].watched = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return list;
+    }
 
     // --- NEW: Fetch Upcoming for Library Series Only ---
     async function fetchLibraryUpcoming(limit = 6) {
@@ -325,12 +392,16 @@
                     ? m.genres
                     : [],
                 videos: latestSeasonVideos || [],
+                season: video.season,
                 isNewSeason: video.episode === 1,
             });
         }
 
         list.sort((a, b) => a.releaseDate - b.releaseDate);
-        const finalList = list.slice(0, limit);
+        let finalList = list.slice(0, limit);
+        // 4. Enrich the list with user data
+        finalList = getUserData(finalList);
+        console.log("Got user data to enrich list", finalList);
 
         cacheSet(key, finalList);
         return finalList;
@@ -689,7 +760,9 @@
                 // Inner loop: Pure string building
                 for (const ep of m.videos) {
                     const released = Date.parse(ep.released) <= thresholdMs;
-                    let stateClass = "released";
+                    const isWatched = ep.watched; // Rename for clarity in the template
+                    const watchedClass = isWatched ? " watched" : "";
+                    let stateClass = "released" + watchedClass;
 
                     if (!released) {
                         if (
@@ -708,6 +781,10 @@
                         ? `<img src="${ep.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'" />`
                         : `<div class="upcoming-episode-placeholder">No image</div>`;
 
+                    const watchedTextDiv = isWatched
+                        ? '<div class="upcoming-episode-watched-tag">&#x2713;</div>'
+                        : "";
+
                     episodesHtml += `
                     <div class="upcoming-episode-card ${stateClass}">
                         <div class="upcoming-episode-number">${ep.episode}</div>
@@ -717,6 +794,7 @@
                         <div class="upcoming-episode-date">
                             ${formatDate(ep.released)}
                         </div>
+                        ${watchedTextDiv}
                         <div class="upcoming-episode-thumbnail">
                             ${thumbnailHtml}
                         </div>

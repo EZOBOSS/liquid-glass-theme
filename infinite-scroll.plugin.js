@@ -93,8 +93,6 @@
             title: m.name,
             background: `https://images.metahub.space/background/large/${m.id}/img`,
             logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
-            // Note: Keeping description, year, runtime, and type for the list view,
-            // but removing large arrays/objects if they aren't needed.
             description: m.description || `Discover ${m.name}`,
             year: String(m.year || "2024"),
             runtime: m.runtime || null,
@@ -236,80 +234,96 @@
         const type = track.firstChild?.href?.split?.("/")[5];
         if (!type) return;
 
-        //const initialCount = track.children.length;
         const key = `${type}_${catalog}`;
-        // Assuming fetchProgress is defined and accessible
         fetchProgress[key] = 0;
 
         let scrollTarget = track.scrollLeft;
         let velocity = 0;
         let isScrolling = false;
-        // Removed lastWheelTime as throttling is counter-productive for input
 
         const friction = 0.97;
-        const ease = 0.03;
+        const ease = 0.02;
         const wheelForce = 0.35;
         const minVelocity = 0.05;
         const threshold = 0.4;
 
+        // --- CACHED WIDTHS (improved performance) ---
+        let widthCache = {
+            scrollWidth: track.scrollWidth,
+            clientWidth: track.clientWidth,
+        };
+
+        const updateWidths = () => {
+            widthCache.scrollWidth = track.scrollWidth;
+            widthCache.clientWidth = track.clientWidth;
+        };
+
+        const resizeObserver = new ResizeObserver(updateWidths);
+        resizeObserver.observe(track);
+
         const smoothScroll = () => {
-            scrollTarget = Math.max(
-                0,
-                Math.min(scrollTarget, track.scrollWidth - track.clientWidth)
-            );
+            if (isScrolling) return;
+            isScrolling = true;
 
-            const currentLeft = track.scrollLeft;
-            const diff = scrollTarget - currentLeft;
+            const tick = () => {
+                // READS FIRST
+                const maxScroll =
+                    widthCache.scrollWidth - widthCache.clientWidth;
+                const currentLeft = track.scrollLeft;
+                const diff = scrollTarget - currentLeft;
 
-            // DOM Write: main performance hit
-            track.scrollLeft = currentLeft + diff * ease;
+                // WRITE after all reads → avoids layout thrash
+                track.scrollLeft = Math.max(
+                    0,
+                    Math.min(currentLeft + diff * ease, maxScroll)
+                );
 
-            velocity *= friction;
-            scrollTarget += velocity;
+                // Update velocity/momentum AFTER writing
+                velocity *= friction;
+                scrollTarget += velocity;
 
-            if (
-                Math.abs(diff) > threshold ||
-                Math.abs(velocity) > minVelocity
-            ) {
-                requestAnimationFrame(smoothScroll);
-            } else {
-                isScrolling = false;
-                velocity = 0;
-                // Synchronize the target position when momentum ends
-                scrollTarget = track.scrollLeft;
-            }
+                if (
+                    Math.abs(diff) > threshold ||
+                    Math.abs(velocity) > minVelocity
+                ) {
+                    requestAnimationFrame(tick);
+                } else {
+                    isScrolling = false;
+                    velocity = 0;
+                    scrollTarget = track.scrollLeft;
+                }
+            };
+
+            requestAnimationFrame(tick);
         };
 
         const handleWheel = (e) => {
             e.preventDefault();
 
-            // OPTIMIZATION: Check for track boundaries to stop velocity accumulation
-            const isAtStart = track.scrollLeft <= 0 && e.deltaY < 0;
-            const isAtEnd =
-                track.scrollLeft + track.clientWidth >= track.scrollWidth &&
-                e.deltaY > 0;
-            if (isAtStart || isAtEnd) return;
+            const atStart = track.scrollLeft <= 0 && e.deltaY < 0;
+            const atEnd =
+                track.scrollLeft + widthCache.clientWidth >=
+                    widthCache.scrollWidth && e.deltaY > 0;
+
+            if (atStart || atEnd) return;
 
             velocity += e.deltaY * wheelForce;
-            // Velocity clamping for robustness
             velocity = Math.max(-120, Math.min(velocity, 120));
 
-            if (!isScrolling) {
-                isScrolling = true;
-                requestAnimationFrame(smoothScroll);
-            }
+            if (!isScrolling) smoothScroll();
+            const preloadOffset = widthCache.clientWidth * 2;
 
             if (
-                track.scrollLeft + track.clientWidth >=
-                track.scrollWidth - 600
+                track.scrollLeft + widthCache.clientWidth >=
+                widthCache.scrollWidth - preloadOffset
             ) {
-                fetchMoreItems(track, type, catalog);
+                fetchMoreItems(track, type, catalog).then(updateWidths);
             }
         };
 
         track.addEventListener("wheel", handleWheel, { passive: false });
 
-        // FIX: Synchronize scrollTarget when the user manually scrolls
+        // Sync scrollTarget on user/keyboard scroll
         track.addEventListener(
             "scroll",
             () => {
@@ -317,9 +331,7 @@
                     scrollTarget = track.scrollLeft;
                 }
             },
-            {
-                passive: true,
-            }
+            { passive: true }
         );
     }
 
