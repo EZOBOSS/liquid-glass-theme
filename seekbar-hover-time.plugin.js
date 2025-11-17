@@ -5,14 +5,14 @@
  * @author allecsc
  */
 
-(function() {
-    'use strict';
+(function () {
+    "use strict";
 
     // Configuration
     const CONFIG = {
         updateInterval: 100, // How often to update time display during hover (ms)
-        tooltipOffset: 10,   // Pixels above the timeline
-        timeFormat: 'HH:MM:SS' // or 'MM:SS' for shorter format
+        tooltipOffset: 10, // Pixels above the timeline
+        timeFormat: "HH:MM:SS", // or 'MM:SS' for shorter format
     };
 
     let tooltipElement = null;
@@ -23,8 +23,8 @@
     function createTooltip() {
         if (tooltipElement) return tooltipElement;
 
-        tooltipElement = document.createElement('div');
-        tooltipElement.id = 'timeline-tooltip';
+        tooltipElement = document.createElement("div");
+        tooltipElement.id = "timeline-tooltip";
         tooltipElement.style.cssText = `
             position: absolute;
             background: rgba(70, 70, 70, 0.22);
@@ -54,10 +54,14 @@
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
 
-        if (CONFIG.timeFormat === 'HH:MM:SS' || hours > 0) {
-            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        if (CONFIG.timeFormat === "HH:MM:SS" || hours > 0) {
+            return `${hours.toString().padStart(2, "0")}:${minutes
+                .toString()
+                .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
         } else {
-            return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            return `${minutes.toString().padStart(2, "0")}:${secs
+                .toString()
+                .padStart(2, "0")}`;
         }
     }
 
@@ -65,10 +69,10 @@
     function getVideoDuration() {
         // Try different selectors for the video element
         const videoSelectors = [
-            'video',
-            '.video-player video',
+            "video",
+            ".video-player video",
             '[class*="video"] video',
-            '.player video'
+            ".player video",
         ];
 
         for (const selector of videoSelectors) {
@@ -80,15 +84,18 @@
 
         // Fallback: try to find duration in Stremio's UI labels
         // Based on HTML structure, look for the duration label in seek bar
-        const durationLabels = document.querySelectorAll('.seek-bar-I7WeY .label-QFbsS');
+        const durationLabels = document.querySelectorAll(
+            ".seek-bar-I7WeY .label-QFbsS"
+        );
         let maxDuration = 0;
 
         for (const label of durationLabels) {
-            const text = label.textContent || '';
-            console.log('Found duration label:', text);
+            const text = label.textContent || "";
 
             // Look for time format like "00:24:00" (total duration)
-            const match = text.match(/(\d{1,2}):(\d{2}):(\d{2})/) || text.match(/(\d{1,2}):(\d{2})/);
+            const match =
+                text.match(/(\d{1,2}):(\d{2}):(\d{2})/) ||
+                text.match(/(\d{1,2}):(\d{2})/);
             if (match) {
                 const parts = match.slice(1).map(Number);
                 let duration = 0;
@@ -101,7 +108,6 @@
                 // Assume the larger time value is the total duration
                 if (duration > maxDuration) {
                     maxDuration = duration;
-                    console.log('Updated max duration:', duration, 'seconds from', text);
                 }
             }
         }
@@ -111,10 +117,14 @@
         }
 
         // Additional fallback: look for any time elements
-        const timeElements = document.querySelectorAll('[class*="time"], [class*="duration"]');
+        const timeElements = document.querySelectorAll(
+            '[class*="time"], [class*="duration"]'
+        );
         for (const el of timeElements) {
-            const text = el.textContent || '';
-            const match = text.match(/(\d{1,2}):(\d{2}):(\d{2})/) || text.match(/(\d{1,2}):(\d{2})/);
+            const text = el.textContent || "";
+            const match =
+                text.match(/(\d{1,2}):(\d{2}):(\d{2})/) ||
+                text.match(/(\d{1,2}):(\d{2})/);
             if (match) {
                 const parts = match.slice(1).map(Number);
                 if (parts.length === 3) {
@@ -131,12 +141,12 @@
     // Find the seek bar element
     function findSeekBar() {
         const seekBarSelectors = [
-            '.seek-bar-I7WeY .slider-hBDOf',  // Primary selector based on HTML structure
-            '.seek-bar-container-JGGTa .slider-hBDOf',
+            ".seek-bar-I7WeY .slider-hBDOf", // Primary selector based on HTML structure
+            ".seek-bar-container-JGGTa .slider-hBDOf",
             '[class*="seek-bar"] [class*="slider"]',
-            '.control-bar-container-xsWA7 .seek-bar-I7WeY',
+            ".control-bar-container-xsWA7 .seek-bar-I7WeY",
             '[class*="progress"] [class*="bar"]',
-            '[class*="timeline"] [class*="slider"]'
+            '[class*="timeline"] [class*="slider"]',
         ];
 
         for (const selector of seekBarSelectors) {
@@ -156,21 +166,27 @@
 
         // Get seek bar dimensions
         const rect = seekBar.getBoundingClientRect();
-        const progress = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        const progress = Math.max(
+            0,
+            Math.min(1, (event.clientX - rect.left) / rect.width)
+        );
 
         // Calculate time position
         const duration = getVideoDuration() || currentVideoDuration;
 
+        /*
         // Debug logging (only log occasionally to avoid spam)
-        if (Math.random() < 0.1) { // Log only 10% of the time
-            console.log('Seek bar hover:', {
+        if (Math.random() < 0.1) {
+            // Log only 10% of the time
+            console.log("Seek bar hover:", {
                 progress: progress.toFixed(3),
                 duration: duration,
                 timePosition: (duration * progress).toFixed(1),
                 rect: { left: rect.left, width: rect.width },
-                mouseX: event.clientX
+                mouseX: event.clientX,
             });
         }
+        */
 
         const timePosition = duration * progress;
 
@@ -179,8 +195,10 @@
 
         // Position tooltip above the seek bar
         tooltip.style.left = `${event.clientX}px`;
-        tooltip.style.top = `${rect.top - CONFIG.tooltipOffset - tooltip.offsetHeight}px`;
-        tooltip.style.display = 'block';
+        tooltip.style.top = `${
+            rect.top - CONFIG.tooltipOffset - tooltip.offsetHeight
+        }px`;
+        tooltip.style.display = "block";
 
         // Center horizontally on cursor
         const tooltipRect = tooltip.getBoundingClientRect();
@@ -192,14 +210,14 @@
             tooltip.style.left = `${viewportWidth - tooltipRect.width - 5}px`;
         }
         if (tooltipRect.left < 0) {
-            tooltip.style.left = '5px';
+            tooltip.style.left = "5px";
         }
     }
 
     // Hide tooltip when mouse leaves seek bar
     function handleSeekBarLeave() {
         if (tooltipElement) {
-            tooltipElement.style.display = 'none';
+            tooltipElement.style.display = "none";
         }
     }
 
@@ -214,12 +232,12 @@
         }
 
         // Remove existing listeners to avoid duplicates
-        seekBar.removeEventListener('mousemove', handleSeekBarHover);
-        seekBar.removeEventListener('mouseleave', handleSeekBarLeave);
+        seekBar.removeEventListener("mousemove", handleSeekBarHover);
+        seekBar.removeEventListener("mouseleave", handleSeekBarLeave);
 
         // Add hover listeners
-        seekBar.addEventListener('mousemove', handleSeekBarHover);
-        seekBar.addEventListener('mouseleave', handleSeekBarLeave);
+        seekBar.addEventListener("mousemove", handleSeekBarHover);
+        seekBar.addEventListener("mouseleave", handleSeekBarLeave);
 
         // Update duration periodically
         currentVideoDuration = getVideoDuration();
@@ -233,18 +251,21 @@
         const observer = new MutationObserver((mutations) => {
             let shouldReinitialize = false;
 
-            mutations.forEach(mutation => {
-                if (mutation.type === 'childList') {
-                    mutation.addedNodes.forEach(node => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === "childList") {
+                    mutation.addedNodes.forEach((node) => {
                         if (node.nodeType === 1) {
                             // Check if a video player or control bar was added
-                            if (node.matches && (
-                                node.matches('[class*="seek-bar"]') ||
-                                node.matches('[class*="control-bar"]') ||
-                                node.matches('[class*="player"]') ||
-                                node.querySelector('[class*="seek-bar"]') ||
-                                node.querySelector('[class*="control-bar"]')
-                            )) {
+                            if (
+                                node.matches &&
+                                (node.matches('[class*="seek-bar"]') ||
+                                    node.matches('[class*="control-bar"]') ||
+                                    node.matches('[class*="player"]') ||
+                                    node.querySelector('[class*="seek-bar"]') ||
+                                    node.querySelector(
+                                        '[class*="control-bar"]'
+                                    ))
+                            ) {
                                 shouldReinitialize = true;
                             }
                         }
@@ -259,7 +280,7 @@
 
         observer.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: true,
         });
     }
 
@@ -270,19 +291,18 @@
         watchForPlayerChanges();
 
         // Re-initialize on navigation changes (Stremio-specific)
-        window.addEventListener('hashchange', () => {
+        window.addEventListener("hashchange", () => {
             setTimeout(initializeTimelineHover, 1000);
         });
     }
 
     // Start initialization
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
     } else {
         init();
     }
 
     // Also initialize after a delay to catch dynamically loaded players
     setTimeout(init, 2000);
-
 })();

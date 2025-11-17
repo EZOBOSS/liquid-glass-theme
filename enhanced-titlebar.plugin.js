@@ -11,7 +11,7 @@ const CONFIG = {
     updateInterval: 10000, // refresh every 10s
     concurrency: 4, // limit simultaneous fetches
     // ADDED: Persistent Cache TTL (12 hours)
-    CACHE_TTL: 1000 * 60 * 60 * 12,
+    CACHE_TTL: 12 * 60 * 60 * 1000,
     CACHE_PREFIX: "etb_meta_cache_", // New prefix for localStorage
 };
 
@@ -21,28 +21,47 @@ const metadataCache = new Map();
 
 const GROUP_KEY = CONFIG.CACHE_PREFIX + "all"; // single localStorage key
 
+function flushCache(cacheObject = persistentCache) {
+    try {
+        localStorage.setItem(GROUP_KEY, JSON.stringify(cacheObject));
+    } catch (e) {
+        console.warn("[ETB] Failed to save grouped cache", e);
+    }
+}
+
+function cleanExpiredCache(cacheObject = persistentCache) {
+    const now = Date.now();
+    let cleaned = false;
+    // Iterate over the keys in the cache
+    for (const key in cacheObject) {
+        if (cacheObject.hasOwnProperty(key)) {
+            const entry = cacheObject[key];
+            if (now - entry.timestamp > CONFIG.CACHE_TTL) {
+                delete cacheObject[key];
+                cleaned = true;
+            }
+        }
+    }
+    // Only flush if changes were made
+    if (cleaned) {
+        flushCache(cacheObject);
+        console.log("[ETB] Successfully cleaned expired cache entries.");
+    }
+}
+
 // Load grouped cache into memory once at startup
 let persistentCache = (() => {
     try {
         const raw = localStorage.getItem(GROUP_KEY);
-        return raw ? JSON.parse(raw) : {};
+        const cache = raw ? JSON.parse(raw) : {};
+        cleanExpiredCache(cache);
+        return cache;
     } catch (e) {
         console.warn("[ETB] Failed to load grouped cache, clearing", e);
         localStorage.removeItem(GROUP_KEY);
         return {};
     }
 })();
-
-/**
- * Save in-memory grouped cache to localStorage
- */
-function flushCache() {
-    try {
-        localStorage.setItem(GROUP_KEY, JSON.stringify(persistentCache));
-    } catch (e) {
-        console.warn("[ETB] Failed to save grouped cache", e);
-    }
-}
 
 /**
  * Get metadata from memory OR persistent cache
@@ -61,13 +80,26 @@ function getCachedMetadata(key) {
     const now = Date.now();
     if (now - entry.timestamp > CONFIG.CACHE_TTL) {
         delete persistentCache[key];
-        flushCache();
+
         return null;
     }
 
     // Cache into memory for next time
     metadataCache.set(memKey, entry.data);
     return entry.data;
+}
+let flushScheduled = false;
+
+function scheduleFlush() {
+    if (flushScheduled) return;
+    flushScheduled = true;
+    requestIdleCallback(
+        () => {
+            flushScheduled = false;
+            flushCache();
+        },
+        { timeout: 500 }
+    );
 }
 
 /**
@@ -80,7 +112,7 @@ function setCachedMetadata(key, data) {
     };
 
     metadataCache.set(GROUP_KEY + "_" + key, data);
-    flushCache();
+    scheduleFlush();
 }
 
 function getDaysSinceRelease(releaseDateStr) {

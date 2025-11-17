@@ -568,10 +568,7 @@
                             (v.season === 0 && v.episode === 0)
                     );
                 }
-                let isNewSeason = false;
-                if (video.episode === 1) {
-                    isNewSeason = true;
-                }
+
                 metadataList.push({
                     id: m.id,
                     type: m.type,
@@ -593,7 +590,7 @@
                         ? m.genres
                         : [],
                     videos: latestSeasonVideos || [],
-                    isNewSeason,
+                    isNewSeason: video.episode === 1,
                     season: video.season,
                 });
             }
@@ -704,8 +701,8 @@
         }
 
         // Define constants and date formatting once
-        const twoDaysMs = 86400000 * 2;
-        const thresholdMs = Date.now() - twoDaysMs;
+        // const twoDaysMs = 86400000 * 2;
+        const thresholdMs = Date.now();
 
         const formatDate = (dateString) => {
             const date = new Date(dateString);

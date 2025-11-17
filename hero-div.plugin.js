@@ -770,7 +770,7 @@
     // -------------------------
     function setupHeroTrailerHover() {
         const containers = document.querySelectorAll(
-            ".meta-items-container-qcuUA, .upcoming-list"
+            ".meta-items-container-qcuUA"
         );
         const hero = document.querySelector(".hero-container");
         if (!containers.length || !hero) return;
@@ -792,11 +792,7 @@
             container.addEventListener(
                 "mouseenter",
                 async (e) => {
-                    if (
-                        e.target.matches(
-                            ".meta-item-container-Tj0Ib, .upcoming-card"
-                        )
-                    ) {
+                    if (e.target.matches(".meta-item-container-Tj0Ib")) {
                         const card = e.target;
 
                         if (!card || !container.contains(card)) return;
@@ -859,11 +855,7 @@
             container.addEventListener(
                 "mouseleave",
                 (e) => {
-                    if (
-                        e.target.matches(
-                            ".meta-item-container-Tj0Ib, .upcoming-card"
-                        )
-                    ) {
+                    if (e.target.matches(".meta-item-container-Tj0Ib")) {
                         const card = e.target;
                         if (!card || !container.contains(card)) return;
 
@@ -926,13 +918,9 @@
         // Check for both the card element and the main hero container
         if (!card || !DOM.hero) return;
         // Fade out
-        DOM.hero.classList.add("updating");
+        //DOM.hero.classList.add("updating");
+        //await new Promise((r) => setTimeout(r, 200));
 
-        // Wait for transition to complete (matches your CSS duration)
-        await new Promise((r) => setTimeout(r, 200));
-
-        // --- Card Data Extraction ---
-        // Extract data from the card, using optional chaining and nullish coalescing for safety
         const cardLogo =
             card.querySelector(".enhanced-title img") ||
             card.querySelector(".upcoming-logo");
@@ -1035,7 +1023,7 @@
                 : null;
         });
         // Fade back in
-        DOM.hero.classList.remove("updating");
+        //DOM.hero.classList.remove("updating");
     }
 
     // -------------------------

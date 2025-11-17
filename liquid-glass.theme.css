@@ -332,6 +332,7 @@ html {
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
     opacity: 1 !important;
+    bottom: 11rem !important;
 }
 
 .option-container-m_jZq {
@@ -1027,9 +1028,42 @@ body.ghost-clicking #heroLoadingScreen {
     margin-top: 5px !important;
     height: 50px !important;
 }
+.control-bar-container-xsWA7 {
+    padding: 6rem 5rem !important;
+}
+.seek-bar-container-JGGTa {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 35%;
+    position: absolute;
+    z-index: 12;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+.control-bar-container-xsWA7 .control-bar-buttons-container-SWhkU {
+    margin-left: 14%;
+    width: 75%;
+    margin-bottom: 5px !important;
+}
+.custom-series-name {
+    display: none !important;
+    position: absolute;
+}
+.control-bar-container-xsWA7
+    .control-bar-buttons-container-SWhkU
+    .control-bar-button-FQUsj {
+    opacity: 0.3;
+}
+.control-bar-container-xsWA7
+    .control-bar-buttons-container-SWhkU
+    .control-bar-button-FQUsj:hover {
+    opacity: 1;
+}
 
 .slider-container-nJz5F .track-gItfW {
-    background: rgba(255, 255, 255, 0.62) !important;
+    background: rgba(255, 255, 255, 0.35) !important;
     border-radius: 999px !important;
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
