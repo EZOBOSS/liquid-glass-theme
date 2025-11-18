@@ -1017,7 +1017,11 @@ body.ghost-clicking #heroLoadingScreen {
     align-items: center;
     display: flex;
     flex-direction: row;
-    background: rgba(70, 70, 70, 0.22) !important;
+    background-image: linear-gradient(
+        to top,
+        #cfd9df24 0%,
+        #e2ebf005 100%
+    ) !important;
     border-radius: 20px !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
@@ -1043,9 +1047,9 @@ body.ghost-clicking #heroLoadingScreen {
     transform: translate(-50%, -50%);
 }
 .control-bar-container-xsWA7 .control-bar-buttons-container-SWhkU {
-    margin-left: 14%;
     width: 75%;
     margin-bottom: 5px !important;
+    justify-self: anchor-center !important;
 }
 .custom-series-name {
     display: none !important;

@@ -22,17 +22,21 @@
     // --------------------------
 
     const memoryCache = new Map();
+    const idLookupSets = new Map();
 
     const cacheKey = (key) => CONFIG.CACHE_PREFIX + key;
 
     const cacheSet = (key, value) => {
         const entry = { value, timestamp: Date.now() };
         memoryCache.set(key, entry);
-        try {
-            localStorage.setItem(cacheKey(key), JSON.stringify(entry));
-        } catch {
-            // ignore quota or serialization errors
-        }
+
+        requestIdleCallback(() => {
+            try {
+                localStorage.setItem(cacheKey(key), JSON.stringify(entry));
+            } catch (e) {
+                console.warn("Cache quota exceeded");
+            }
+        });
     };
 
     const cacheGet = (key) => {
@@ -52,6 +56,7 @@
                 return null;
             }
             memoryCache.set(key, data);
+            idLookupSets.set(key, new Set(data.value.map((i) => i.id)));
             return data.value;
         } catch {
             return null;
@@ -125,6 +130,12 @@
         const baseUrl = `https://cinemeta-catalogs.strem.io/top/catalog/${type}/${catalog}`;
         let fetchUrl = `${baseUrl}.json`;
 
+        // Ensure we have the lookup set ready
+        if (!idLookupSets.has(cacheKey)) {
+            idLookupSets.set(cacheKey, new Set(allData.map((i) => i.id)));
+        }
+        const seenIds = idLookupSets.get(cacheKey);
+
         // ----------------------------------------------------------------------
         // 1. Determine if a new API fetch is needed
         // A fetch is needed if:
@@ -166,35 +177,17 @@
                 }
 
                 const newMetas = json.metas;
-
-                let filteredMetas = newMetas;
-
-                // Create a Set of all IDs currently in the cache (`allData`)
-                const existingCacheIds = new Set(
-                    allData.map((item) => item.id)
-                );
-
-                // Add all IDs currently in the DOM (`track.children`) to the Set
-                if (track && track.children.length > 0) {
-                    for (const item of track.children) {
-                        if (item.id) {
-                            existingCacheIds.add(item.id);
-                        }
+                let filteredMetas = [];
+                for (const item of newMetas) {
+                    // O(1) Lookup - Instant, no matter how big the list is
+                    if (!seenIds.has(item.id)) {
+                        seenIds.add(item.id);
+                        filteredMetas.push(mapToListItem(item, type));
                     }
                 }
 
-                // Filter the new metas against the combined set of existing IDs
-                filteredMetas = newMetas.filter(
-                    (item) => !existingCacheIds.has(item.id)
-                );
-
-                // Map the slimmed metas to the list item format
-                const slimmedMetas = filteredMetas.map((m) =>
-                    mapToListItem(m, type)
-                );
-
                 // 3. Append new, filtered data to the existing cache
-                allData = [...allData, ...slimmedMetas];
+                allData = [...allData, ...filteredMetas];
                 cacheSet(cacheKey, allData);
             } catch (e) {
                 logger.warn(
@@ -230,6 +223,8 @@
     function initWheelScroll(track, catalog = "top") {
         if (!track || track.dataset.wheelScrollInitialized === "true") return;
         track.dataset.wheelScrollInitialized = "true";
+        // CSS Optimization for GPU compositing
+        track.style.willChange = "scroll-position";
 
         const type = track.firstChild?.href?.split?.("/")[5];
         if (!type) return;
@@ -317,7 +312,9 @@
                 track.scrollLeft + widthCache.clientWidth >=
                 widthCache.scrollWidth - preloadOffset
             ) {
-                fetchMoreItems(track, type, catalog).then(updateWidths);
+                fetchMoreItems(track, type, catalog)
+                    .then(updateWidths)
+                    .catch(console.error);
             }
         };
 
@@ -372,6 +369,7 @@
                                 src="${meta.background}"
                                 alt=""
                                 loading="lazy"
+                                decoding="async"
                             />
                         </div>
                     </div>

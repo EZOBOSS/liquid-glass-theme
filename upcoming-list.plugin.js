@@ -27,11 +27,11 @@
     const cacheSet = (key, value) => {
         const entry = { value, timestamp: Date.now() };
         memoryCache.set(key, entry);
-        try {
-            localStorage.setItem(cacheKey(key), JSON.stringify(entry));
-        } catch {
-            // ignore quota or serialization errors
-        }
+        requestIdleCallback(() => {
+            try {
+                localStorage.setItem(cacheKey(key), JSON.stringify(entry));
+            } catch (e) {}
+        });
     };
 
     const cacheGet = (key) => {
@@ -447,6 +447,7 @@
                 CONFIG.UPDATE_STATE = false;
                 const updated = refreshWatchedState(cached);
 
+                // 🔥 Save updated state into cache
                 cacheSet(key, updated);
 
                 return updated;
@@ -689,7 +690,7 @@
         const upcoming =
             mode === "library"
                 ? await fetchLibraryUpcoming(8)
-                : await fetchUpcomingTitles(8);
+                : await fetchUpcomingTitles("movie", "top", 8);
 
         if (!upcoming.length) {
             heroContainer.insertAdjacentHTML(

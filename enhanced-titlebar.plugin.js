@@ -299,70 +299,38 @@ async function getMetadata(id, type) {
         return null;
     }
 }
+//regexes
+const RE_ID = /tt\d{7,}/;
+const RE_TYPE = /\/(movie|series)\//i;
 function extractMediaInfo(element) {
-    let el = element;
+    // Optimization: Use closest() to find link context immediately
+    // This replaces the loop and querySelectorAll logic
+    const link =
+        element.closest('a[href*="tt"]') ||
+        element.querySelector('a[href*="tt"]');
 
-    // Define the ID regex once outside the loop for slight performance gain
-    const idRegex = /tt\d{7,}/;
-    const typeRegex = /\/(movie|series)\//i;
-
-    // Iterate up to 5 parent elements, starting with the element itself
-    for (let i = 0; i < 5 && el; i++, el = el.parentElement) {
-        // 1. Check if the current element is an <a> tag
-        if (el.tagName === "A" && el.href.includes("tt")) {
-            const href = el.href;
-            const idMatch = href.match(idRegex);
-
-            if (idMatch) {
-                const typeMatch = href.match(typeRegex);
-                return {
-                    id: idMatch[0],
-                    type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
-                };
-            }
+    if (link) {
+        const href = link.href;
+        const idMatch = href.match(RE_ID);
+        if (idMatch) {
+            const typeMatch = href.match(RE_TYPE);
+            return {
+                id: idMatch[0],
+                type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
+            };
         }
-
-        // 2. Use querySelectorAll to check for both <a> and <img> children in one DOM query.
-        // This is the most significant change.
-        const children = el.querySelectorAll("a[href*='tt'], img[src*='tt']");
-
-        for (const child of children) {
-            // Check Anchor tags
-            if (child.tagName === "A") {
-                const href = child.href;
-                const idMatch = href.match(idRegex);
-
-                if (idMatch) {
-                    const typeMatch = href.match(typeRegex);
-
-                    return {
-                        id: idMatch[0],
-                        type: typeMatch ? typeMatch[1].toLowerCase() : "movie",
-                    };
-                }
-            }
-
-            // Check Image tags
-            else if (child.tagName === "IMG") {
-                const src = child.src;
-                const idMatch = src.match(idRegex);
-
-                if (idMatch) {
-                    return {
-                        id: idMatch[0],
-                        type: "movie", // Default to 'movie' for image sources
-                    };
-                }
-            }
-        }
-
-        // Optimization: if we are at the top element (i=4) and still haven't returned,
-        // we can skip the next parentElement assignment (which will be null).
-        if (!el.parentElement) break;
     }
 
-    // Default return if nothing is found
-    return { id: "tt0000000", type: "movie" };
+    // Fallback: check images if no link found
+    const img =
+        element.previousElementSibling?.querySelector?.('img[src*="tt"]');
+
+    if (img) {
+        const idMatch = img.src.match(RE_ID);
+        if (idMatch) return { id: idMatch[0], type: "movie" };
+    }
+
+    return { id: "tt0000000", type: "movie" }; // Default safe return
 }
 function createMetadataElements(metadata) {
     const elements = [];
