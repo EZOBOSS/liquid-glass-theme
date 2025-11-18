@@ -10,7 +10,7 @@
         FETCH_TIMEOUT: 5000,
         CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour for the main catalog list
         CACHE_PREFIX: "upcoming_cache_",
-        VIDEO_CACHE_EXPIRY_MS: 30 * 24 * 60 * 60 * 1000, // 30 days for individual series videos
+        VIDEO_CACHE_EXPIRY_MS: 14 * 24 * 60 * 60 * 1000, // 14 days for individual series videos
         VIDEO_CACHE_PREFIX: "videos_cache_", // New prefix for long-term video cache
         CACHE_DEBOUNCE_MS: 500, // Debounce cache updates to prevent spamming
         DAY_BUFFER: 86400000 * 5, // Include 5 days of future videos
@@ -310,6 +310,20 @@
 
         return updated;
     }
+    function mapToListItem(m, type) {
+        return {
+            id: m.id,
+            title: m.name,
+            imdbRating: m.imdbRating,
+            description: m.description || `Discover ${m.name}`,
+            year: String(m.year || "2024"),
+            runtime: m.runtime || null,
+            type: m.type || type,
+            trailer: m?.trailers?.[0]?.source,
+            videos: m.videos || [],
+            year: m.releaseInfo,
+        };
+    }
 
     // --- NEW: Fetch Upcoming for Library Series Only ---
     async function fetchLibraryUpcoming(limit = 6) {
@@ -347,7 +361,10 @@
                         const fetchedMeta = data?.meta;
 
                         if (fetchedMeta) {
-                            videoCacheSet(metaCacheKey, fetchedMeta);
+                            videoCacheSet(
+                                metaCacheKey,
+                                mapToListItem(fetchedMeta, "series")
+                            );
                             cachedMeta = fetchedMeta;
                         }
                     } catch (err) {
@@ -500,7 +517,10 @@
 
                             // 💡 SET LONG-TERM CACHE
                             if (cachedMeta) {
-                                videoCacheSet(metaCacheKey, cachedMeta);
+                                videoCacheSet(
+                                    metaCacheKey,
+                                    mapToListItem(cachedMeta)
+                                );
                             }
                         } catch (err) {
                             logger.warn(

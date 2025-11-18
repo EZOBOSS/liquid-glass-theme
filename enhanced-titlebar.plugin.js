@@ -227,7 +227,7 @@ async function getMetadata(id, type) {
         }
 
         // --- Metadata Processing (Runs for both cached and fetched data) ---
-
+        console.log("original meta", meta.title, meta);
         // Compute release date
         const videos = meta.videos || [];
         let closestFuture = null,
@@ -275,6 +275,7 @@ async function getMetadata(id, type) {
         // --- Final Metadata Object Construction ---
 
         const metadata = {
+            id: meta.id || id,
             title: meta.name || meta.title,
             year: meta.year?.toString() || meta.releaseInfo?.toString() || null,
             rating: meta.imdbRating?.toString() || null,
@@ -291,7 +292,7 @@ async function getMetadata(id, type) {
             newTag,
             trailer,
         };
-
+        console.log("final meta", metadata.title, metadata);
         setCachedMetadata(key, metadata);
         return metadata;
     } catch (e) {
@@ -334,6 +335,9 @@ function extractMediaInfo(element) {
 }
 function createMetadataElements(metadata) {
     const elements = [];
+    if (!metadata.trailer) {
+        console.log(metadata.title, metadata.id, metadata.trailer);
+    }
 
     if (metadata.rating) {
         const rating = document.createElement("span");

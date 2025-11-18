@@ -701,8 +701,8 @@
         if (!state.ytPlayer) {
             state.ytPlayer = new YT.Player("heroIframe", {
                 videoId,
-                width: "1920",
-                height: "1080",
+                width: "3840",
+                height: "2160",
                 playerVars: {
                     autoplay: 1,
                     loop: 1,
@@ -724,10 +724,10 @@
                         }
                     },
                     onStateChange: (ev) => {
-                        if (ev.data === YT.PlayerState.PLAYING)
-                            try {
-                                ev.target.setPlaybackQuality("hd1080");
-                            } catch (e) {}
+                        let maxQuality =
+                            ev.target.playerInfo.availableQualityLevels[0];
+
+                        ev.target.setPlaybackQuality(maxQuality);
                     },
                 },
             });
