@@ -13,6 +13,8 @@
         VIDEO_CACHE_EXPIRY_MS: 30 * 24 * 60 * 60 * 1000, // 30 days for individual series videos
         VIDEO_CACHE_PREFIX: "videos_cache_", // New prefix for long-term video cache
         CACHE_DEBOUNCE_MS: 500, // Debounce cache updates to prevent spamming
+        DAY_BUFFER: 86400000 * 5, // Include 5 days of future videos
+        UPDATE_STATE: false, // Update watched state on page load
     };
 
     // --- Local + in-memory cache ---
@@ -156,11 +158,14 @@
             const libraryItems = Object.values(library.items || {});
 
             return libraryItems.filter((item) => {
-                // Check if it's a series AND the _id property (the unique identifier) starts with "tt"
-                const isSeries = item?.type === "series";
-                const idStartsTt = item?._id?.startsWith("tt");
+                if (item?.type !== "series") return false;
+                if (!item?._id?.startsWith("tt")) return false;
 
-                return isSeries && idStartsTt;
+                const watched = item?.state?.watched;
+                if (!watched) return false;
+
+                const [, s, e] = watched.split(":");
+                return +s > 1 || +e > 1; // exclude only-watched pilot
             });
         } catch (err) {
             console.warn(
@@ -202,18 +207,108 @@
 
             item.watched = watchedState;
 
-            if (item.season !== season) continue;
+            //if (item.season !== season) continue;
 
             const videos = item.videos;
             if (!videos) continue;
 
-            const limit = Math.min(episode, videos.length);
-            for (let i = 0; i < limit; i++) {
-                videos[i].watched = true;
+            // 🔥 Only select the season we got from storage
+            const seasonVideos = videos.filter((v) => v.season === season);
+            if (!seasonVideos.length) continue;
+
+            // Mark only episodes <= watchedEpisode as watched
+            for (const v of seasonVideos) {
+                if (v.episode <= episode) {
+                    v.watched = true;
+                }
             }
         }
 
         return list;
+    }
+    const formatDaysUntil = (dateMs) => {
+        const diff = Math.ceil((dateMs - now) / dayMs);
+        if (diff < 0) {
+            const absoluteDaysDiff = Math.abs(diff);
+
+            if (absoluteDaysDiff === 1) return "Yesterday";
+            if (absoluteDaysDiff < 30) return `${absoluteDaysDiff} days ago`;
+
+            return `${absoluteDaysDiff} days ago`;
+        }
+        if (diff === 0) return "Today";
+        if (diff === 1) return "Tomorrow";
+        if (diff < 30) return `in ${diff} days`;
+        if (diff < 365) {
+            const months = Math.round(diff / 30);
+            return `in ${months} month${months > 1 ? "s" : ""}`;
+        }
+        const years = Math.round(diff / 365);
+        return `in ${years} year${years > 1 ? "s" : ""}`;
+    };
+    const now = Date.now();
+    const dayMs = 86400000;
+    const getClosestFutureVideo = (meta) => {
+        const threshold = now - CONFIG.DAY_BUFFER;
+        const futureVideos = [];
+
+        if (meta.released) {
+            const d = Date.parse(meta.released);
+            if (d > threshold) {
+                futureVideos.push({
+                    dateMs: d,
+                    video: {
+                        released: meta.released,
+                        season: 0,
+                        episode: 0,
+                        title: "Series Release",
+                    },
+                });
+            }
+        }
+
+        if (Array.isArray(meta.videos)) {
+            for (const v of meta.videos) {
+                if (v.released) {
+                    const vd = Date.parse(v.released);
+                    if (vd > threshold && v.watched !== true) {
+                        futureVideos.push({ dateMs: vd, video: v });
+                    }
+                }
+            }
+        }
+
+        if (!futureVideos.length) return null;
+        return futureVideos.reduce((min, curr) =>
+            curr.dateMs < min.dateMs ? curr : min
+        );
+    };
+    function refreshWatchedState(cache) {
+        if (!Array.isArray(cache)) return [];
+
+        const enriched = getUserData(cache);
+
+        // Mutate in-place → preserve all other fields (title, poster, etc.)
+        const updated = [];
+        for (const m of enriched) {
+            const closest = getClosestFutureVideo(m);
+            const { dateMs, video } = closest;
+            const episodeText =
+                video.season > 0 && video.episode > 0
+                    ? `S${video.season} E${video.episode}`
+                    : "Movie";
+            m.releaseDate = new Date(dateMs);
+            m.releaseText = formatDaysUntil(dateMs);
+            m.isNewSeason = video.episode === 1;
+            m.episodeText = episodeText;
+
+            updated.push(m);
+        }
+
+        // Resort by updated release dates
+        updated.sort((a, b) => a.releaseDate - b.releaseDate);
+
+        return updated;
     }
 
     // --- NEW: Fetch Upcoming for Library Series Only ---
@@ -223,6 +318,12 @@
         const cached = cacheGet(key);
         if (cached) {
             console.log("[UpcomingReleases] Fetched cached", key);
+            if (CONFIG.UPDATE_STATE) {
+                CONFIG.UPDATE_STATE = false;
+                const updated = refreshWatchedState(cached);
+                cacheSet(key, updated);
+                return updated;
+            }
             return cached;
         }
         const seriesIds = getUserLibrarySeries();
@@ -263,64 +364,11 @@
         );
 
         // Filter out null/failed results
-        const metas = results
+        let metas = results
             .filter((r) => r.status === "fulfilled" && r.value)
             .map((r) => r.value);
-
-        // Reuse filtering logic for upcoming episodes
-        const now = Date.now();
-        const dayMs = 86400000;
-
-        // --- Helpers ---
-
-        const formatDaysUntil = (dateMs) => {
-            const diff = Math.ceil((dateMs - now) / dayMs);
-            if (diff <= 0) return "Today";
-            if (diff === 1) return "Tomorrow";
-            if (diff < 30) return `in ${diff} days`;
-            if (diff < 365) {
-                const months = Math.round(diff / 30);
-                return `in ${months} month${months > 1 ? "s" : ""}`;
-            }
-            const years = Math.round(diff / 365);
-            return `in ${years} year${years > 1 ? "s" : ""}`;
-        };
-
-        const getClosestFutureVideo = (meta) => {
-            const threshold = now - dayMs; // include today
-            const futureVideos = [];
-
-            if (meta.released) {
-                const d = Date.parse(meta.released);
-                if (d > threshold) {
-                    futureVideos.push({
-                        dateMs: d,
-                        video: {
-                            released: meta.released,
-                            season: 0,
-                            episode: 0,
-                            title: "Series Release",
-                        },
-                    });
-                }
-            }
-
-            if (Array.isArray(meta.videos)) {
-                for (const v of meta.videos) {
-                    if (v.released) {
-                        const vd = Date.parse(v.released);
-                        if (vd > threshold) {
-                            futureVideos.push({ dateMs: vd, video: v });
-                        }
-                    }
-                }
-            }
-
-            if (!futureVideos.length) return null;
-            return futureVideos.reduce((min, curr) =>
-                curr.dateMs < min.dateMs ? curr : min
-            );
-        };
+        // Enrich the list with user data
+        metas = getUserData(metas);
 
         const list = [];
         for (const m of metas) {
@@ -370,15 +418,12 @@
                     ? m.genres
                     : [],
                 videos: latestSeasonVideos || [],
-                season: video.season,
                 isNewSeason: video.episode === 1,
             });
         }
 
         list.sort((a, b) => a.releaseDate - b.releaseDate);
-        let finalList = list.slice(0, limit);
-        // 4. Enrich the list with user data
-        finalList = getUserData(finalList);
+        const finalList = list.slice(0, limit);
 
         cacheSet(key, finalList);
         return finalList;
@@ -392,13 +437,20 @@
         const baseUrl = "https://cinemeta-catalogs.strem.io/top/catalog";
         const metaUrl = "https://cinemeta-live.strem.io/meta";
         const types = ["movie", "series"];
-        const now = Date.now();
 
         // Short-term cache check for the final catalog output (e.g., daily refresh)
         const key = `${type}_${catalog}_${limit}`;
         const cached = cacheGet(key);
         if (cached) {
             console.log("[UpcomingReleases] Fetched cached", key);
+            if (CONFIG.UPDATE_STATE) {
+                CONFIG.UPDATE_STATE = false;
+                const updated = refreshWatchedState(cached);
+
+                cacheSet(key, updated);
+
+                return updated;
+            }
             return cached;
         }
 
@@ -472,68 +524,18 @@
             );
 
             // Recombine all metas (movies + enriched series)
-            const allMetasWithVideos = [
+            let allMetasWithVideos = [
                 ...movieMetas,
                 ...seriesEnrichmentResults
                     .filter((r) => r.status === "fulfilled")
                     .map((r) => r.value),
             ];
+            // Enrich the list with user data
+            allMetasWithVideos = getUserData(allMetasWithVideos);
 
             console.log(
                 "[UpcomingReleases] Completed pre-fetch/cache check for series."
             );
-
-            // --- Helpers ---
-            const dayMs = 86400000;
-
-            const formatDaysUntil = (dateMs) => {
-                const diff = Math.ceil((dateMs - now) / dayMs);
-                if (diff <= 0) return "Today";
-                if (diff === 1) return "Tomorrow";
-                if (diff < 30) return `in ${diff} days`;
-                if (diff < 365) {
-                    const months = Math.round(diff / 30);
-                    return `in ${months} month${months > 1 ? "s" : ""}`;
-                }
-                const years = Math.round(diff / 365);
-                return `in ${years} year${years > 1 ? "s" : ""}`;
-            };
-
-            const getClosestFutureVideo = (meta) => {
-                const threshold = now - dayMs; // include today
-                const futureVideos = [];
-
-                if (meta.released) {
-                    const d = Date.parse(meta.released);
-                    if (d > threshold) {
-                        futureVideos.push({
-                            dateMs: d,
-                            video: {
-                                released: meta.released,
-                                season: 0,
-                                episode: 0,
-                                title: "Series Release",
-                            },
-                        });
-                    }
-                }
-
-                if (Array.isArray(meta.videos)) {
-                    for (const v of meta.videos) {
-                        if (v.released) {
-                            const vd = Date.parse(v.released);
-                            if (vd > threshold) {
-                                futureVideos.push({ dateMs: vd, video: v });
-                            }
-                        }
-                    }
-                }
-
-                if (!futureVideos.length) return null;
-                return futureVideos.reduce((min, curr) =>
-                    curr.dateMs < min.dateMs ? curr : min
-                );
-            };
 
             // 3. Filter and Map the List
             const metadataList = [];
@@ -591,7 +593,6 @@
                         : [],
                     videos: latestSeasonVideos || [],
                     isNewSeason: video.episode === 1,
-                    season: video.season,
                 });
             }
 
@@ -603,9 +604,7 @@
                 metadataList.length,
                 "upcomingitems"
             );
-            let finalList = metadataList.slice(0, limit);
-            // 4. Enrich the list with user data
-            finalList = getUserData(finalList);
+            const finalList = metadataList.slice(0, limit);
 
             // 5. Final Result
             cacheSet(key, finalList);
@@ -689,8 +688,8 @@
 
         const upcoming =
             mode === "library"
-                ? await fetchLibraryUpcoming(6)
-                : await fetchUpcomingTitles("movie", "top", 6);
+                ? await fetchLibraryUpcoming(8)
+                : await fetchUpcomingTitles(8);
 
         if (!upcoming.length) {
             heroContainer.insertAdjacentHTML(
@@ -702,7 +701,7 @@
 
         // Define constants and date formatting once
         // const twoDaysMs = 86400000 * 2;
-        const thresholdMs = Date.now();
+        const thresholdMs = Date.now() - CONFIG.DAY_BUFFER;
 
         const formatDate = (dateString) => {
             const date = new Date(dateString);
@@ -741,7 +740,7 @@
                     const watchedClass = isWatched ? " watched" : "";
                     let stateClass = "released" + watchedClass;
 
-                    if (!released) {
+                    if (!released && !isWatched) {
                         if (
                             nextUp &&
                             ep.season === nextUp.season &&
@@ -836,8 +835,13 @@
         </div>`
         );
     }
+
     // Slight delay to allow DOM readiness
     window.addEventListener("hashchange", function (event) {
+        // Update state on player exit (a new episode has been watched?)
+        if (event.oldURL.includes("player")) {
+            CONFIG.UPDATE_STATE = true;
+        }
         // Set the timeout regardless of how the page was loaded.
         setTimeout(renderUpcomingList, 1000);
     });
