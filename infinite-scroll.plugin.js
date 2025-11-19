@@ -251,12 +251,13 @@
             const indicator = document.createElement("div");
             indicator.className = "infinite-scroll-indicator";
 
-            // Create left and right arrow icons with unique IDs
+            // Create left arrow, scroll count, and right arrow
             indicator.innerHTML = `
-                <svg id="left-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; transition: opacity 0.3s ease;">
+                <svg class="scroll-arrow scroll-arrow-left" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; transition: opacity 0.3s ease;">
                     <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <svg id="right-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 8px; transition: opacity 0.3s ease;">
+                <span class="scroll-count" style="font-size: 14px; font-weight: 600; min-width: 30px; text-align: center;"></span>
+                <svg class="scroll-arrow scroll-arrow-right" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 8px; transition: opacity 0.3s ease;">
                     <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             `;
@@ -284,7 +285,7 @@
                 animation: "scroll-pulse 2.5s ease-in-out infinite",
             });
 
-            // Add keyframe animation if not already added
+            // Add keyframe animation and CSS classes if not already added
             if (!document.querySelector("#scroll-indicator-animation")) {
                 const style = document.createElement("style");
                 style.id = "scroll-indicator-animation";
@@ -293,9 +294,29 @@
                         0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
                         50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
                     }
+                    .scroll-arrow-hidden { opacity: 0 !important; display: none !important; }
+                    .scroll-count-hidden { display: none !important; }
+                    .scroll-indicator-hidden { opacity: 0 !important; }
                 `;
                 document.head.appendChild(style);
             }
+
+            // Cache child element references for performance
+            indicator._leftArrow =
+                indicator.querySelector(".scroll-arrow-left");
+            indicator._rightArrow = indicator.querySelector(
+                ".scroll-arrow-right"
+            );
+            indicator._scrollCount = indicator.querySelector(".scroll-count");
+
+            // Initialize state tracking for preventing redundant updates
+            indicator._lastState = {
+                currentItem: -1,
+                atStart: null,
+                atEnd: null,
+                totalItems: 0,
+                itemWidth: 0,
+            };
 
             // Make track parent positioned if not already
             const trackParent = track.parentElement;
@@ -314,38 +335,91 @@
         updateScrollIndicator(track, indicator) {
             const scrollLeft = track.scrollLeft;
             const maxScroll = track.scrollWidth - track.clientWidth;
-            const threshold = 5; // Small threshold to account for rounding
+            const threshold = 5;
 
-            // Get the arrow elements
-            const leftArrow = indicator.querySelector("#left-arrow");
-            const rightArrow = indicator.querySelector("#right-arrow");
+            // Use cached element references (no querySelector needed!)
+            const leftArrow = indicator._leftArrow;
+            const rightArrow = indicator._rightArrow;
+            const scrollCount = indicator._scrollCount;
+            const lastState = indicator._lastState;
 
             // Hide entire indicator if there's no scrollable content
             if (maxScroll <= 0) {
-                indicator.style.opacity = "0";
+                if (!indicator.classList.contains("scroll-indicator-hidden")) {
+                    indicator.classList.add("scroll-indicator-hidden");
+                }
                 return;
+            } else {
+                if (indicator.classList.contains("scroll-indicator-hidden")) {
+                    indicator.classList.remove("scroll-indicator-hidden");
+                }
             }
 
-            // Determine which arrows to show
+            // Recalculate totalItems and itemWidth only if they've changed
+            const currentTotalItems = track.children.length;
+            if (currentTotalItems !== lastState.totalItems) {
+                lastState.totalItems = currentTotalItems;
+                lastState.itemWidth =
+                    currentTotalItems > 0
+                        ? track.scrollWidth / currentTotalItems
+                        : 0;
+            }
+
+            // Calculate current item using cached values
+            let currentItem = 1;
+            if (lastState.totalItems > 0 && lastState.itemWidth > 0) {
+                currentItem = Math.min(
+                    Math.floor(scrollLeft / lastState.itemWidth) + 1,
+                    lastState.totalItems
+                );
+            }
+
+            // Update scroll count only if changed
+            if (currentItem !== lastState.currentItem) {
+                lastState.currentItem = currentItem;
+
+                if (currentItem > 1) {
+                    scrollCount.textContent = `${currentItem}`;
+                    scrollCount.classList.remove("scroll-count-hidden");
+                } else {
+                    scrollCount.classList.add("scroll-count-hidden");
+                }
+            }
+
+            // Determine arrow visibility
             const atStart = scrollLeft <= threshold;
             const atEnd = scrollLeft >= maxScroll - threshold;
 
-            // Control individual arrow visibility
-            if (leftArrow) {
-                leftArrow.style.opacity = atStart ? "0" : "1";
-                leftArrow.style.display = atStart ? "none" : "block";
+            // Update left arrow only if state changed
+            if (atStart !== lastState.atStart) {
+                lastState.atStart = atStart;
+                if (atStart) {
+                    leftArrow.classList.add("scroll-arrow-hidden");
+                } else {
+                    leftArrow.classList.remove("scroll-arrow-hidden");
+                }
             }
 
-            if (rightArrow) {
-                rightArrow.style.opacity = atEnd ? "0" : "1";
-                rightArrow.style.display = atEnd ? "none" : "block";
+            // Update right arrow only if state changed
+            if (atEnd !== lastState.atEnd) {
+                lastState.atEnd = atEnd;
+                if (atEnd) {
+                    rightArrow.classList.add("scroll-arrow-hidden");
+                } else {
+                    rightArrow.classList.remove("scroll-arrow-hidden");
+                }
             }
 
-            // Hide the entire indicator if both arrows are hidden
-            if (atStart && atEnd) {
-                indicator.style.opacity = "0";
-            } else {
-                indicator.style.opacity = "1";
+            // Hide entire indicator if both arrows are hidden
+            const shouldHideIndicator = atStart && atEnd;
+            const isCurrentlyHidden = indicator.classList.contains(
+                "scroll-indicator-hidden"
+            );
+
+            if (shouldHideIndicator && !isCurrentlyHidden) {
+                indicator.classList.add("scroll-indicator-hidden");
+            } else if (!shouldHideIndicator && isCurrentlyHidden) {
+                indicator.classList.remove("scroll-indicator-hidden");
             }
         }
 
@@ -432,6 +506,9 @@
 
             track.addEventListener("wheel", handleWheel, { passive: false });
 
+            // Throttle scroll updates with requestAnimationFrame
+            let rafPending = false;
+
             // Sync state on manual scroll (e.g. drag)
             track.addEventListener(
                 "scroll",
@@ -439,8 +516,15 @@
                     if (!this.activeScrolls.has(state)) {
                         state.scrollTarget = track.scrollLeft;
                     }
-                    // Update indicator on scroll
-                    this.updateScrollIndicator(track, scrollIndicator);
+
+                    // Throttle indicator updates to once per frame
+                    if (!rafPending) {
+                        rafPending = true;
+                        requestAnimationFrame(() => {
+                            this.updateScrollIndicator(track, scrollIndicator);
+                            rafPending = false;
+                        });
+                    }
                 },
                 { passive: true }
             );
