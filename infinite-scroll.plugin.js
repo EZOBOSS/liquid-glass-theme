@@ -118,7 +118,6 @@
             const tracks = document.querySelectorAll(
                 InfiniteScrollPlugin.CONFIG.CONTAINER_SELECTOR
             );
-            console.log(tracks);
 
             // We need at least 5 tracks to match the original logic's hardcoded indices
             if (tracks.length > 4) {
@@ -247,6 +246,109 @@
             }
         }
 
+        createScrollIndicator(track) {
+            // Create the scroll indicator element
+            const indicator = document.createElement("div");
+            indicator.className = "infinite-scroll-indicator";
+
+            // Create left and right arrow icons with unique IDs
+            indicator.innerHTML = `
+                <svg id="left-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 8px; transition: opacity 0.3s ease;">
+                    <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg id="right-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left: 8px; transition: opacity 0.3s ease;">
+                    <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            `;
+
+            // Style the indicator with glassmorphism - centered at bottom
+            Object.assign(indicator.style, {
+                position: "absolute",
+                left: "50%",
+                bottom: "0",
+                transform: "translateX(-50%)",
+                padding: "12px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(0, 0, 0, 0.6)",
+                backdropFilter: "blur(15px)",
+                borderRadius: "30px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+                pointerEvents: "none",
+                zIndex: "10",
+                opacity: "1",
+                transition: "opacity 0.4s ease, transform 0.4s ease",
+                color: "rgba(255, 255, 255, 0.9)",
+                animation: "scroll-pulse 2.5s ease-in-out infinite",
+            });
+
+            // Add keyframe animation if not already added
+            if (!document.querySelector("#scroll-indicator-animation")) {
+                const style = document.createElement("style");
+                style.id = "scroll-indicator-animation";
+                style.textContent = `
+                    @keyframes scroll-pulse {
+                        0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+                        50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            // Make track parent positioned if not already
+            const trackParent = track.parentElement;
+            if (
+                trackParent &&
+                getComputedStyle(trackParent).position === "static"
+            ) {
+                trackParent.style.position = "relative";
+            }
+
+            trackParent.appendChild(indicator);
+
+            return indicator;
+        }
+
+        updateScrollIndicator(track, indicator) {
+            const scrollLeft = track.scrollLeft;
+            const maxScroll = track.scrollWidth - track.clientWidth;
+            const threshold = 5; // Small threshold to account for rounding
+
+            // Get the arrow elements
+            const leftArrow = indicator.querySelector("#left-arrow");
+            const rightArrow = indicator.querySelector("#right-arrow");
+
+            // Hide entire indicator if there's no scrollable content
+            if (maxScroll <= 0) {
+                indicator.style.opacity = "0";
+                return;
+            }
+
+            // Determine which arrows to show
+            const atStart = scrollLeft <= threshold;
+            const atEnd = scrollLeft >= maxScroll - threshold;
+
+            // Control individual arrow visibility
+            if (leftArrow) {
+                leftArrow.style.opacity = atStart ? "0" : "1";
+                leftArrow.style.display = atStart ? "none" : "block";
+            }
+
+            if (rightArrow) {
+                rightArrow.style.opacity = atEnd ? "0" : "1";
+                rightArrow.style.display = atEnd ? "none" : "block";
+            }
+
+            // Hide the entire indicator if both arrows are hidden
+            if (atStart && atEnd) {
+                indicator.style.opacity = "0";
+            } else {
+                indicator.style.opacity = "1";
+            }
+        }
+
         initWheelScroll(track, catalog = "top") {
             if (!track || track.dataset.wheelScrollInitialized === "true")
                 return;
@@ -263,6 +365,9 @@
             const key = `${type}_${catalog}`;
             this.fetchProgress[key] = 0;
 
+            // Create scroll indicator
+            const scrollIndicator = this.createScrollIndicator(track);
+
             // Initial State
             const state = {
                 track,
@@ -274,15 +379,21 @@
                     scrollWidth: track.scrollWidth,
                     clientWidth: track.clientWidth,
                 },
+                scrollIndicator,
             };
 
             const updateWidths = () => {
                 state.widthCache.scrollWidth = track.scrollWidth;
                 state.widthCache.clientWidth = track.clientWidth;
+                // Update indicator visibility when widths change
+                this.updateScrollIndicator(track, scrollIndicator);
             };
 
             const resizeObserver = new ResizeObserver(updateWidths);
             resizeObserver.observe(track);
+
+            // Initial indicator update
+            this.updateScrollIndicator(track, scrollIndicator);
 
             const handleWheel = (e) => {
                 e.preventDefault();
@@ -328,6 +439,8 @@
                     if (!this.activeScrolls.has(state)) {
                         state.scrollTarget = track.scrollLeft;
                     }
+                    // Update indicator on scroll
+                    this.updateScrollIndicator(track, scrollIndicator);
                 },
                 { passive: true }
             );
@@ -500,6 +613,10 @@
 
             const nextBatch = allData.slice(offset, offset + limit);
             this.fetchProgress[key] = offset + nextBatch.length;
+
+            console.log(
+                `[InfiniteScrollPlugin] Fetched offset ${offset}  for ${key}`
+            );
 
             return nextBatch;
         }

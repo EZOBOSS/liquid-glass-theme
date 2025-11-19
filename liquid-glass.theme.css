@@ -2667,3 +2667,10 @@ body.ghost-clicking #heroLoadingScreen {
         transform: rotate(360deg);
     }
 }
+.infinite-scroll-indicator {
+    z-index: 12 !important;
+}
+
+.infinite-scroll-indicator:hover {
+    background: rgba(89, 89, 89, 0.213) !important;
+}
