@@ -2006,15 +2006,17 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 0 !important;
 }
 /* stream picking animations */
+.label-container-XOyzm {
+    transition: all 0.5s ease;
+}
 .label-container-XOyzm:hover {
+    transform: scale(1.03);
     background: radial-gradient(
         circle,
-        rgb(29 28 28 / 69%) 0%,
-        rgb(0 0 0 / 54%) 100%
+        rgba(131, 131, 131, 0.69) 0%,
+        rgba(213, 99, 99, 0.54) 100%
     );
     box-shadow: var(--box-shadow) !important;
-
-    border-radius: 1rem !important;
 }
 /*
 .label-container-XOyzm:hover .addon-name-tC8PX {
@@ -2666,4 +2668,67 @@ body.ghost-clicking #heroLoadingScreen {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Episode List Styling */
+/* Episode List Container */
+.videos-list-container-NepX5 .videos-container-msX8s {
+    padding: 0 1.5rem !important;
+}
+
+/* Episode Card Styling */
+.video-container-ezBpK {
+    padding: 0 !important;
+    overflow: hidden !important;
+    box-shadow: var(--box-shadow) !important;
+    border-radius: 15px !important;
+}
+.video-container-ezBpK .thumbnail-container-Zm8Cl {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+.video-container-ezBpK .thumbnail-container-Zm8Cl .thumbnail-J81W3 {
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0.5 !important;
+    transition: opacity 0.3s ease !important;
+    mask-image: linear-gradient(to top, transparent, black 45%),
+        linear-gradient(to right, transparent, black 75%);
+    mask-repeat: no-repeat;
+    mask-size: cover;
+    mask-composite: intersect;
+}
+.video-container-ezBpK:hover .thumbnail-container-Zm8Cl .thumbnail-J81W3 {
+    opacity: 1 !important;
+}
+.video-container-ezBpK .info-container-xyynk {
+    padding: 1.5rem !important;
+}
+.stream-container-JPdah {
+    align-items: flex-start !important;
+    max-height: 70px !important;
+    background-color: rgba(0, 0, 0, 0.678) !important;
+}
+.stream-container-JPdah .description-container-vW_De {
+    flex-direction: row !important;
+    align-items: center !important;
+}
+.stream-container-JPdah .icon-rAZvO {
+    z-index: 2 !important;
+}
+
+/* Context Menu */
+.label-container-XOyzm .menu-container-B6cqK.menu-direction-bottom-right-aJ89V {
+    top: 0% !important;
+    left: -85% !important;
+}
+.streams-list-container-xYMJo {
+    overflow: visible !important;
+    max-width: 25% !important;
+}
+.streams-list-container-xYMJo .streams-container-bbSc4 {
+    overflow: visible !important;
 }

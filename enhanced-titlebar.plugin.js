@@ -115,12 +115,8 @@ class SelfPruningLRUCache {
         // Refresh item position (LRU logic: move to end)
         this.cache.delete(key);
         this.cache.set(key, item);
-        this.scheduleSave(); // Optional: save on access to update order? Maybe too frequent.
-        // Let's only save on set/prune to avoid thrashing,
-        // but strictly LRU requires persisting the access order.
-        // For performance, we might skip saving on every read
-        // and only save periodically or on writes.
-        // Let's stick to saving on writes for now to be safe.
+        // OPTIMIZATION: Don't save on every get() - only on set/prune
+        // This reduces localStorage write frequency significantly
 
         return item.data;
     }
@@ -210,13 +206,6 @@ function injectStyles() {
             @keyframes enhanced-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         `;
     document.head.appendChild(style);
-}
-
-// Replaced by taskQueue logic
-async function fetchMetadataLimited(tasks, limit = CONFIG.concurrency) {
-    // Legacy support or direct usage if needed, but we prefer taskQueue now.
-    // Mapping tasks to queue
-    tasks.forEach((t) => taskQueue.add(t));
 }
 
 // --- External Cache Optimization ---
@@ -450,7 +439,7 @@ async function enhanceTitleBar(titleBar) {
 
     titleBar.classList.add("enhanced-title-bar");
     titleBar.dataset.originalHtml = titleBar.innerHTML.trim();
-    titleBar.innerHTML = "";
+    titleBar.textContent = ""; // Faster than innerHTML
 
     const mediaInfo = extractMediaInfo(titleBar);
 
@@ -473,7 +462,7 @@ async function enhanceTitleBar(titleBar) {
     titleBar.appendChild(fragment);
 
     const metadata = await getMetadata(mediaInfo.id, mediaInfo.type);
-    metadataContainer.innerHTML = "";
+    metadataContainer.textContent = ""; // Faster than innerHTML
 
     if (metadata) {
         if (metadata.logo) {
@@ -514,6 +503,8 @@ function handleIntersection(entries) {
             // Double check if already enhanced to avoid duplicate work
             if (!target.classList.contains("enhanced-title-bar")) {
                 taskQueue.add(() => enhanceTitleBar(target));
+                // Unobserve after enhancement to prevent double work
+                intersectionObserver.unobserve(target);
             }
         }
     });
