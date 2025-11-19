@@ -1,572 +1,647 @@
 /**
  * @name Upcoming Releases List
  * @description Shows a list of upcoming releases (with localStorage caching)
- * @version 1.2.0
+ * @version 2.0.0
  * @author EZOBOSS
  */
 
 (function () {
-    const CONFIG = {
-        FETCH_TIMEOUT: 5000,
-        CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hour for the main catalog list
-        CACHE_PREFIX: "upcoming_cache_",
-        VIDEO_CACHE_EXPIRY_MS: 14 * 24 * 60 * 60 * 1000, // 14 days for individual series videos
-        VIDEO_CACHE_PREFIX: "videos_cache_", // New prefix for long-term video cache
-        CACHE_DEBOUNCE_MS: 500, // Debounce cache updates to prevent spamming
-        DAY_BUFFER: 86400000 * 5, // Include 5 days of future videos
-        UPDATE_STATE: false, // Update watched state on page load
-    };
+    class UpcomingReleasesPlugin {
+        static CONFIG = {
+            FETCH_TIMEOUT: 5000,
+            CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hours for the main catalog list
+            CACHE_PREFIX: "upcoming_cache_",
+            VIDEO_CACHE_EXPIRY_MS: 14 * 24 * 60 * 60 * 1000, // 14 days for individual series videos
+            VIDEO_CACHE_PREFIX: "videos_cache_", // Prefix for long-term video cache
+            CACHE_DEBOUNCE_MS: 500, // Debounce cache updates
+            DAY_BUFFER: 86400000 * 5, // Include 5 days of future videos
+            URLS: {
+                CINEMETA_CATALOG:
+                    "https://cinemeta-catalogs.strem.io/top/catalog",
+                CINEMETA_META: "https://cinemeta-live.strem.io/meta",
+                POSTER: "https://images.metahub.space/background/large",
+                LOGO: "https://images.metahub.space/logo/medium",
+            },
+            STORAGE_KEYS: {
+                LIBRARY_RECENT: "library_recent",
+                UPCOMING_MODE: "upcoming_mode",
+            },
+        };
 
-    // --- Local + in-memory cache ---
-    const memoryCache = new Map();
+        constructor() {
+            this.memoryCache = new Map();
+            this.videoMemoryCache = null;
+            this.videoCacheTimeoutId = null;
+            this.updateState = false;
+            this.renderTimeout = null;
+            this.intlDateTimeFormat = new Intl.DateTimeFormat("en-GB", {
+                month: "short",
+                timeZone: "UTC",
+            });
 
-    const cacheKey = (key) => CONFIG.CACHE_PREFIX + key;
-    //const videoCacheKey = (key) => CONFIG.VIDEO_CACHE_PREFIX + key; // Separate prefix
+            this.init();
+        }
 
-    // --- Short-Term Cache Logic (For main catalog) ---
-    const cacheSet = (key, value) => {
-        const entry = { value, timestamp: Date.now() };
-        memoryCache.set(key, entry);
-        requestIdleCallback(() => {
+        init() {
+            // Initial render
+            this.waitForHero();
+
+            // Event listeners
+            window.addEventListener("hashchange", (event) => {
+                if (event.oldURL.includes("player")) {
+                    this.updateState = true;
+                }
+                // Debounce render
+                if (this.renderTimeout) clearTimeout(this.renderTimeout);
+                this.waitForHero();
+            });
+        }
+
+        waitForHero() {
+            if (this.heroObserver) {
+                this.heroObserver.disconnect();
+                this.heroObserver = null;
+            }
+
+            const check = () => {
+                const hero = document.querySelector(".hero-container");
+                if (hero) {
+                    // Prevent duplicate render if already present
+                    if (!hero.querySelector(".upcoming-toggle-bar")) {
+                        this.render();
+                    }
+                    return true;
+                }
+                return false;
+            };
+
+            // If found immediately, we still observe briefly in case it's the old one being removed
+            // But if we render, the duplicate check protects us.
+            // Actually, if we find it, we might want to wait to see if it disappears?
+            // For simplicity and speed: render if found.
+            check();
+
+            this.heroObserver = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    // Optimization: Ignore if target is inside hero (we only care about hero creation)
+                    if (
+                        mutation.target.closest &&
+                        mutation.target.closest(".hero-container")
+                    )
+                        continue;
+
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType === 1) {
+                            if (
+                                node.classList?.contains("hero-container") ||
+                                node.querySelector?.(".hero-container")
+                            ) {
+                                if (check()) {
+                                    // Found and rendered (or already present)
+                                    if (this.heroObserver) {
+                                        this.heroObserver.disconnect();
+                                        this.heroObserver = null;
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            this.heroObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+            });
+        }
+
+        // --- Cache Methods ---
+
+        get cacheKey() {
+            return (key) => UpcomingReleasesPlugin.CONFIG.CACHE_PREFIX + key;
+        }
+
+        get videoCacheKey() {
+            return UpcomingReleasesPlugin.CONFIG.VIDEO_CACHE_PREFIX + "all";
+        }
+
+        cacheSet(key, value) {
+            const entry = { value, timestamp: Date.now() };
+            this.memoryCache.set(key, entry);
+            requestIdleCallback(() => {
+                try {
+                    localStorage.setItem(
+                        this.cacheKey(key),
+                        JSON.stringify(entry)
+                    );
+                } catch (e) {
+                    console.warn("[UpcomingReleases] LocalStorage error:", e);
+                }
+            });
+        }
+
+        cacheGet(key) {
+            const now = Date.now();
+            // Check memory first
+            const mem = this.memoryCache.get(key);
+            if (
+                mem &&
+                now - mem.timestamp < UpcomingReleasesPlugin.CONFIG.CACHE_TTL
+            )
+                return mem.value;
+
+            // Check localStorage
             try {
-                localStorage.setItem(cacheKey(key), JSON.stringify(entry));
-            } catch (e) {}
-        });
-    };
-
-    const cacheGet = (key) => {
-        const now = Date.now();
-        // Check memory first
-        const mem = memoryCache.get(key);
-        if (mem && now - mem.timestamp < CONFIG.CACHE_TTL) return mem.value;
-
-        // Check localStorage
-        try {
-            const raw = localStorage.getItem(cacheKey(key));
-            if (!raw) return null;
-            const data = JSON.parse(raw);
-            if (now - data.timestamp > CONFIG.CACHE_TTL) {
-                localStorage.removeItem(cacheKey(key));
+                const raw = localStorage.getItem(this.cacheKey(key));
+                if (!raw) return null;
+                const data = JSON.parse(raw);
+                if (
+                    now - data.timestamp >
+                    UpcomingReleasesPlugin.CONFIG.CACHE_TTL
+                ) {
+                    localStorage.removeItem(this.cacheKey(key));
+                    return null;
+                }
+                this.memoryCache.set(key, data);
+                return data.value;
+            } catch {
                 return null;
             }
-            memoryCache.set(key, data);
-            return data.value;
-        } catch {
-            return null;
         }
-    };
 
-    // --- NEW: Grouped Long-Term Video Cache ---
-    const VIDEO_CACHE_KEY = CONFIG.VIDEO_CACHE_PREFIX + "all";
+        loadVideoCache() {
+            if (this.videoMemoryCache) return this.videoMemoryCache;
 
-    // --- in-memory cache ---
-    let videoMemoryCache = null;
-    let videoCacheTimeoutId = null;
+            try {
+                const raw = localStorage.getItem(this.videoCacheKey);
+                const cache = raw ? JSON.parse(raw) : {};
+                const now = Date.now();
+                let dirty = false;
 
-    function loadVideoCache() {
-        if (videoMemoryCache) return videoMemoryCache;
+                for (const k in cache) {
+                    if (
+                        now - cache[k].timestamp >
+                        UpcomingReleasesPlugin.CONFIG.VIDEO_CACHE_EXPIRY_MS
+                    ) {
+                        delete cache[k];
+                        dirty = true;
+                    }
+                }
 
-        try {
-            const raw = localStorage.getItem(VIDEO_CACHE_KEY);
-            const cache = raw ? JSON.parse(raw) : {};
-            const now = Date.now();
-            let dirty = false;
+                if (dirty) this.saveVideoCache(cache);
 
-            for (const k in cache) {
-                if (now - cache[k].timestamp > CONFIG.VIDEO_CACHE_EXPIRY_MS) {
-                    delete cache[k];
-                    dirty = true;
+                this.videoMemoryCache = cache;
+                return cache;
+            } catch (err) {
+                console.log(
+                    "[UpcomingReleases] Failed to load video cache",
+                    err
+                );
+                this.videoMemoryCache = {};
+                return {};
+            }
+        }
+
+        saveVideoCache(cache) {
+            if (!cache) return;
+            try {
+                localStorage.setItem(this.videoCacheKey, JSON.stringify(cache));
+                this.videoMemoryCache = cache;
+            } catch (err) {
+                console.warn(
+                    "[UpcomingReleases] Failed to save video cache",
+                    err
+                );
+            }
+        }
+
+        videoCacheSet(key, value) {
+            const cache = this.loadVideoCache();
+            cache[key] = { value, timestamp: Date.now() };
+
+            if (this.videoCacheTimeoutId) {
+                clearTimeout(this.videoCacheTimeoutId);
+            }
+            this.videoCacheTimeoutId = setTimeout(() => {
+                this.saveVideoCache(cache);
+                this.videoCacheTimeoutId = null;
+            }, UpcomingReleasesPlugin.CONFIG.CACHE_DEBOUNCE_MS);
+        }
+
+        videoCacheGet(key) {
+            const cache = this.loadVideoCache();
+            const entry = cache[key];
+            return entry ? entry.value : null;
+        }
+
+        // --- Helper Methods ---
+
+        async safeFetch(
+            url,
+            {
+                timeout = UpcomingReleasesPlugin.CONFIG.FETCH_TIMEOUT,
+                retries = 1,
+            } = {}
+        ) {
+            console.log("[UpcomingReleases] API Request:", url);
+            let attempt = 0;
+            while (attempt <= retries) {
+                attempt++;
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), timeout);
+                try {
+                    const res = await fetch(url, { signal: controller.signal });
+                    clearTimeout(id);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return res.json();
+                } catch (err) {
+                    clearTimeout(id);
+                    if (attempt > retries) throw err;
+                    await new Promise((r) => setTimeout(r, 300 * attempt));
                 }
             }
-
-            if (dirty) saveVideoCache(cache);
-
-            videoMemoryCache = cache; // store in memory
-            return cache;
-        } catch (err) {
-            console.log("[UpcomingReleases] Failed to load video cache", err);
-            videoMemoryCache = {};
-            return {};
         }
-    }
 
-    function saveVideoCache(cache) {
-        if (!cache) return;
-        try {
-            localStorage.setItem(VIDEO_CACHE_KEY, JSON.stringify(cache));
-            videoMemoryCache = cache;
-        } catch (err) {
-            console.warn("[UpcomingReleases] Failed to save video cache", err);
+        formatDaysUntil(dateMs) {
+            const now = Date.now();
+            const dayMs = 86400000;
+            const diff = Math.ceil((dateMs - now) / dayMs);
+
+            if (diff < 0) {
+                const absoluteDaysDiff = Math.abs(diff);
+                if (absoluteDaysDiff === 1) return "Yesterday";
+                return `${absoluteDaysDiff} days ago`;
+            }
+            if (diff === 0) return "Today";
+            if (diff === 1) return "Tomorrow";
+            if (diff < 30) return `in ${diff} days`;
+            if (diff < 365) {
+                const months = Math.round(diff / 30);
+                return `in ${months} month${months > 1 ? "s" : ""}`;
+            }
+            const years = Math.round(diff / 365);
+            return `in ${years} year${years > 1 ? "s" : ""}`;
         }
-    }
 
-    function videoCacheSet(key, value) {
-        const cache = loadVideoCache();
-        cache[key] = { value, timestamp: Date.now() };
-
-        if (videoCacheTimeoutId) {
-            clearTimeout(videoCacheTimeoutId);
+        formatDate(dateString) {
+            const date = new Date(dateString);
+            const day = date.getUTCDate();
+            const month = this.intlDateTimeFormat.format(date);
+            return `${day}<br>${month}`;
         }
-        // 4. Schedule a single write to localStorage after a delay
-        videoCacheTimeoutId = setTimeout(() => {
-            saveVideoCache(cache);
-            videoCacheTimeoutId = null;
-        }, CONFIG.CACHE_DEBOUNCE_MS);
-    }
 
-    function videoCacheGet(key) {
-        const cache = loadVideoCache(); // already pruned
-        const entry = cache[key];
-        return entry ? entry.value : null; // simple read
-    }
+        // --- Data Logic ---
 
-    // --- Helper Functions ---
-
-    const safeFetch = async (
-        url,
-        { timeout = CONFIG.FETCH_TIMEOUT, retries = 1 } = {}
-    ) => {
-        let attempt = 0;
-        while (attempt <= retries) {
-            attempt++;
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
+        getUserLibrarySeries() {
             try {
-                const res = await fetch(url, { signal: controller.signal });
-                clearTimeout(id);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
+                const raw = localStorage.getItem(
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
+                );
+                if (!raw) return [];
+                const library = JSON.parse(raw);
+                const libraryItems = Object.values(library.items || {});
+
+                return libraryItems.filter((item) => {
+                    if (item?.type !== "series") return false;
+                    if (!item?._id?.startsWith("tt")) return false;
+
+                    const watched = item?.state?.watched;
+                    if (!watched) return false;
+
+                    const [, s, e] = watched.split(":");
+                    return +s > 1 || +e > 1; // exclude only-watched pilot
+                });
             } catch (err) {
-                clearTimeout(id);
-                if (attempt > retries) throw err;
-                await new Promise((r) => setTimeout(r, 300 * attempt));
+                console.warn(
+                    "[UpcomingReleases] Failed to read library_recent",
+                    err
+                );
+                return [];
             }
         }
-    };
 
-    const logger = {
-        warn: (...a) => console.warn("[UpcomingReleases]", ...a),
-    };
-
-    // --- Main Logic ---
-    // --- NEW: Load user's library (only series) ---
-    function getUserLibrarySeries() {
-        try {
-            const raw = localStorage.getItem("library_recent");
-            if (!raw) return [];
-            const library = JSON.parse(raw);
-            const libraryItems = Object.values(library.items || {});
-
-            return libraryItems.filter((item) => {
-                if (item?.type !== "series") return false;
-                if (!item?._id?.startsWith("tt")) return false;
-
-                const watched = item?.state?.watched;
-                if (!watched) return false;
-
-                const [, s, e] = watched.split(":");
-                return +s > 1 || +e > 1; // exclude only-watched pilot
-            });
-        } catch (err) {
-            console.warn(
-                "[UpcomingReleases] Failed to read library_recent",
-                err
+        getUserData(list) {
+            const recentStr = localStorage.getItem(
+                UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
             );
-            return [];
-        }
-    }
-    function getUserData(list) {
-        const recentStr = localStorage.getItem("library_recent");
-        if (!recentStr) return list;
+            if (!recentStr) return list;
 
-        let recent;
-        try {
-            recent = JSON.parse(recentStr);
-        } catch {
+            let recent;
+            try {
+                recent = JSON.parse(recentStr);
+            } catch {
+                return list;
+            }
+
+            const recentItems = recent.items;
+            if (!recentItems) return list;
+
+            for (const item of list) {
+                if (item.type !== "series") continue;
+
+                const lib = recentItems[item.id];
+                if (!lib) continue;
+
+                const watchedState = lib.state && lib.state.watched;
+                if (!watchedState) continue;
+
+                const parts = watchedState.split(":", 3);
+                if (parts.length < 3) continue;
+
+                const season = +parts[1];
+                const episode = +parts[2];
+
+                item.watched = watchedState;
+
+                const videos = item.videos;
+                if (!videos) continue;
+
+                const seasonVideos = videos.filter((v) => v.season === season);
+                if (!seasonVideos.length) continue;
+
+                for (const v of seasonVideos) {
+                    if (v.episode <= episode) {
+                        v.watched = true;
+                    }
+                }
+            }
             return list;
         }
 
-        const recentItems = recent.items;
-        if (!recentItems) return list;
+        getClosestFutureVideo(meta) {
+            const now = Date.now();
+            const threshold = now - UpcomingReleasesPlugin.CONFIG.DAY_BUFFER;
+            const futureVideos = [];
 
-        for (const item of list) {
-            if (item.type !== "series") continue;
-
-            const lib = recentItems[item.id];
-            if (!lib) continue;
-
-            const watchedState = lib.state && lib.state.watched;
-            if (!watchedState) continue;
-
-            // Minimal parsing: only split into 3 parts max
-            const parts = watchedState.split(":", 3);
-            if (parts.length < 3) continue;
-
-            const season = +parts[1];
-            const episode = +parts[2];
-
-            item.watched = watchedState;
-
-            //if (item.season !== season) continue;
-
-            const videos = item.videos;
-            if (!videos) continue;
-
-            // 🔥 Only select the season we got from storage
-            const seasonVideos = videos.filter((v) => v.season === season);
-            if (!seasonVideos.length) continue;
-
-            // Mark only episodes <= watchedEpisode as watched
-            for (const v of seasonVideos) {
-                if (v.episode <= episode) {
-                    v.watched = true;
+            if (meta.released) {
+                const d = Date.parse(meta.released);
+                if (d > threshold) {
+                    futureVideos.push({
+                        dateMs: d,
+                        video: {
+                            released: meta.released,
+                            season: 0,
+                            episode: 0,
+                            title: "Series Release",
+                        },
+                    });
                 }
             }
-        }
 
-        return list;
-    }
-    const formatDaysUntil = (dateMs) => {
-        const diff = Math.ceil((dateMs - now) / dayMs);
-        if (diff < 0) {
-            const absoluteDaysDiff = Math.abs(diff);
-
-            if (absoluteDaysDiff === 1) return "Yesterday";
-            if (absoluteDaysDiff < 30) return `${absoluteDaysDiff} days ago`;
-
-            return `${absoluteDaysDiff} days ago`;
-        }
-        if (diff === 0) return "Today";
-        if (diff === 1) return "Tomorrow";
-        if (diff < 30) return `in ${diff} days`;
-        if (diff < 365) {
-            const months = Math.round(diff / 30);
-            return `in ${months} month${months > 1 ? "s" : ""}`;
-        }
-        const years = Math.round(diff / 365);
-        return `in ${years} year${years > 1 ? "s" : ""}`;
-    };
-    const now = Date.now();
-    const dayMs = 86400000;
-    const getClosestFutureVideo = (meta) => {
-        const threshold = now - CONFIG.DAY_BUFFER;
-        const futureVideos = [];
-
-        if (meta.released) {
-            const d = Date.parse(meta.released);
-            if (d > threshold) {
-                futureVideos.push({
-                    dateMs: d,
-                    video: {
-                        released: meta.released,
-                        season: 0,
-                        episode: 0,
-                        title: "Series Release",
-                    },
-                });
-            }
-        }
-
-        if (Array.isArray(meta.videos)) {
-            for (const v of meta.videos) {
-                if (v.released) {
-                    const vd = Date.parse(v.released);
-                    if (vd > threshold && v.watched !== true) {
-                        futureVideos.push({ dateMs: vd, video: v });
-                    }
-                }
-            }
-        }
-
-        if (!futureVideos.length) return null;
-        return futureVideos.reduce((min, curr) =>
-            curr.dateMs < min.dateMs ? curr : min
-        );
-    };
-    function refreshWatchedState(cache) {
-        if (!Array.isArray(cache)) return [];
-
-        const enriched = getUserData(cache);
-
-        // Mutate in-place → preserve all other fields (title, poster, etc.)
-        const updated = [];
-        for (const m of enriched) {
-            const closest = getClosestFutureVideo(m);
-            const { dateMs, video } = closest;
-            const episodeText =
-                video.season > 0 && video.episode > 0
-                    ? `S${video.season} E${video.episode}`
-                    : "Movie";
-            m.releaseDate = new Date(dateMs);
-            m.releaseText = formatDaysUntil(dateMs);
-            m.isNewSeason = video.episode === 1;
-            m.episodeText = episodeText;
-
-            updated.push(m);
-        }
-
-        // Resort by updated release dates
-        updated.sort((a, b) => a.releaseDate - b.releaseDate);
-
-        return updated;
-    }
-    function mapToListItem(m, type) {
-        return {
-            id: m.id,
-            title: m.name,
-            imdbRating: m.imdbRating,
-            description: m.description || `Discover ${m.name}`,
-            year: String(m.year || "2024"),
-            runtime: m.runtime || null,
-            type: m.type || type,
-            trailer: m?.trailers?.[0]?.source,
-            videos: m.videos || [],
-            year: m.releaseInfo,
-        };
-    }
-
-    // --- NEW: Fetch Upcoming for Library Series Only ---
-    async function fetchLibraryUpcoming(limit = 6) {
-        const metaUrl = "https://cinemeta-live.strem.io/meta";
-        const key = `userLibrary_${limit}`;
-        const cached = cacheGet(key);
-        if (cached) {
-            console.log("[UpcomingReleases] Fetched cached", key);
-            if (CONFIG.UPDATE_STATE) {
-                CONFIG.UPDATE_STATE = false;
-                const updated = refreshWatchedState(cached);
-                cacheSet(key, updated);
-                return updated;
-            }
-            return cached;
-        }
-        const seriesIds = getUserLibrarySeries();
-
-        if (!seriesIds.length) {
-            console.log("[UpcomingReleases] No series found in library_recent");
-            return [];
-        }
-
-        const results = await Promise.allSettled(
-            seriesIds.map(async (meta) => {
-                const id = meta._id;
-                const metaCacheKey = `fullmeta:${id}`;
-                let cachedMeta = videoCacheGet(metaCacheKey);
-
-                if (!cachedMeta) {
-                    try {
-                        const data = await safeFetch(
-                            `${metaUrl}/series/${id}.json`
-                        );
-                        const fetchedMeta = data?.meta;
-
-                        if (fetchedMeta) {
-                            videoCacheSet(
-                                metaCacheKey,
-                                mapToListItem(fetchedMeta, "series")
-                            );
-                            cachedMeta = fetchedMeta;
+            if (Array.isArray(meta.videos)) {
+                for (const v of meta.videos) {
+                    if (v.released) {
+                        const vd = Date.parse(v.released);
+                        if (vd > threshold && v.watched !== true) {
+                            futureVideos.push({ dateMs: vd, video: v });
                         }
-                    } catch (err) {
-                        logger.warn("Failed to fetch meta for", id, err);
-                        return null;
                     }
                 }
-                if (cachedMeta) {
-                    // Merge all properties from the fetched/cached meta into the library meta
-                    Object.assign(meta, cachedMeta);
-                }
-                return meta;
-            })
-        );
-
-        // Filter out null/failed results
-        let metas = results
-            .filter((r) => r.status === "fulfilled" && r.value)
-            .map((r) => r.value);
-        // Enrich the list with user data
-        metas = getUserData(metas);
-
-        const list = [];
-        for (const m of metas) {
-            const closest = getClosestFutureVideo(m);
-            if (!closest) continue;
-            const { dateMs, video } = closest;
-
-            const releaseDate = new Date(video.released);
-            const episodeText =
-                video.season && video.episode
-                    ? `S${video.season} E${video.episode}`
-                    : "Upcoming";
-            const href = `#/detail/${m.type}/${m._id}`;
-            let latestSeasonVideos = [];
-            if (video.season > 0) {
-                latestSeasonVideos = m.videos.filter(
-                    (v) =>
-                        v.season === video.season ||
-                        (v.season === 0 && v.episode === 0)
-                );
             }
-            const trailer =
-                m?.trailer ||
-                m?.trailers?.[0]?.source ||
-                m?.trailers?.[0]?.url ||
-                m?.videos?.[0]?.url ||
-                null;
 
-            list.push({
-                id: m._id,
-                type: m.type,
+            if (!futureVideos.length) return null;
+            return futureVideos.reduce((min, curr) =>
+                curr.dateMs < min.dateMs ? curr : min
+            );
+        }
+
+        refreshWatchedState(cache) {
+            if (!Array.isArray(cache)) return [];
+
+            const enriched = this.getUserData(cache);
+            const updated = [];
+
+            for (const m of enriched) {
+                const closest = this.getClosestFutureVideo(m);
+                if (!closest) continue; // Skip if no future video found
+
+                const { dateMs, video } = closest;
+                const episodeText =
+                    video.season > 0 && video.episode > 0
+                        ? `S${video.season} E${video.episode}`
+                        : "Movie";
+
+                m.releaseDate = new Date(dateMs);
+                m.releaseText = this.formatDaysUntil(dateMs);
+                m.isNewSeason = video.episode === 1;
+                m.episodeText = episodeText;
+
+                updated.push(m);
+            }
+
+            updated.sort((a, b) => a.releaseDate - b.releaseDate);
+            return updated;
+        }
+
+        mapToListItem(m, type) {
+            return {
+                id: m.id,
                 title: m.name,
-                releaseDate,
-                releaseText: formatDaysUntil(dateMs),
-                episodeText,
-                poster: `https://images.metahub.space/background/large/${m._id}/img`,
-                logo: `https://images.metahub.space/logo/medium/${m._id}/img`,
-                href,
-                trailer,
-                description: m.description,
-                rating: m.imdbRating || "",
-                year: m.releaseInfo || "",
-                runtime: m.runtime,
+                imdbRating: m.imdbRating,
                 genres: Array.isArray(m.genre)
                     ? m.genre
                     : Array.isArray(m.genres)
                     ? m.genres
                     : [],
-                videos: latestSeasonVideos || [],
-                isNewSeason: video.episode === 1,
-            });
+                description: m.description || `Discover ${m.name}`,
+                year: String(m.year || "2024"),
+                runtime: m.runtime || null,
+                type: m.type || type,
+                trailer: m?.trailers?.[0]?.source,
+                videos: m.videos || [],
+                releaseInfo: m.releaseInfo,
+            };
         }
 
-        list.sort((a, b) => a.releaseDate - b.releaseDate);
-        const finalList = list.slice(0, limit);
+        // --- Fetching Logic ---
 
-        cacheSet(key, finalList);
-        return finalList;
-    }
+        async fetchLibraryUpcoming(limit = 6) {
+            const key = `userLibrary_${limit}`;
+            const cached = this.cacheGet(key);
 
-    async function fetchUpcomingTitles(
-        type = "movie",
-        catalog = "top",
-        limit = 10
-    ) {
-        const baseUrl = "https://cinemeta-catalogs.strem.io/top/catalog";
-        const metaUrl = "https://cinemeta-live.strem.io/meta";
-        const types = ["movie", "series"];
-
-        // Short-term cache check for the final catalog output (e.g., daily refresh)
-        const key = `${type}_${catalog}_${limit}`;
-        const cached = cacheGet(key);
-        if (cached) {
-            console.log("[UpcomingReleases] Fetched cached", key);
-            if (CONFIG.UPDATE_STATE) {
-                CONFIG.UPDATE_STATE = false;
-                const updated = refreshWatchedState(cached);
-
-                // 🔥 Save updated state into cache
-                cacheSet(key, updated);
-
-                return updated;
-            }
-            return cached;
-        }
-
-        try {
-            // 1. Initial Catalog Fetch (Movies + Series)
-            const results = await Promise.allSettled(
-                types.map((t) => safeFetch(`${baseUrl}/${t}/${catalog}.json`))
-            );
-
-            const all = [];
-            for (const res of results) {
-                if (res.status === "fulfilled" && res.value) {
-                    const payload = res.value;
-                    const metas = Array.isArray(payload.metas)
-                        ? payload.metas
-                        : Array.isArray(payload)
-                        ? payload
-                        : [];
-                    all.push(...metas);
+            if (cached) {
+                console.log("[UpcomingReleases] Fetched cached", key);
+                if (this.updateState) {
+                    this.updateState = false;
+                    const updated = this.refreshWatchedState(cached);
+                    this.cacheSet(key, updated);
+                    return updated;
                 }
+                return cached;
             }
-            console.log("[UpcomingReleases] Fetched", all.length, "metas");
 
-            // 2. Optimized Series Videos Fetch
-            const seriesMetas = all.filter((m) => m.type === "series");
-            const movieMetas = all.filter((m) => m.type === "movie");
+            const seriesIds = this.getUserLibrarySeries();
+            if (!seriesIds.length) {
+                console.log(
+                    "[UpcomingReleases] No series found in library_recent"
+                );
+                return [];
+            }
 
-            console.log(
-                `[UpcomingReleases] Checking cache/fetching meta for ${seriesMetas.length} series...`
-            );
-
-            const seriesEnrichmentResults = await Promise.allSettled(
-                seriesMetas.map(async (m) => {
-                    const metaCacheKey = `fullmeta:${m.id}`;
-                    let cachedMeta = videoCacheGet(metaCacheKey); // 💡 CHECK LONG-TERM CACHE FIRST
+            const results = await Promise.allSettled(
+                seriesIds.map(async (meta) => {
+                    const id = meta._id;
+                    const metaCacheKey = `fullmeta:${id}`;
+                    let cachedMeta = this.videoCacheGet(metaCacheKey);
 
                     if (!cachedMeta) {
-                        // Cache miss: must fetch full meta
-                        const url = `${metaUrl}/${m.type}/${m.id}.json`;
                         try {
-                            const data = await safeFetch(url);
-                            cachedMeta = data?.meta || [];
-                            console.log(
-                                `[UpcomingReleases] Fetched meta for ${m.id} - ${m.name}`
+                            const data = await this.safeFetch(
+                                `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/series/${id}.json`
                             );
+                            const fetchedMeta = data?.meta;
 
-                            // 💡 SET LONG-TERM CACHE
-                            if (cachedMeta) {
-                                videoCacheSet(
+                            if (fetchedMeta) {
+                                this.videoCacheSet(
                                     metaCacheKey,
-                                    mapToListItem(cachedMeta)
+                                    this.mapToListItem(fetchedMeta, "series")
                                 );
+                                cachedMeta = fetchedMeta;
                             }
                         } catch (err) {
-                            logger.warn(
-                                "Failed to pre-fetch meta for",
-                                m.id,
+                            console.warn(
+                                "[UpcomingReleases] Failed to fetch meta for",
+                                id,
                                 err
                             );
+                            return null;
                         }
-                    } else {
-                        console.log(
-                            `[UpcomingReleases] Videos cache hit for ${m.id} - ${m.name}`
-                        );
                     }
-
-                    // Attach videos to the meta object regardless of source (cache or fetch)
                     if (cachedMeta) {
-                        // Merge all properties from the fetched/cached meta into the library meta
-                        Object.assign(m, cachedMeta);
+                        Object.assign(meta, cachedMeta);
                     }
-                    return m;
+                    return meta;
                 })
             );
 
-            // Recombine all metas (movies + enriched series)
-            let allMetasWithVideos = [
-                ...movieMetas,
-                ...seriesEnrichmentResults
-                    .filter((r) => r.status === "fulfilled")
-                    .map((r) => r.value),
-            ];
-            // Enrich the list with user data
-            allMetasWithVideos = getUserData(allMetasWithVideos);
+            let metas = results
+                .filter((r) => r.status === "fulfilled" && r.value)
+                .map((r) => r.value);
 
-            console.log(
-                "[UpcomingReleases] Completed pre-fetch/cache check for series."
-            );
+            metas = this.getUserData(metas);
+            const list = this.processMetasToList(metas);
 
-            // 3. Filter and Map the List
-            const metadataList = [];
-            for (const m of allMetasWithVideos) {
-                const closest = getClosestFutureVideo(m);
+            list.sort((a, b) => a.releaseDate - b.releaseDate);
+            const finalList = list.slice(0, limit);
+
+            this.cacheSet(key, finalList);
+            return finalList;
+        }
+
+        async fetchUpcomingTitles(type = "movie", catalog = "top", limit = 10) {
+            const key = `${type}_${catalog}_${limit}`;
+            const cached = this.cacheGet(key);
+
+            if (cached) {
+                console.log("[UpcomingReleases] Fetched cached", key);
+                if (this.updateState) {
+                    this.updateState = false;
+                    const updated = this.refreshWatchedState(cached);
+                    this.cacheSet(key, updated);
+                    return updated;
+                }
+                return cached;
+            }
+
+            try {
+                // 1. Initial Catalog Fetch
+                const types = ["movie", "series"];
+                const results = await Promise.allSettled(
+                    types.map((t) =>
+                        this.safeFetch(
+                            `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_CATALOG}/${t}/${catalog}.json`
+                        )
+                    )
+                );
+
+                const all = [];
+                for (const res of results) {
+                    if (res.status === "fulfilled" && res.value) {
+                        const payload = res.value;
+                        const metas = Array.isArray(payload.metas)
+                            ? payload.metas
+                            : Array.isArray(payload)
+                            ? payload
+                            : [];
+                        all.push(...metas);
+                    }
+                }
+
+                // 2. Optimized Series Videos Fetch
+                const seriesMetas = all.filter((m) => m.type === "series");
+                const movieMetas = all.filter((m) => m.type === "movie");
+
+                const seriesEnrichmentResults = await Promise.allSettled(
+                    seriesMetas.map(async (m) => {
+                        const metaCacheKey = `fullmeta:${m.id}`;
+                        let cachedMeta = this.videoCacheGet(metaCacheKey);
+
+                        if (!cachedMeta) {
+                            try {
+                                const data = await this.safeFetch(
+                                    `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/${m.type}/${m.id}.json`
+                                );
+                                cachedMeta = data?.meta || [];
+                                if (cachedMeta) {
+                                    this.videoCacheSet(
+                                        metaCacheKey,
+                                        this.mapToListItem(cachedMeta)
+                                    );
+                                    console.log(
+                                        "[UpcomingReleases] Fetched meta for",
+                                        m.id,
+                                        m.title
+                                    );
+                                }
+                            } catch (err) {
+                                console.warn(
+                                    "[UpcomingReleases] Failed to pre-fetch meta for",
+                                    m.id,
+                                    err
+                                );
+                            }
+                        }
+                        if (cachedMeta) {
+                            Object.assign(m, cachedMeta);
+                        }
+                        return m;
+                    })
+                );
+
+                let allMetasWithVideos = [
+                    ...movieMetas,
+                    ...seriesEnrichmentResults
+                        .filter((r) => r.status === "fulfilled")
+                        .map((r) => r.value),
+                ];
+
+                allMetasWithVideos = this.getUserData(allMetasWithVideos);
+                const metadataList =
+                    this.processMetasToList(allMetasWithVideos);
+
+                metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
+                const finalList = metadataList.slice(0, limit);
+
+                this.cacheSet(key, finalList);
+                return finalList;
+            } catch (e) {
+                console.warn(
+                    "[UpcomingReleases] Failed to fetch upcoming titles",
+                    e
+                );
+                return [];
+            }
+        }
+
+        processMetasToList(metas) {
+            const list = [];
+            for (const m of metas) {
+                const closest = this.getClosestFutureVideo(m);
                 if (!closest) continue;
 
                 const { dateMs, video } = closest;
                 const releaseDate = new Date(dateMs);
-
                 const episodeText =
                     video.season > 0 && video.episode > 0
                         ? `S${video.season} E${video.episode}`
@@ -574,8 +649,8 @@
 
                 const href =
                     video.season > 0 && video.episode > 0
-                        ? `#/detail/${m.type}/${m.id}`
-                        : `#/detail/${m.type}/${m.id}/${m.id}`;
+                        ? `#/detail/${m.type}/${m.id}` // Series usually goes to detail
+                        : `#/detail/${m.type}/${m.id}/${m.id}`; // Movies might need specific ID
 
                 const trailer =
                     m?.trailer ||
@@ -583,6 +658,7 @@
                     m?.trailers?.[0]?.url ||
                     m?.videos?.[0]?.url ||
                     null;
+
                 let latestSeasonVideos = [];
                 if (video.season > 0) {
                     latestSeasonVideos = m.videos.filter(
@@ -592,20 +668,24 @@
                     );
                 }
 
-                metadataList.push({
-                    id: m.id,
+                list.push({
+                    id: m.id || m._id,
                     type: m.type,
                     title: m.name,
                     releaseDate,
-                    releaseText: formatDaysUntil(dateMs),
+                    releaseText: this.formatDaysUntil(dateMs),
                     episodeText,
-                    poster: `https://images.metahub.space/background/large/${m.id}/img`,
-                    logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
+                    poster: `${UpcomingReleasesPlugin.CONFIG.URLS.POSTER}/${
+                        m.id || m._id
+                    }/img`,
+                    logo: `${UpcomingReleasesPlugin.CONFIG.URLS.LOGO}/${
+                        m.id || m._id
+                    }/img`,
                     href,
                     trailer,
                     description: m.description,
                     rating: m.imdbRating || "",
-                    year: m.year,
+                    year: m.year || m.releaseInfo || "",
                     runtime: m.runtime,
                     genres: Array.isArray(m.genre)
                         ? m.genre
@@ -616,34 +696,33 @@
                     isNewSeason: video.episode === 1,
                 });
             }
-
-            // 4. Sort and Limit
-            metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
-
-            console.log(
-                "[UpcomingReleases] Sorted",
-                metadataList.length,
-                "upcomingitems"
-            );
-            const finalList = metadataList.slice(0, limit);
-
-            // 5. Final Result
-            cacheSet(key, finalList);
-            return finalList;
-        } catch (e) {
-            logger.warn("Failed to fetch upcoming titles", e);
-            return [];
+            return list;
         }
-    }
 
-    async function renderUpcomingList() {
-        const heroContainer = document.querySelector(".hero-container");
-        if (!heroContainer) return;
-        // --- 🔘 Toggle Buttons ---
-        let buttonBar = document.querySelector(".upcoming-toggle-bar");
-        const lastMode = localStorage.getItem("upcoming_mode") || "all";
+        // --- Rendering Logic ---
 
-        if (!buttonBar) {
+        async render() {
+            const heroContainer = document.querySelector(".hero-container");
+            if (!heroContainer) return;
+
+            this.renderButtonBar(heroContainer);
+
+            const lastMode =
+                localStorage.getItem(
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE
+                ) || "all";
+            await this.renderListMode(lastMode);
+        }
+
+        renderButtonBar(heroContainer) {
+            let buttonBar = document.querySelector(".upcoming-toggle-bar");
+            if (buttonBar) return;
+
+            const lastMode =
+                localStorage.getItem(
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE
+                ) || "all";
+
             buttonBar = document.createElement("div");
             buttonBar.className = "upcoming-toggle-bar";
             buttonBar.innerHTML = `
@@ -651,8 +730,7 @@
                     lastMode === "all" ? "active" : ""
                 }" data-mode="all" aria-label="Popular">
                     <span class="btn-icon" aria-hidden="true">
-                    <!-- Star / Popular -->
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
                     </svg>
                     </span>
@@ -662,209 +740,197 @@
                     lastMode === "library" ? "active" : ""
                 }" data-mode="library" aria-label="My Library">
                     <span class="btn-icon" aria-hidden="true">
-                    <!-- Folder + Play (Library) -->
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M3 6.5A1.5 1.5 0 014.5 5h3.55l1.2 1.6H19a1 1 0 011 1V18.5A1.5 1.5 0 0118.5 20h-14A1.5 1.5 0 013 18.5v-12z" fill="currentColor" />
                         <path d="M10 9.5v5l4-2.5-4-2.5z" fill="#fff" opacity="0.95" />
                     </svg>
                     </span>
                     <span class="btn-label">My Library</span>
                 </button>
-                `;
+            `;
             heroContainer.insertAdjacentElement("beforeend", buttonBar);
 
             buttonBar.addEventListener("click", (e) => {
                 const btn = e.target.closest(".toggle-btn");
-                if (!btn) return; // Not a valid click
+                if (!btn) return;
 
                 buttonBar
                     .querySelectorAll(".toggle-btn")
                     .forEach((b) => b.classList.remove("active"));
-
                 btn.classList.add("active");
 
                 const mode = btn.dataset.mode;
-                localStorage.setItem("upcoming_mode", mode);
-                renderUpcomingListMode(mode);
+                localStorage.setItem(
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE,
+                    mode
+                );
+                this.renderListMode(mode);
             });
         }
 
-        renderUpcomingListMode(lastMode);
-    }
+        async renderListMode(mode = "all") {
+            const heroContainer = document.querySelector(".hero-container");
+            if (!heroContainer) return;
 
-    // --- NEW: Mode Handler (All vs Library) ---
-    async function renderUpcomingListMode(mode = "all") {
-        const heroContainer = document.querySelector(".hero-container");
-        if (!heroContainer) return;
+            const existingList = heroContainer.querySelector(".upcoming-list");
+            if (existingList) {
+                existingList.classList.add("fade-out");
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                existingList.remove();
+            }
 
-        const existingList = heroContainer.querySelector(".upcoming-list");
-        if (existingList) {
-            // 1. Add class to start fade-out
-            existingList.classList.add("fade-out");
+            // Show loading state
+            this.showLoading(heroContainer);
 
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            const upcoming =
+                mode === "library"
+                    ? await this.fetchLibraryUpcoming(8)
+                    : await this.fetchUpcomingTitles("movie", "top", 8);
 
-            existingList.remove();
-        }
+            // Remove loading state
+            this.hideLoading(heroContainer);
 
-        const upcoming =
-            mode === "library"
-                ? await fetchLibraryUpcoming(8)
-                : await fetchUpcomingTitles("movie", "top", 8);
+            if (!upcoming.length) {
+                heroContainer.insertAdjacentHTML(
+                    "beforeend",
+                    `<div class="upcoming-list empty"><p>No upcoming releases found.</p></div>`
+                );
+                return;
+            }
 
-        if (!upcoming.length) {
+            const gridHtml = this.buildGridHtml(upcoming);
+
             heroContainer.insertAdjacentHTML(
                 "beforeend",
-                `<div class="upcoming-list empty"><p>No upcoming releases found.</p></div>`
+                `<div class="upcoming-list">
+                    <div class="upcoming-grid">
+                        ${gridHtml}
+                    </div>
+                </div>`
             );
-            return;
         }
 
-        // Define constants and date formatting once
-        // const twoDaysMs = 86400000 * 2;
-        const thresholdMs = Date.now() - CONFIG.DAY_BUFFER;
+        showLoading(container) {
+            // Simple loading spinner or skeleton could go here
+            // For now, let's just ensure we don't have duplicates
+            if (container.querySelector(".upcoming-loading")) return;
 
-        const formatDate = (dateString) => {
-            const date = new Date(dateString);
-            // Use getUTCDate() to get the day component based on the UTC date
-            const day = date.getUTCDate();
+            const loader = document.createElement("div");
+            loader.className = "upcoming-list upcoming-loading";
+            loader.innerHTML = `<div class="loading-spinner"></div>`; // Assuming CSS for this exists or we add it
+            container.appendChild(loader);
+        }
 
-            // Use toLocaleDateString() but force the time zone to UTC
-            const month = date.toLocaleDateString("en-GB", {
-                month: "short",
-                timeZone: "UTC",
-            });
+        hideLoading(container) {
+            const loader = container.querySelector(".upcoming-loading");
+            if (loader) loader.remove();
+        }
 
-            return `${day}<br>${month}`;
-        };
+        buildGridHtml(upcoming) {
+            const thresholdMs =
+                Date.now() - UpcomingReleasesPlugin.CONFIG.DAY_BUFFER;
+            let gridHtml = "";
 
-        let gridHtml = "";
+            for (const m of upcoming) {
+                let episodesContainerHtml = "";
 
-        // Use a standard for...of loop for better performance than forEach
-        for (const m of upcoming) {
-            let episodesContainerHtml = "";
-
-            // --- 🔹 Episode Rendering Logic ---
-            if (Array.isArray(m.videos) && m.videos.length) {
-                // Parse next episode only if videos exist
-                let nextUp = null;
-                const match = m.episodeText?.match(/^S(\d+)\sE(\d+)$/);
-                if (match) {
-                    nextUp = { season: +match[1], episode: +match[2] };
-                }
-
-                let episodesHtml = "";
-                // Inner loop: Pure string building
-                for (const ep of m.videos) {
-                    const released = Date.parse(ep.released) <= thresholdMs;
-                    const isWatched = ep.watched; // Rename for clarity in the template
-                    const watchedClass = isWatched ? " watched" : "";
-                    let stateClass = "released" + watchedClass;
-
-                    if (!released && !isWatched) {
-                        if (
-                            nextUp &&
-                            ep.season === nextUp.season &&
-                            ep.episode === nextUp.episode
-                        ) {
-                            stateClass = "upcoming-next";
-                        } else {
-                            stateClass = "upcoming";
-                        }
+                if (Array.isArray(m.videos) && m.videos.length) {
+                    let nextUp = null;
+                    const match = m.episodeText?.match(/^S(\d+)\sE(\d+)$/);
+                    if (match) {
+                        nextUp = { season: +match[1], episode: +match[2] };
                     }
 
-                    // Thumbnail HTML uses single-line logic
-                    const thumbnailHtml = ep.thumbnail
-                        ? `<img src="${ep.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'" />`
-                        : `<div class="upcoming-episode-placeholder">No image</div>`;
+                    let episodesHtml = "";
+                    for (const ep of m.videos) {
+                        const released = Date.parse(ep.released) <= thresholdMs;
+                        const isWatched = ep.watched;
+                        const watchedClass = isWatched ? " watched" : "";
+                        let stateClass = "released" + watchedClass;
 
-                    const watchedTextDiv = isWatched
-                        ? '<div class="upcoming-episode-watched-tag">&#x2713;</div>'
-                        : "";
+                        if (!released && !isWatched) {
+                            if (
+                                nextUp &&
+                                ep.season === nextUp.season &&
+                                ep.episode === nextUp.episode
+                            ) {
+                                stateClass = "upcoming-next";
+                            } else {
+                                stateClass = "upcoming";
+                            }
+                        }
 
-                    episodesHtml += `
-                    <div class="upcoming-episode-card ${stateClass}">
-                        <div class="upcoming-episode-number">${ep.episode}</div>
-                        <div class="upcoming-episode-title">${
-                            ep.name || "Untitled"
-                        }</div>
-                        <div class="upcoming-episode-date">
-                            ${formatDate(ep.released)}
-                        </div>
-                        ${watchedTextDiv}
-                        <div class="upcoming-episode-thumbnail">
-                            ${thumbnailHtml}
-                        </div>
-                    </div>
-                `;
+                        const thumbnailHtml = ep.thumbnail
+                            ? `<img src="${ep.thumbnail}" alt="" loading="lazy" onerror="this.style.display='none'" />`
+                            : `<div class="upcoming-episode-placeholder">No image</div>`;
+
+                        const watchedTextDiv = isWatched
+                            ? '<div class="upcoming-episode-watched-tag">&#x2713;</div>'
+                            : "";
+
+                        episodesHtml += `
+                        <div class="upcoming-episode-card ${stateClass}">
+                            <div class="upcoming-episode-number">${
+                                ep.episode
+                            }</div>
+                            <div class="upcoming-episode-title">${
+                                ep.name || "Untitled"
+                            }</div>
+                            <div class="upcoming-episode-date">${this.formatDate(
+                                ep.released
+                            )}</div>
+                            ${watchedTextDiv}
+                            <div class="upcoming-episode-thumbnail">${thumbnailHtml}</div>
+                        </div>`;
+                    }
+                    episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtml}</div>`;
                 }
 
-                // Wrap episodes in their container
-                episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtml}</div>`;
+                const upcomingSeasonNumber = m.isNewSeason
+                    ? m.videos[0]?.season
+                    : 0;
+                const newSeasonClass = m.isNewSeason ? " new-season" : "";
+                const newSeasonIndicator = m.isNewSeason
+                    ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERE</div>`
+                    : "";
+
+                gridHtml += `
+                <a tabindex="0" class="upcoming-card${newSeasonClass}" href="${
+                    m.href
+                }"
+                    data-trailer-url="${m.trailer || ""}"
+                    data-description="${(m.description || "").replace(
+                        /"/g,
+                        "&quot;"
+                    )}"
+                    id="${m.id}"
+                    data-rating="${m.rating || ""}"
+                    data-year="${m.year || ""}"
+                    data-runtime="${m.runtime || ""}"
+                    data-genres="${m.genres || ""}"
+                >
+                    <div class="upcoming-background-container">
+                        <img src="${m.poster}" alt="${
+                    m.title
+                }" loading="lazy" />
+                    </div>
+                    <div class="upcoming-info">
+                        <img class="upcoming-logo" src="${m.logo}" alt="${
+                    m.title
+                }" loading="lazy" />
+                        ${newSeasonIndicator}
+                        <div class="upcoming-release-date">${
+                            m.releaseText
+                        }</div>
+                        <div class="upcoming-episode">${m.episodeText}</div>
+                        ${episodesContainerHtml}
+                    </div>
+                </a>`;
             }
-            // 💡 NEW LOGIC: Create the "New Season" indicator HTML
-            const upcomingSeasonNumber = m.isNewSeason
-                ? m.videos[0]?.season
-                : 0;
-            const newSeasonClass = m.isNewSeason ? " new-season" : "";
-
-            // 2. Build the indicator string using template literals
-            const newSeasonIndicator = m.isNewSeason
-                ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERE</div>`
-                : "";
-
-            // --- Card Structure Builder (Pure string) ---
-            // Replace all card creation/attribute setting with a single string
-            gridHtml += `
-            <a 
-                tabindex="0" 
-                class="upcoming-card${newSeasonClass}"
-                href="${m.href}"
-                data-trailer-url="${m.trailer || ""}"
-                data-description="${(m.description || "").replace(
-                    /"/g,
-                    "&quot;"
-                )}"
-                id="${m.id}"
-                data-rating="${m.rating || ""}"
-                data-year="${m.year || ""}"
-                data-runtime="${m.runtime || ""}"
-                data-genres="${m.genres || ""}"
-            >
-                <div class="upcoming-background-container">
-                    <img src="${m.poster}" alt="${m.title}" loading="lazy" />
-                </div>
-                <div class="upcoming-info">
-                    <img class="upcoming-logo" src="${m.logo}" alt="${
-                m.title
-            }" loading="lazy" />
-                    ${newSeasonIndicator}
-                    <div class="upcoming-release-date">${m.releaseText}</div>
-                    <div class="upcoming-episode">${m.episodeText}</div>
-                    ${episodesContainerHtml} </div>
-            </a>
-        `;
+            return gridHtml;
         }
-
-        // 3. 🎯 CRITICAL SPEEDUP: Single DOM Injection
-        heroContainer.insertAdjacentHTML(
-            "beforeend",
-            `<div class="upcoming-list">
-            <div class="upcoming-grid">
-                ${gridHtml}
-            </div>
-        </div>`
-        );
     }
 
-    // Slight delay to allow DOM readiness
-    window.addEventListener("hashchange", function (event) {
-        // Update state on player exit (a new episode has been watched?)
-        if (event.oldURL.includes("player")) {
-            CONFIG.UPDATE_STATE = true;
-        }
-        // Set the timeout regardless of how the page was loaded.
-        setTimeout(renderUpcomingList, 1000);
-    });
-    setTimeout(renderUpcomingList, 2000);
+    // Initialize
+    new UpcomingReleasesPlugin();
 })();

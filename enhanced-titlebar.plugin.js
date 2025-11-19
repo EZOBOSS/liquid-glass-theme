@@ -1,7 +1,7 @@
 /*
  * @name Enhanced Title Bar Optimized
  * @description Optimized version with concurrency limit and better DOM handling.
- * @version 1.1.1 (Persistent Caching & Smart Update)
+ * @version 1.1.2 (Genre Fix)
  * @author Fxy, EZOBOSS
  */
 
@@ -12,108 +12,160 @@ const CONFIG = {
     concurrency: 4, // limit simultaneous fetches
     // ADDED: Persistent Cache TTL (12 hours)
     CACHE_TTL: 12 * 60 * 60 * 1000,
-    CACHE_PREFIX: "etb_meta_cache_", // New prefix for localStorage
+    CACHE_PREFIX: "etb_meta_cache_v2_", // New prefix for localStorage
+    CACHE_MAX_SIZE: 1000, // Max items in cache
+    // ADDED: Intersection Observer Config
+    OBSERVER_MARGIN: "600px 0px", // Preload before viewport
 };
 
-const metadataCache = new Map();
+// --- Task Queue for Concurrency Control ---
+const taskQueue = {
+    queue: [],
+    active: 0,
 
-// --- Persistent Grouped Cache With Memory Cache ---
+    add(task) {
+        this.queue.push(task);
+        this.process();
+    },
 
-const GROUP_KEY = CONFIG.CACHE_PREFIX + "all"; // single localStorage key
+    async process() {
+        if (this.active >= CONFIG.concurrency || this.queue.length === 0)
+            return;
 
-function flushCache(cacheObject = persistentCache) {
-    try {
-        localStorage.setItem(GROUP_KEY, JSON.stringify(cacheObject));
-    } catch (e) {
-        console.warn("[ETB] Failed to save grouped cache", e);
+        this.active++;
+        const task = this.queue.shift();
+
+        try {
+            await task();
+        } catch (e) {
+            console.error("[ETB] Task failed", e);
+        } finally {
+            this.active--;
+            this.process();
+        }
+    },
+};
+
+// --- Self-Pruning LRU Cache ---
+
+class SelfPruningLRUCache {
+    constructor(maxSize = 100, ttl = 3600000, storageKey = "lru_cache") {
+        this.maxSize = maxSize;
+        this.ttl = ttl;
+        this.storageKey = storageKey;
+        this.cache = new Map();
+        this.load();
     }
-}
 
-function cleanExpiredCache(cacheObject = persistentCache) {
-    const now = Date.now();
-    let cleaned = false;
-    // Iterate over the keys in the cache
-    for (const key in cacheObject) {
-        if (cacheObject.hasOwnProperty(key)) {
-            const entry = cacheObject[key];
-            if (now - entry.timestamp > CONFIG.CACHE_TTL) {
-                delete cacheObject[key];
-                cleaned = true;
+    load() {
+        try {
+            const raw = localStorage.getItem(this.storageKey);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                // Sort by timestamp to approximate LRU order if needed,
+                // but mostly we rely on Map insertion order.
+                // Re-inserting them preserves order if saved correctly.
+                // However, JSON.stringify/parse might lose Map order if treated as object.
+                // We'll assume parsed is an array of entries or an object.
+                // If object, order is not guaranteed.
+                // Better to store as array of [key, value].
+
+                let entries = [];
+                if (Array.isArray(parsed)) {
+                    entries = parsed;
+                } else {
+                    // Migration or fallback for object format
+                    entries = Object.entries(parsed);
+                }
+
+                const now = Date.now();
+                entries.forEach(([key, value]) => {
+                    if (now - value.timestamp <= this.ttl) {
+                        this.cache.set(key, value);
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn("[ETB] Failed to load cache", e);
+        }
+    }
+
+    save() {
+        try {
+            // Save as array of entries to preserve order
+            const entries = Array.from(this.cache.entries());
+            localStorage.setItem(this.storageKey, JSON.stringify(entries));
+        } catch (e) {
+            console.warn("[ETB] Failed to save cache", e);
+        }
+    }
+
+    get(key) {
+        if (!this.cache.has(key)) return null;
+
+        const item = this.cache.get(key);
+        const now = Date.now();
+
+        if (now - item.timestamp > this.ttl) {
+            this.cache.delete(key);
+            this.scheduleSave();
+            return null;
+        }
+
+        // Refresh item position (LRU logic: move to end)
+        this.cache.delete(key);
+        this.cache.set(key, item);
+        this.scheduleSave(); // Optional: save on access to update order? Maybe too frequent.
+        // Let's only save on set/prune to avoid thrashing,
+        // but strictly LRU requires persisting the access order.
+        // For performance, we might skip saving on every read
+        // and only save periodically or on writes.
+        // Let's stick to saving on writes for now to be safe.
+
+        return item.data;
+    }
+
+    set(key, data) {
+        // Remove if exists to update position
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        }
+
+        this.cache.set(key, {
+            data,
+            timestamp: Date.now(),
+        });
+
+        this.prune();
+        this.scheduleSave();
+    }
+
+    prune() {
+        if (this.cache.size > this.maxSize) {
+            // Map.keys().next().value returns the first inserted (oldest) key
+            // because we re-insert on access.
+            const oldestKey = this.cache.keys().next().value;
+            this.cache.delete(oldestKey);
+            // Recurse in case we need to remove more (unlikely if size=1)
+            if (this.cache.size > this.maxSize) {
+                this.prune();
             }
         }
     }
-    // Only flush if changes were made
-    if (cleaned) {
-        flushCache(cacheObject);
-        console.log("[ETB] Successfully cleaned expired cache entries.");
+
+    scheduleSave() {
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => {
+            this.save();
+        }, 2000); // Increased to 2s to batch writes better
     }
 }
 
-// Load grouped cache into memory once at startup
-let persistentCache = (() => {
-    try {
-        const raw = localStorage.getItem(GROUP_KEY);
-        const cache = raw ? JSON.parse(raw) : {};
-        cleanExpiredCache(cache);
-        return cache;
-    } catch (e) {
-        console.warn("[ETB] Failed to load grouped cache, clearing", e);
-        localStorage.removeItem(GROUP_KEY);
-        return {};
-    }
-})();
-
-/**
- * Get metadata from memory OR persistent cache
- */
-function getCachedMetadata(key) {
-    const memKey = GROUP_KEY + "_" + key; // differentiate memory key entries
-
-    // Fast: check in-memory Map first
-    if (metadataCache.has(memKey)) {
-        return metadataCache.get(memKey);
-    }
-
-    const entry = persistentCache[key];
-    if (!entry) return null;
-
-    const now = Date.now();
-    if (now - entry.timestamp > CONFIG.CACHE_TTL) {
-        delete persistentCache[key];
-
-        return null;
-    }
-
-    // Cache into memory for next time
-    metadataCache.set(memKey, entry.data);
-    return entry.data;
-}
-let flushScheduled = false;
-
-function scheduleFlush() {
-    if (flushScheduled) return;
-    flushScheduled = true;
-    requestIdleCallback(
-        () => {
-            flushScheduled = false;
-            flushCache();
-        },
-        { timeout: 500 }
-    );
-}
-
-/**
- * Set metadata into memory + persistent grouped storage
- */
-function setCachedMetadata(key, data) {
-    persistentCache[key] = {
-        data,
-        timestamp: Date.now(),
-    };
-
-    metadataCache.set(GROUP_KEY + "_" + key, data);
-    scheduleFlush();
-}
+const metadataCache = new SelfPruningLRUCache(
+    CONFIG.CACHE_MAX_SIZE,
+    CONFIG.CACHE_TTL,
+    CONFIG.CACHE_PREFIX + "storage"
+);
 
 function getDaysSinceRelease(releaseDateStr) {
     if (!releaseDateStr) return "";
@@ -160,31 +212,33 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
+// Replaced by taskQueue logic
 async function fetchMetadataLimited(tasks, limit = CONFIG.concurrency) {
-    const results = [];
-    let index = 0;
+    // Legacy support or direct usage if needed, but we prefer taskQueue now.
+    // Mapping tasks to queue
+    tasks.forEach((t) => taskQueue.add(t));
+}
 
-    async function worker() {
-        while (index < tasks.length) {
-            const i = index++;
-            try {
-                results[i] = await tasks[i]();
-            } catch {
-                results[i] = null;
-            }
+// --- External Cache Optimization ---
+let externalCacheMemory = null;
+
+function getExternalCache() {
+    if (!externalCacheMemory) {
+        try {
+            const raw = localStorage.getItem("videos_cache_all");
+            externalCacheMemory = raw ? JSON.parse(raw) : {};
+        } catch {
+            externalCacheMemory = {};
         }
     }
-
-    const workers = Array.from({ length: limit }, worker);
-    await Promise.all(workers);
-    return results;
+    return externalCacheMemory;
 }
 
 async function getMetadata(id, type) {
     const key = `${type}-${id}`;
 
     // 1. Check for short-term cache (using the passed 'key')
-    const cachedData = getCachedMetadata(key);
+    const cachedData = metadataCache.get(key);
     if (cachedData) {
         return cachedData;
     }
@@ -194,15 +248,12 @@ async function getMetadata(id, type) {
     try {
         const longTermCacheKey = `fullmeta:${id}`;
 
-        const cacheString = localStorage.getItem("videos_cache_all");
+        // Optimized: Use memory-cached version of localStorage data
+        const cache = getExternalCache();
+        const cachedMeta = cache[longTermCacheKey];
 
-        if (cacheString) {
-            const cache = JSON.parse(cacheString);
-            const cachedMeta = cache[longTermCacheKey];
-
-            if (cachedMeta) {
-                meta = cachedMeta.value;
-            }
+        if (cachedMeta) {
+            meta = cachedMeta.value;
         }
 
         if (!meta) {
@@ -227,7 +278,7 @@ async function getMetadata(id, type) {
         }
 
         // --- Metadata Processing (Runs for both cached and fetched data) ---
-        console.log("original meta", meta.title, meta);
+
         // Compute release date
         const videos = meta.videos || [];
         let closestFuture = null,
@@ -279,11 +330,10 @@ async function getMetadata(id, type) {
             title: meta.name || meta.title,
             year: meta.year?.toString() || meta.releaseInfo?.toString() || null,
             rating: meta.imdbRating?.toString() || null,
-            genres: Array.isArray(meta.genre)
-                ? meta.genre
-                : Array.isArray(meta.genres)
-                ? meta.genres
-                : [],
+            genres:
+                [meta.genre, meta.genres].find(
+                    (g) => Array.isArray(g) && g.length > 0
+                ) || [],
             runtime: meta.runtime || null,
             type: meta.type || type,
             description: meta.description || null,
@@ -292,8 +342,8 @@ async function getMetadata(id, type) {
             newTag,
             trailer,
         };
-        console.log("final meta", metadata.title, metadata);
-        setCachedMetadata(key, metadata);
+
+        metadataCache.set(key, metadata);
         return metadata;
     } catch (e) {
         console.error(`Error fetching/processing metadata for ${id}:`, e);
@@ -335,9 +385,6 @@ function extractMediaInfo(element) {
 }
 function createMetadataElements(metadata) {
     const elements = [];
-    if (!metadata.trailer) {
-        console.log(metadata.title, metadata.id, metadata.trailer);
-    }
 
     if (metadata.rating) {
         const rating = document.createElement("span");
@@ -407,10 +454,11 @@ async function enhanceTitleBar(titleBar) {
 
     const mediaInfo = extractMediaInfo(titleBar);
 
+    const fragment = document.createDocumentFragment();
     const titleContainer = Object.assign(document.createElement("div"), {
         className: "enhanced-title",
     });
-    titleBar.appendChild(titleContainer);
+    fragment.appendChild(titleContainer);
 
     const metadataContainer = Object.assign(document.createElement("div"), {
         className: "enhanced-metadata",
@@ -419,7 +467,10 @@ async function enhanceTitleBar(titleBar) {
         className: "enhanced-loading",
     });
     metadataContainer.appendChild(loading);
-    titleBar.appendChild(metadataContainer);
+    fragment.appendChild(metadataContainer);
+
+    // Single append to DOM
+    titleBar.appendChild(fragment);
 
     const metadata = await getMetadata(mediaInfo.id, mediaInfo.type);
     metadataContainer.innerHTML = "";
@@ -437,7 +488,9 @@ async function enhanceTitleBar(titleBar) {
         }
 
         const elements = createMetadataElements(metadata);
-        elements.forEach((el) => metadataContainer.appendChild(el));
+        const metaFragment = document.createDocumentFragment();
+        elements.forEach((el) => metaFragment.appendChild(el));
+        metadataContainer.appendChild(metaFragment);
     } else {
         const fallback = Object.assign(document.createElement("span"), {
             className: "enhanced-metadata-item",
@@ -448,39 +501,74 @@ async function enhanceTitleBar(titleBar) {
     }
 }
 
-async function enhanceAllTitleBars() {
-    const elements = document.querySelectorAll(
-        ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container'],[class*='media-title']"
-    );
+const TITLE_BAR_SELECTOR =
+    ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container'],[class*='media-title']";
 
-    const tasks = [];
-    elements.forEach((el) => {
-        if (!el.classList.contains("enhanced-title-bar"))
-            tasks.push(() => enhanceTitleBar(el));
+// --- Intersection Observer for Lazy Loading ---
+let intersectionObserver;
+
+function handleIntersection(entries) {
+    entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+            const target = entry.target;
+            // Double check if already enhanced to avoid duplicate work
+            if (!target.classList.contains("enhanced-title-bar")) {
+                taskQueue.add(() => enhanceTitleBar(target));
+            }
+        }
     });
-    if (tasks.length) await fetchMetadataLimited(tasks);
+}
+
+function initObservers() {
+    if (intersectionObserver) return;
+
+    intersectionObserver = new IntersectionObserver(handleIntersection, {
+        rootMargin: CONFIG.OBSERVER_MARGIN,
+        threshold: 0.01,
+    });
+
+    // Initial scan
+    scanAndObserve();
+
+    // Mutation Observer for new content
+    if (typeof MutationObserver !== "undefined") {
+        const mutationObserver = new MutationObserver((mutations) => {
+            let shouldScan = false;
+            for (const m of mutations) {
+                if (m.type === "childList" && m.addedNodes.length > 0) {
+                    shouldScan = true;
+                    break;
+                }
+            }
+            if (shouldScan) {
+                scanAndObserve();
+            }
+        });
+
+        mutationObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
+    }
+}
+
+function scanAndObserve() {
+    const elements = document.querySelectorAll(TITLE_BAR_SELECTOR);
+    elements.forEach((el) => {
+        if (
+            !el.classList.contains("enhanced-title-bar") &&
+            !el.dataset.etbObserved
+        ) {
+            el.dataset.etbObserved = "true";
+            intersectionObserver.observe(el);
+        }
+    });
 }
 
 function init() {
     injectStyles();
-    enhanceAllTitleBars();
-
-    setInterval(enhanceAllTitleBars, CONFIG.updateInterval);
-
-    let timeoutId = null;
-    if (typeof MutationObserver !== "undefined") {
-        const observer = new MutationObserver((muts) => {
-            if (
-                muts.some(
-                    (m) => m.type === "childList" && m.addedNodes.length > 0
-                )
-            ) {
-                clearTimeout(timeoutId);
-                timeoutId = setTimeout(enhanceAllTitleBars, 100);
-            }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-    }
+    initObservers();
+    // Removed fallback setInterval and eager enhanceAllTitleBars
 }
 
 if (document.readyState === "loading") {
