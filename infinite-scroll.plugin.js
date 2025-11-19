@@ -119,8 +119,8 @@
                 InfiniteScrollPlugin.CONFIG.CONTAINER_SELECTOR
             );
 
-            // We need at least 5 tracks to match the original logic's hardcoded indices
-            if (tracks.length > 4) {
+            // Ensure that DOM has loaded enough tracks
+            if (tracks.length > 6) {
                 // Check if already initialized to prevent double logs/work
                 if (tracks[1].dataset.wheelScrollInitialized === "true") {
                     this.disconnectObserver();
