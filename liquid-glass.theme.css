@@ -2010,12 +2010,7 @@ body.ghost-clicking #heroLoadingScreen {
     transition: all 0.5s ease;
 }
 .label-container-XOyzm:hover {
-    transform: scale(1.03);
-    background: radial-gradient(
-        circle,
-        rgba(131, 131, 131, 0.69) 0%,
-        rgba(213, 99, 99, 0.54) 100%
-    );
+    background-image: linear-gradient(to top, #c71d6f95 0%, #d0969391 100%);
     box-shadow: var(--box-shadow) !important;
 }
 /*
@@ -2720,7 +2715,7 @@ body.ghost-clicking #heroLoadingScreen {
     z-index: 2 !important;
 }
 
-/* Context Menu */
+/* Context Menu 
 .label-container-XOyzm .menu-container-B6cqK.menu-direction-bottom-right-aJ89V {
     top: 0% !important;
     left: -85% !important;
@@ -2732,3 +2727,4 @@ body.ghost-clicking #heroLoadingScreen {
 .streams-list-container-xYMJo .streams-container-bbSc4 {
     overflow: visible !important;
 }
+*/

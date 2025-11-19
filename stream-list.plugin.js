@@ -10,13 +10,63 @@ class StreamListSorter {
         this.observer = null;
         this.processedContainers = new WeakSet();
         this.sortButton = null;
+
+        // ========================================
+        // QUALITY TAGS CONFIGURATION
+        // To add a new tag, just add an entry here!
+        // ========================================
+        this.qualityTagsConfig = [
+            { tag: "HDR", color: "#ff9800" }, // Orange
+            { tag: "DV", color: "#9c27b0" }, // Purple
+            { tag: "REMUX", color: "#4caf50" }, // Green
+            { tag: "IMAX", color: "#00bcd4" }, // Cyan
+            { tag: "7\\.1", color: "#009688" }, // Teal (escaped dot for regex)
+            // Add more tags here:
+            // { tag: 'ATMOS', color: '#e91e63' },  // Pink
+            // { tag: '5\\.1', color: '#03a9f4' },  // Light Blue
+            // { tag: 'DOLBY', color: '#673ab7' },  // Deep Purple
+        ];
+
+        // Auto-generate quality colors map from config
+        this.qualityColors = {};
+        this.qualityTagsConfig.forEach(({ tag, color }) => {
+            // Remove backslashes for map key (e.g., "7\\ .1" becomes "7.1")
+            const cleanTag = tag.replace(/\\/g, "");
+            this.qualityColors[cleanTag] = color;
+        });
+
+        // Auto-generate regex pattern from quality tags config
+        const tagPatterns = this.qualityTagsConfig
+            .map(({ tag }) => tag)
+            .join("|");
+        this.qualityPattern = new RegExp(`\\b(${tagPatterns})\\b`, "gi");
+
+        // Cache other regex patterns for performance
+        this.resolutionPattern =
+            /\b(4k|8k|2160p?|1080p?|720p?|480p?|360p?|240p?)\b/i;
+        this.sizePattern = /([\d.]+)\s*(TB|GB|MB|KB)/i;
+
+        // Cache color mappings for resolutions
+        this.resolutionColors = {
+            "2160P": "#9c27b0",
+            "4320P": "#9c27b0", // Purple
+            "1080P": "#2196f3",
+            1080: "#2196f3", // Blue
+            "720P": "#4caf50",
+            720: "#4caf50", // Green
+        };
+
+        // Pre-calculated byte conversion constants
+        this.BYTES_PER_GB = 1073741824; // 1024^3
+        this.BYTES_PER_MB = 1048576; // 1024^2
+        this.BYTES_PER_KB = 1024;
+
         this.init();
     }
 
     init() {
         console.log("[StreamListSorter] Initializing...");
         this.observeHashChanges();
-
         // Check current route on init
         this.handleRouteChange();
     }
@@ -87,9 +137,13 @@ class StreamListSorter {
             return;
         }
 
+        // Check if any added nodes contain the streams container
         for (const mutation of mutations) {
             if (mutation.addedNodes.length) {
-                this.checkForStreamsContainer();
+                // Only check if we haven't found container yet
+                if (this.checkForStreamsContainer()) {
+                    return; // Found it, stop processing
+                }
             }
         }
     }
@@ -109,9 +163,9 @@ class StreamListSorter {
             );
             this.processedContainers.add(streamsContainer);
             this.addSortButton(streamsContainer);
-            // Stop observing once we found the container
-            //this.stopObserving();
+            return true;
         }
+        return false;
     }
 
     addSortButton(container) {
@@ -124,33 +178,39 @@ class StreamListSorter {
         this.sortButton.className = "stream-sort-button";
         this.sortButton.style.cssText = `
       position: fixed;
-      top: 5%;
+      top: 2%;
       right: 15%;
       z-index: 9999;
-      padding: 10px 20px;
-      background: rgba(0, 0, 0, 0.8);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      color: white;
-      font-size: 14px;
+      padding: 12px 24px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 13px;
       font-weight: 600;
+      letter-spacing: 0.3px;
       cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     `;
 
         // Add hover effect
         this.sortButton.addEventListener("mouseenter", () => {
-            this.sortButton.style.background = "rgba(255, 255, 255, 0.2)";
-            this.sortButton.style.transform = "translateY(-2px)";
-            this.sortButton.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.4)";
+            this.sortButton.style.background = "rgba(255, 255, 255, 0.15)";
+            this.sortButton.style.transform = "translateY(-2px) scale(1.02)";
+            this.sortButton.style.boxShadow =
+                "0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
+            this.sortButton.style.borderColor = "rgba(255, 255, 255, 0.25)";
         });
 
         this.sortButton.addEventListener("mouseleave", () => {
-            this.sortButton.style.background = "rgba(0, 0, 0, 0.8)";
-            this.sortButton.style.transform = "translateY(0)";
-            this.sortButton.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+            this.sortButton.style.background = "rgba(255, 255, 255, 0.1)";
+            this.sortButton.style.transform = "translateY(0) scale(1)";
+            this.sortButton.style.boxShadow =
+                "0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
+            this.sortButton.style.borderColor = "rgba(255, 255, 255, 0.18)";
         });
 
         // Add click handler
@@ -201,7 +261,6 @@ class StreamListSorter {
             return {
                 element: streamItem,
                 sizeInBytes,
-                sizeText: descriptionDiv ? descriptionDiv.textContent : "N/A",
             };
         });
 
@@ -242,11 +301,7 @@ class StreamListSorter {
         }
 
         const originalText = addonNameDiv.textContent;
-
-        // Match resolution patterns: 4k, 2160p, 1080p, 720p, 480p, etc.
-        const resolutionPattern =
-            /\b(4k|8k|2160p?|1080p?|720p?|480p?|360p?|240p?)\b/i;
-        const match = originalText.match(resolutionPattern);
+        const match = originalText.match(this.resolutionPattern);
 
         if (match) {
             let resolution = match[0].toUpperCase();
@@ -258,18 +313,11 @@ class StreamListSorter {
                 resolution = "4320P";
             }
 
-            // Determine color based on resolution quality
-            let badgeColor = "#607d8b"; // Default gray for lower resolutions
-            if (resolution === "2160P" || resolution === "4320P") {
-                badgeColor = "#9c27b0"; // Purple for 4K/8K
-            } else if (resolution === "1080P" || resolution === "1080") {
-                badgeColor = "#2196f3"; // Blue for 1080p
-            } else if (resolution === "720P" || resolution === "720") {
-                badgeColor = "#4caf50"; // Green for 720p
-            }
+            // Get color from cache map or use default
+            const badgeColor = this.resolutionColors[resolution] || "#607d8b";
 
-            // Style the resolution with a color-coded badge
-            addonNameDiv.innerHTML = `<span style="background: ${badgeColor}; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 700; text-transform: uppercase; display: inline-block;">${resolution}</span>`;
+            // Style the resolution with a glassmorphic color-coded badge
+            addonNameDiv.innerHTML = `<span style="background: linear-gradient(135deg, ${badgeColor}88, ${badgeColor}cc); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid ${badgeColor}44; color: #fff; padding: 4px 10px; border-radius: 8px; font-size: 0.85em; font-weight: 600; text-transform: uppercase; display: inline-block; box-shadow: 0 4px 12px ${badgeColor}33, inset 0 1px 0 rgba(255,255,255,0.2); letter-spacing: 0.5px;">${resolution}</span>`;
 
             return true; // Has resolution, keep at normal position
         } else {
@@ -287,47 +335,23 @@ class StreamListSorter {
         }
 
         const originalText = descriptionDiv.textContent;
-        let fileSize = null;
-        const qualityTags = [];
 
-        // Extract file size (e.g., "12.34 GB", "1.5 TB")
-        const sizePattern = /([\d.]+\s*(?:TB|GB|MB|KB))/i;
-        const sizeMatch = originalText.match(sizePattern);
-        if (sizeMatch) {
-            fileSize = sizeMatch[1];
-        }
+        // Extract file size using cached pattern
+        const sizeMatch = originalText.match(this.sizePattern);
+        const fileSize = sizeMatch ? sizeMatch[0] : null;
 
-        // Extract HDR if present
-        if (/\bHDR\b/i.test(originalText)) {
-            qualityTags.push("HDR");
-        }
-
-        // Extract DV (Dolby Vision) if present
-        if (/\bDV\b/i.test(originalText)) {
-            qualityTags.push("DV");
-        }
-
-        // Extract REMUX if present
-        if (/\bREMUX\b/i.test(originalText)) {
-            qualityTags.push("REMUX");
-        }
-
-        // Extract IMAX if present
-        if (/\bIMAX\b/i.test(originalText)) {
-            qualityTags.push("IMAX");
-        }
-
-        // Extract 7.1 audio if present
-        if (/\b7\.1\b/i.test(originalText)) {
-            qualityTags.push("7.1");
-        }
+        // Extract all quality tags in one pass using single regex, then deduplicate
+        const qualityMatches = originalText.matchAll(this.qualityPattern);
+        const qualityTags = [
+            ...new Set(Array.from(qualityMatches, (m) => m[0].toUpperCase())),
+        ];
 
         // Build styled HTML
         let styledHTML = "";
 
         if (fileSize) {
-            // Parse size to determine color for meter
-            const sizeValueMatch = fileSize.match(/([\d.]+)\s*(TB|GB|MB|KB)/i);
+            // Parse size to determine color for meter (reuse cached pattern)
+            const sizeValueMatch = this.sizePattern.exec(fileSize);
             let sizeInGB = 0;
             let meterColor = "#4caf50"; // Default green
 
@@ -335,58 +359,54 @@ class StreamListSorter {
                 const value = parseFloat(sizeValueMatch[1]);
                 const unit = sizeValueMatch[2].toUpperCase();
 
-                // Convert to GB
-                if (unit === "TB") {
-                    sizeInGB = value * 1024;
-                } else if (unit === "GB") {
-                    sizeInGB = value;
-                } else if (unit === "MB") {
-                    sizeInGB = value / 1024;
-                } else if (unit === "KB") {
-                    sizeInGB = value / (1024 * 1024);
+                // Convert to GB using switch for better performance
+                switch (unit) {
+                    case "TB":
+                        sizeInGB = value * 1024;
+                        break;
+                    case "GB":
+                        sizeInGB = value;
+                        break;
+                    case "MB":
+                        sizeInGB = value / 1024;
+                        break;
+                    case "KB":
+                        sizeInGB = value / 1048576;
+                        break;
                 }
 
                 // Determine color based on size
-                // Small (0-25 GB): Green
-                // Medium (25-60 GB): Yellow
-                // Large (60-85 GB): Orange
-                // Very Large (85+ GB): Red
                 if (sizeInGB < 25) {
-                    meterColor = "#4caf50"; // Green
+                    meterColor = "#4caf50";
                 } else if (sizeInGB < 60) {
-                    meterColor = "#ffc107"; // Yellow
+                    meterColor = "#ffc107";
                 } else if (sizeInGB < 85) {
-                    meterColor = "#ff9800"; // Orange
+                    meterColor = "#ff9800";
                 } else {
-                    meterColor = "#f44336"; // Red
+                    meterColor = "#f44336";
                 }
             }
+
+            // Calculate meter width once
+            const meterWidth = Math.min(100, sizeInGB);
 
             // Create file size with meter bar (vertical stack)
             styledHTML += `
                 <div style="display: flex; flex-direction: column; gap: 4px; width: 100px;">
                     <span style="font-size: 1.1em; font-weight: 700; color: #fff; white-space: nowrap;">${fileSize}</span>
-                    <div style="position: absolute; bottom: 40%; width: 65%; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
-                        <div style="width: ${Math.min(
-                            100,
-                            (sizeInGB / 100) * 100
-                        )}%; height: 100%; background: ${meterColor}; transition: all 0.3s ease; position: absolute; bottom: 0;"></div>
+                    <div style="position: absolute; bottom: 40%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);">
+                        <div style="width: ${meterWidth}%; height: 100%; background: linear-gradient(90deg, ${meterColor}cc, ${meterColor}); box-shadow: 0 0 8px ${meterColor}66; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: absolute; bottom: 0;"></div>
                     </div>
                 </div>
             `;
         }
 
         if (qualityTags.length > 0) {
-            qualityTags.forEach((tag) => {
-                let color = "#888";
-                if (tag === "HDR") color = "#ff9800"; // Orange
-                if (tag === "DV") color = "#9c27b0"; // Purple
-                if (tag === "REMUX") color = "#4caf50"; // Green
-                if (tag === "IMAX") color = "#00bcd4"; // Cyan
-                if (tag === "7.1") color = "#009688"; // Teal
-
-                styledHTML += ` <span style="background: ${color}; color: #000; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; font-weight: 700; text-transform: uppercase;">${tag}</span>`;
-            });
+            for (const tag of qualityTags) {
+                // Get color from cached map
+                const color = this.qualityColors[tag] || "#888";
+                styledHTML += ` <span style="background: linear-gradient(135deg, ${color}bb, ${color}ee); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid ${color}55; color: rgba(0,0,0,0.9); padding: 3px 8px; border-radius: 6px; font-size: 0.7em; font-weight: 700; text-transform: uppercase; box-shadow: 0 2px 8px ${color}44, inset 0 1px 0 rgba(255,255,255,0.3); letter-spacing: 0.3px;">${tag}</span>`;
+            }
         }
 
         // Update the description with styled content
@@ -400,12 +420,7 @@ class StreamListSorter {
             return 0;
         }
 
-        const text = descriptionDiv.textContent;
-
-        // Match patterns like "12.34 GB", "1.5 TB", "500 MB", "100.5 KB"
-        const sizePattern = /([\d.]+)\s*(TB|GB|MB|KB)/i;
-        const match = text.match(sizePattern);
-
+        const match = this.sizePattern.exec(descriptionDiv.textContent);
         if (!match) {
             return 0;
         }
@@ -413,16 +428,16 @@ class StreamListSorter {
         const value = parseFloat(match[1]);
         const unit = match[2].toUpperCase();
 
-        // Convert everything to bytes for consistent comparison
+        // Convert everything to bytes for consistent comparison using cached constants
         switch (unit) {
             case "TB":
-                return value * 1024 * 1024 * 1024 * 1024;
+                return value * this.BYTES_PER_GB * 1024;
             case "GB":
-                return value * 1024 * 1024 * 1024;
+                return value * this.BYTES_PER_GB;
             case "MB":
-                return value * 1024 * 1024;
+                return value * this.BYTES_PER_MB;
             case "KB":
-                return value * 1024;
+                return value * this.BYTES_PER_KB;
             default:
                 return 0;
         }
