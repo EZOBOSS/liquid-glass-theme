@@ -22,6 +22,7 @@ class StreamListSorter {
             { tag: "DOLBY VISION", color: "#9c27b0" }, // Purple - matches full text
             { tag: "(?:BD|UHD)?REMUX", color: "#4eb951" }, // Green - matches REMUX, BDRemux, UHDRemux
             { tag: "IMAX", color: "#00bcd4" }, // Cyan
+            { tag: "TMAX", color: "#00bcd4" }, // Cyan
             { tag: "AI", color: "#00e5ff" }, // Bright Cyan
             { tag: "UPSCALE", color: "#00e5ff" }, // Bright Cyan
             { tag: "60FPS", color: "#00e5ff" }, // Bright Cyan
@@ -42,6 +43,7 @@ class StreamListSorter {
             const cleanTag = tag.replace(/\\/g, "");
             this.qualityColors[cleanTag] = color;
         });
+        console.log("Quality Colors:", this.qualityColors);
 
         // Manually add normalized tag key for REMUX (pattern differs from display)
         const remuxConfig = this.qualityTagsConfig.find(({ tag }) =>
@@ -358,7 +360,7 @@ class StreamListSorter {
             const meterWidth = Math.min(100, sizeInGB);
             styledHTML += `<div style="display: flex; flex-direction: column; gap: 4px; width: 100px;"><span style="font-size: 1.1em; font-weight: 700; color: #fff; white-space: nowrap;">${fileSize}</span><div style="position: absolute; bottom: 20%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"><div style="width: ${meterWidth}%; height: 100%; background: linear-gradient(90deg, ${meterColor}cc, ${meterColor}); box-shadow: 0 0 8px ${meterColor}66; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: absolute; bottom: 0;"></div></div></div>`;
         }
-
+        console.log("Quality Tags:", qualityTags);
         if (qualityTags.length > 0) {
             for (const tag of qualityTags) {
                 const color = this.qualityColors[tag] || "#888";

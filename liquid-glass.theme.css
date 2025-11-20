@@ -2678,6 +2678,9 @@ body.ghost-clicking #heroLoadingScreen {
     box-shadow: var(--box-shadow) !important;
     border-radius: 15px !important;
 }
+.video-container-ezBpK:hover {
+    transform: scale(1.02) !important;
+}
 .video-container-ezBpK .thumbnail-container-Zm8Cl {
     position: absolute !important;
     top: 0 !important;
@@ -2710,6 +2713,7 @@ body.ghost-clicking #heroLoadingScreen {
 .stream-container-JPdah .description-container-vW_De {
     flex-direction: row !important;
     align-items: center !important;
+    font-size: 12px !important;
 }
 .stream-container-JPdah .icon-rAZvO {
     z-index: 2 !important;
