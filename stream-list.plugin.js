@@ -1,7 +1,7 @@
 /**
  * @name Stream List Sorter Plugin
  * @description Adds a button to sort streams by file size (largest first) and quality tags
- * @version 1.0.0
+ * @version 1.0.1
  * @author EZOBOSS
  */
 
@@ -23,6 +23,7 @@ class StreamListSorter {
             { tag: "IMAX", color: "#00bcd4" }, // Cyan
             { tag: "7\\.1", color: "#009688" }, // Teal (escaped dot for regex)
             { tag: "HDR10\\+", color: "#d92602" }, // Red-Orange (escaped + for regex)
+            { tag: "HDR10", color: "#ff9800" }, // Orange
 
             // Add more tags here:
             // { tag: 'ATMOS', color: '#e91e63' },  // Pink
@@ -56,6 +57,7 @@ class StreamListSorter {
         this.resolutionPattern =
             /\b(4k|8k|2160p?|1080p?|720p?|480p?|360p?|240p?)\b/i;
         this.sizePattern = /([\d.]+)\s*(TB|GB|MB|KB)/i;
+        this.seederPattern = /[👤👥]\s*\d+/;
 
         // Cache color mappings for resolutions
         this.resolutionColors = {
@@ -351,6 +353,10 @@ class StreamListSorter {
         const sizeMatch = originalText.match(this.sizePattern);
         const fileSize = sizeMatch ? sizeMatch[0] : null;
 
+        // Extract seeder count - just get the number, ignore emoji
+        const seederMatch = originalText.match(/[👤👥]\s*(\d+)/);
+        const seederCount = seederMatch ? seederMatch[1] : null;
+
         // Extract all quality tags in one pass using single regex, then deduplicate
         const qualityMatches = originalText.matchAll(this.qualityPattern);
         const qualityTags = [
@@ -374,7 +380,6 @@ class StreamListSorter {
                 switch (unit) {
                     case "TB":
                         sizeInGB = value * 1024;
-                        break;
                     case "GB":
                         sizeInGB = value;
                         break;
@@ -418,6 +423,13 @@ class StreamListSorter {
                 const color = this.qualityColors[tag] || "#888";
                 styledHTML += ` <span style="background: linear-gradient(135deg, ${color}bb, ${color}ee); backdrop-filter: blur(8px); border: 1px solid ${color}55; color: rgba(0,0,0,0.9); padding: 3px 8px; border-radius: 6px; font-size: 0.7em; font-weight: 700; text-transform: uppercase; box-shadow: 0 2px 8px ${color}44, inset 0 1px 0 rgba(255,255,255,0.3); letter-spacing: 0.3px;">${tag}</span>`;
             }
+        }
+
+        // Add seeder count in absolutely positioned div (top-right)
+        if (seederCount) {
+            styledHTML += `
+                <div style="position: absolute; top: 12px;left: 85px; background: linear-gradient(135deg, rgb(87 58 226 / 80%), rgb(0 0 0 / 95%)); backdrop-filter: blur(10px);color: #ffffffff; padding: 2px 6px; border-radius: 6px; font-size: 0.7em; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">➤ ${seederCount}</div>
+            `;
         }
 
         // Update the description with styled content
