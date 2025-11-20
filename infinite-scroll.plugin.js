@@ -131,20 +131,50 @@
                 console.log(
                     "[InfiniteScrollPlugin] Tracks found. Initializing."
                 );
-                // Original logic:
-                // track[1] -> Popular Movies (top)
-                // track[2] -> Popular TV Shows (top)
-                // track[3] -> Featured Movies (imdbRating)
-                // track[4] -> Featured TV Shows (imdbRating)
 
-                this.initWheelScroll(tracks[1], "top");
-                this.initWheelScroll(tracks[2], "top");
-                this.initWheelScroll(tracks[3], "imdbRating");
-                this.initWheelScroll(tracks[4], "imdbRating");
+                // Dynamically detect tracks using header titles
+                let initializedCount = 0;
 
-                // Ensure observer is stopped if it was running
-                this.disconnectObserver();
-                return true;
+                tracks.forEach((track) => {
+                    // Find the neighboring header element
+                    const headerContainer = track.parentElement?.querySelector(
+                        ".header-container-tR3Ev .title-container-Mkwnq"
+                    );
+
+                    if (!headerContainer) return;
+
+                    const titleText = headerContainer.textContent.trim();
+                    console.log(
+                        `[InfiniteScrollPlugin] Found track: "${titleText}"`
+                    );
+
+                    // Determine catalog type based on title
+                    let catalog = null;
+
+                    if (titleText.toLowerCase().includes("popular")) {
+                        catalog = "top";
+                    } else if (titleText.toLowerCase().includes("featured")) {
+                        catalog = "imdbRating";
+                    }
+
+                    // Only initialize if we detected a valid catalog type
+                    if (catalog) {
+                        this.initWheelScroll(track, catalog);
+                        initializedCount++;
+                        console.log(
+                            `[InfiniteScrollPlugin] Initialized "${titleText}" with catalog "${catalog}"`
+                        );
+                    }
+                });
+
+                if (initializedCount > 0) {
+                    console.log(
+                        `[InfiniteScrollPlugin] Successfully initialized ${initializedCount} tracks`
+                    );
+                    // Ensure observer is stopped if it was running
+                    this.disconnectObserver();
+                    return true;
+                }
             }
             return false;
         }
