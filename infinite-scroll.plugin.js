@@ -109,6 +109,7 @@
             const tracks = document.querySelectorAll(
                 InfiniteScrollPlugin.CONFIG.CONTAINER_SELECTOR
             );
+            console.log("[InfiniteScrollPlugin] Tracks found: ", tracks.length);
 
             // Ensure that DOM has loaded enough tracks
             if (tracks.length > 6) {
@@ -151,7 +152,7 @@
                     }
                 });
 
-                if (initializedCount > 0) {
+                if (initializedCount >= 4) {
                     console.log(
                         `[InfiniteScrollPlugin] Successfully initialized ${initializedCount} tracks`
                     );

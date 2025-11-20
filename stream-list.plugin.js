@@ -216,6 +216,37 @@ class StreamListSorter {
         }
     }
 
+    getCurrentEpisodeNumber() {
+        const episodeTitleElement = document.querySelector(
+            '[class*="episode-title-dln_c"]'
+        );
+        if (!episodeTitleElement) return null;
+
+        const titleText = episodeTitleElement.textContent;
+        // Match patterns like S1E4, S01E04, etc.
+        const match = titleText.match(/S(\d+)E(\d+)/i);
+        if (!match) return null;
+
+        const season = match[1].padStart(2, "0");
+        const episode = match[2].padStart(2, "0");
+        return `S${season}E${episode}`;
+    }
+
+    hasEpisodeInDescription(streamElement, episodeNumber) {
+        if (!episodeNumber) return true; // If no episode to match, don't filter
+
+        const descriptionDiv = streamElement.querySelector(
+            '[class*="description-container-"]'
+        );
+        if (!descriptionDiv) return false;
+
+        const descriptionText = descriptionDiv.textContent;
+        // Case-insensitive search for the episode number
+        return descriptionText
+            .toUpperCase()
+            .includes(episodeNumber.toUpperCase());
+    }
+
     sortStreams(container) {
         const streamItems = Array.from(
             container.querySelectorAll('a[class*="stream-container-"]')
@@ -226,17 +257,46 @@ class StreamListSorter {
             `[StreamListSorter] Found ${streamItems.length} stream items`
         );
 
+        // Get current episode number from page
+        const currentEpisode = this.getCurrentEpisodeNumber();
+        if (currentEpisode) {
+            console.log(
+                `[StreamListSorter] Current episode: ${currentEpisode}`
+            );
+        } else {
+            console.log(
+                `[StreamListSorter] No episode detected (movie page) - sorting by size only`
+            );
+        }
+
         const streamsWithSize = streamItems.map((streamItem) => {
             const descriptionDiv = streamItem.querySelector(
                 '[class*="description-container-"]'
             );
-            return {
+            const streamData = {
                 element: streamItem,
                 sizeInBytes: this.extractSize(descriptionDiv),
             };
+
+            // Only check episode match for series (when currentEpisode exists)
+            if (currentEpisode) {
+                streamData.hasEpisode = this.hasEpisodeInDescription(
+                    streamItem,
+                    currentEpisode
+                );
+            }
+
+            return streamData;
         });
 
-        streamsWithSize.sort((a, b) => b.sizeInBytes - a.sizeInBytes);
+        streamsWithSize.sort((a, b) => {
+            // For series: prioritize streams with matching episode numbers
+            if (currentEpisode && a.hasEpisode !== b.hasEpisode) {
+                return a.hasEpisode ? -1 : 1;
+            }
+            // Then sort by size (largest first)
+            return b.sizeInBytes - a.sizeInBytes;
+        });
 
         const withResolution = [];
         const withoutResolution = [];
@@ -261,8 +321,6 @@ class StreamListSorter {
                 container.appendChild(stream.element);
             }
         );
-
-        console.log("[StreamListSorter] Streams reordered by size");
     }
 
     cleanupAddonName(streamElement) {
