@@ -1,7 +1,7 @@
 /**
- * Stream List Sorter Plugin
- * Adds a button to sort streams by file size (largest first)
- * Only active on detail pages (series/movie)
+ * @name Stream List Sorter Plugin
+ * @description Adds a button to sort streams by file size (largest first) and quality tags
+ * @version 1.0.0
  * @author EZOBOSS
  */
 
@@ -14,6 +14,7 @@ class StreamListSorter {
         // ========================================
         // QUALITY TAGS CONFIGURATION
         // To add a new tag, just add an entry here!
+        // Use 6-digit hex colors only (e.g., #ff9800)
         // ========================================
         this.qualityTagsConfig = [
             { tag: "HDR", color: "#ff9800" }, // Orange
@@ -21,6 +22,8 @@ class StreamListSorter {
             { tag: "REMUX", color: "#4caf50" }, // Green
             { tag: "IMAX", color: "#00bcd4" }, // Cyan
             { tag: "7\\.1", color: "#009688" }, // Teal (escaped dot for regex)
+            { tag: "HDR10\\+", color: "#d92602" }, // Red-Orange (escaped + for regex)
+
             // Add more tags here:
             // { tag: 'ATMOS', color: '#e91e63' },  // Pink
             // { tag: '5\\.1', color: '#03a9f4' },  // Light Blue
@@ -30,16 +33,24 @@ class StreamListSorter {
         // Auto-generate quality colors map from config
         this.qualityColors = {};
         this.qualityTagsConfig.forEach(({ tag, color }) => {
-            // Remove backslashes for map key (e.g., "7\\ .1" becomes "7.1")
+            // Remove backslashes for map key (e.g., "7\\.1" becomes "7.1")
             const cleanTag = tag.replace(/\\/g, "");
             this.qualityColors[cleanTag] = color;
         });
 
         // Auto-generate regex pattern from quality tags config
+        // Add word boundaries per-tag to handle special characters properly
         const tagPatterns = this.qualityTagsConfig
-            .map(({ tag }) => tag)
+            .map(({ tag }) => {
+                // If tag ends with escaped special char like \+ or \., use negative lookahead
+                if (tag.match(/\\[^\w]$/)) {
+                    return `\\b${tag}(?!\\w)`; // e.g., \bHDR10\+(?!\w)
+                }
+                return `\\b${tag}\\b`; // e.g., \bHDR\b
+            })
             .join("|");
-        this.qualityPattern = new RegExp(`\\b(${tagPatterns})\\b`, "gi");
+        // Don't add outer \b() because each tag has its own boundaries
+        this.qualityPattern = new RegExp(`(${tagPatterns})`, "gi");
 
         // Cache other regex patterns for performance
         this.resolutionPattern =
@@ -317,7 +328,7 @@ class StreamListSorter {
             const badgeColor = this.resolutionColors[resolution] || "#607d8b";
 
             // Style the resolution with a glassmorphic color-coded badge
-            addonNameDiv.innerHTML = `<span style="background: linear-gradient(135deg, ${badgeColor}88, ${badgeColor}cc); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid ${badgeColor}44; color: #fff; padding: 4px 10px; border-radius: 8px; font-size: 0.85em; font-weight: 600; text-transform: uppercase; display: inline-block; box-shadow: 0 4px 12px ${badgeColor}33, inset 0 1px 0 rgba(255,255,255,0.2); letter-spacing: 0.5px;">${resolution}</span>`;
+            addonNameDiv.innerHTML = `<span style="background: linear-gradient(135deg, ${badgeColor}88, ${badgeColor}cc); backdrop-filter: blur(10px);  border: 1px solid ${badgeColor}44; color: #fff; padding: 4px 10px; border-radius: 8px; font-size: 0.85em; font-weight: 600; text-transform: uppercase; display: inline-block; box-shadow: 0 4px 12px ${badgeColor}33, inset 0 1px 0 rgba(255,255,255,0.2); letter-spacing: 0.5px;">${resolution}</span>`;
 
             return true; // Has resolution, keep at normal position
         } else {
@@ -394,7 +405,7 @@ class StreamListSorter {
             styledHTML += `
                 <div style="display: flex; flex-direction: column; gap: 4px; width: 100px;">
                     <span style="font-size: 1.1em; font-weight: 700; color: #fff; white-space: nowrap;">${fileSize}</span>
-                    <div style="position: absolute; bottom: 40%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);">
+                    <div style="position: absolute; bottom: 20%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);">
                         <div style="width: ${meterWidth}%; height: 100%; background: linear-gradient(90deg, ${meterColor}cc, ${meterColor}); box-shadow: 0 0 8px ${meterColor}66; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: absolute; bottom: 0;"></div>
                     </div>
                 </div>
@@ -405,7 +416,7 @@ class StreamListSorter {
             for (const tag of qualityTags) {
                 // Get color from cached map
                 const color = this.qualityColors[tag] || "#888";
-                styledHTML += ` <span style="background: linear-gradient(135deg, ${color}bb, ${color}ee); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid ${color}55; color: rgba(0,0,0,0.9); padding: 3px 8px; border-radius: 6px; font-size: 0.7em; font-weight: 700; text-transform: uppercase; box-shadow: 0 2px 8px ${color}44, inset 0 1px 0 rgba(255,255,255,0.3); letter-spacing: 0.3px;">${tag}</span>`;
+                styledHTML += ` <span style="background: linear-gradient(135deg, ${color}bb, ${color}ee); backdrop-filter: blur(8px); border: 1px solid ${color}55; color: rgba(0,0,0,0.9); padding: 3px 8px; border-radius: 6px; font-size: 0.7em; font-weight: 700; text-transform: uppercase; box-shadow: 0 2px 8px ${color}44, inset 0 1px 0 rgba(255,255,255,0.3); letter-spacing: 0.3px;">${tag}</span>`;
             }
         }
 

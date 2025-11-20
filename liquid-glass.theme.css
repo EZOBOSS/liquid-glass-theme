@@ -2713,6 +2713,10 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .stream-container-JPdah .icon-rAZvO {
     z-index: 2 !important;
+    padding: 0 !important;
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
 }
 
 /* Context Menu 
