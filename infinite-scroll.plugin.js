@@ -44,6 +44,7 @@
         }
 
         init() {
+            this.clearExpiredCache();
             window.addEventListener("hashchange", this.onHashChange);
             this.initObserver();
             // Try initial check
@@ -532,8 +533,8 @@
 
         // --- Fetching & Caching ---
 
-        get cacheKey() {
-            return (key) => InfiniteScrollPlugin.CONFIG.CACHE_PREFIX + key;
+        cacheKey(key) {
+            return InfiniteScrollPlugin.CONFIG.CACHE_PREFIX + key;
         }
 
         cacheSet(key, value) {
@@ -582,6 +583,58 @@
             } catch {
                 return null;
             }
+        }
+
+        clearExpiredCache() {
+            // Run cache cleanup during idle time to avoid blocking the main thread
+            requestIdleCallback(() => {
+                const now = Date.now();
+                const prefix = InfiniteScrollPlugin.CONFIG.CACHE_PREFIX;
+                let clearedCount = 0;
+
+                try {
+                    const keysToRemove = [];
+
+                    // Iterate through localStorage to find expired cache entries
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const storageKey = localStorage.key(i);
+                        if (storageKey && storageKey.startsWith(prefix)) {
+                            try {
+                                const raw = localStorage.getItem(storageKey);
+                                if (raw) {
+                                    const data = JSON.parse(raw);
+                                    if (
+                                        now - data.timestamp >
+                                        InfiniteScrollPlugin.CONFIG.CACHE_TTL
+                                    ) {
+                                        keysToRemove.push(storageKey);
+                                    }
+                                }
+                            } catch (e) {
+                                // If parsing fails, remove the corrupted entry
+                                keysToRemove.push(storageKey);
+                            }
+                        }
+                    }
+
+                    // Remove expired entries
+                    keysToRemove.forEach((key) => {
+                        localStorage.removeItem(key);
+                        clearedCount++;
+                    });
+
+                    if (clearedCount > 0) {
+                        console.log(
+                            `[InfiniteScrollPlugin] Cleared ${clearedCount} expired cache entries`
+                        );
+                    }
+                } catch (e) {
+                    console.warn(
+                        "[InfiniteScrollPlugin] Error clearing expired cache:",
+                        e
+                    );
+                }
+            });
         }
 
         async safeFetch(

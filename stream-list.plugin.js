@@ -43,7 +43,6 @@ class StreamListSorter {
             const cleanTag = tag.replace(/\\/g, "");
             this.qualityColors[cleanTag] = color;
         });
-        console.log("Quality Colors:", this.qualityColors);
 
         // Manually add normalized tag key for REMUX (pattern differs from display)
         const remuxConfig = this.qualityTagsConfig.find(({ tag }) =>

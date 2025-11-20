@@ -14,7 +14,7 @@
             VIDEO_CACHE_EXPIRY_MS: 14 * 24 * 60 * 60 * 1000, // 14 days for individual series videos
             VIDEO_CACHE_PREFIX: "videos_cache_", // Prefix for long-term video cache
             CACHE_DEBOUNCE_MS: 500, // Debounce cache updates
-            DAY_BUFFER: 86400000 * 5, // Include 5 days of future videos
+            DAY_BUFFER: 86400000 * 4, // Include 4 days of future videos
             URLS: {
                 CINEMETA_CATALOG:
                     "https://cinemeta-catalogs.strem.io/top/catalog",
