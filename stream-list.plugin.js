@@ -1,7 +1,7 @@
 /**
  * @name Stream List Sorter Plugin
- * @description Adds a button to sort streams by file size (largest first) and quality tags
- * @version 1.0.2
+ * @description Adds a button to sort streams by file size (largest first), quality tags, and episode matching
+ * @version 1.1.0
  * @author EZOBOSS
  */
 
@@ -79,10 +79,18 @@ class StreamListSorter {
             720: "#4caf50", // Green
         };
 
-        // Pre-calculated byte conversion constants
+        // Pre-calculated constants
         this.BYTES_PER_GB = 1073741824; // 1024^3
         this.BYTES_PER_MB = 1048576; // 1024^2
         this.BYTES_PER_KB = 1024;
+
+        // Size meter color thresholds (in GB)
+        this.SIZE_THRESHOLDS = [
+            { max: 25, color: "#4caf50" }, // Green
+            { max: 60, color: "#ffc107" }, // Yellow
+            { max: 85, color: "#ff9800" }, // Orange
+            { max: Infinity, color: "#f44336" }, // Red
+        ];
 
         this.init();
     }
@@ -233,16 +241,12 @@ class StreamListSorter {
     }
 
     hasEpisodeInDescription(streamElement, episodeNumber) {
-        if (!episodeNumber) return true; // If no episode to match, don't filter
-
         const descriptionDiv = streamElement.querySelector(
             '[class*="description-container-"]'
         );
         if (!descriptionDiv) return false;
 
-        const descriptionText = descriptionDiv.textContent;
-        // Case-insensitive search for the episode number
-        return descriptionText
+        return descriptionDiv.textContent
             .toUpperCase()
             .includes(episodeNumber.toUpperCase());
     }
@@ -375,7 +379,6 @@ class StreamListSorter {
         if (fileSize) {
             const sizeValueMatch = this.sizePattern.exec(fileSize);
             let sizeInGB = 0;
-            let meterColor = "#4caf50";
 
             if (sizeValueMatch) {
                 const value = parseFloat(sizeValueMatch[1]);
@@ -395,12 +398,12 @@ class StreamListSorter {
                         sizeInGB = value / 1048576;
                         break;
                 }
-
-                if (sizeInGB < 25) meterColor = "#4caf50";
-                else if (sizeInGB < 60) meterColor = "#ffc107";
-                else if (sizeInGB < 85) meterColor = "#ff9800";
-                else meterColor = "#f44336";
             }
+
+            // Determine meter color based on size
+            const meterColor = this.SIZE_THRESHOLDS.find(
+                (t) => sizeInGB < t.max
+            ).color;
 
             const meterWidth = Math.min(100, sizeInGB);
             styledHTML += `<div style="display: flex; flex-direction: column; gap: 4px; width: 100px;"><span style="font-size: 1.1em; font-weight: 700; color: #fff; white-space: nowrap;">${fileSize}</span><div style="position: absolute; bottom: 20%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"><div style="width: ${meterWidth}%; height: 100%; background: linear-gradient(90deg, ${meterColor}cc, ${meterColor}); box-shadow: 0 0 8px ${meterColor}66; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: absolute; bottom: 0;"></div></div></div>`;

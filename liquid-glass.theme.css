@@ -1039,7 +1039,7 @@ body.ghost-clicking #heroLoadingScreen {
     display: flex;
     flex-direction: row;
     align-items: center;
-    width: 35%;
+    width: 30%;
     position: absolute;
     z-index: 12;
     top: 50%;
