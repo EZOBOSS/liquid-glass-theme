@@ -104,15 +104,12 @@ class StreamListSorter {
             childList: true,
             subtree: true,
         });
-
-        console.log("[StreamListSorter] Started observing DOM");
     }
 
     stopObserving() {
         if (this.observer) {
             this.observer.disconnect();
             this.observer = null;
-            console.log("[StreamListSorter] Stopped observing DOM");
         }
     }
 
@@ -126,15 +123,9 @@ class StreamListSorter {
         const hash = window.location.hash;
 
         if (this.isDetailPage(hash)) {
-            console.log(
-                "[StreamListSorter] On detail page, watching for streams container..."
-            );
             this.processedContainers = new WeakSet();
             this.startObserving();
         } else {
-            console.log(
-                "[StreamListSorter] Not on detail page, removing button..."
-            );
             this.removeSortButton();
             this.stopObserving();
         }
@@ -168,9 +159,6 @@ class StreamListSorter {
             streamsContainer &&
             !this.processedContainers.has(streamsContainer)
         ) {
-            console.log(
-                "[StreamListSorter] Found streams container, adding sort button..."
-            );
             this.processedContainers.add(streamsContainer);
             this.addSortButton(streamsContainer);
             return true;
@@ -359,7 +347,7 @@ class StreamListSorter {
             const meterWidth = Math.min(100, sizeInGB);
             styledHTML += `<div style="display: flex; flex-direction: column; gap: 4px; width: 100px;"><span style="font-size: 1.1em; font-weight: 700; color: #fff; white-space: nowrap;">${fileSize}</span><div style="position: absolute; bottom: 20%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"><div style="width: ${meterWidth}%; height: 100%; background: linear-gradient(90deg, ${meterColor}cc, ${meterColor}); box-shadow: 0 0 8px ${meterColor}66; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: absolute; bottom: 0;"></div></div></div>`;
         }
-        console.log("Quality Tags:", qualityTags);
+
         if (qualityTags.length > 0) {
             for (const tag of qualityTags) {
                 const color = this.qualityColors[tag] || "#888";
