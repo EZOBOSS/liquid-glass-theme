@@ -724,7 +724,7 @@
                 }
 
                 console.log(
-                    `[InfiniteScrollPlugin] Fetching data (skip=${skip}) for "${key}"`
+                    `[InfiniteScrollPlugin] Fetching fresh data (skip=${skip}) for "${key}"`
                 );
 
                 try {
@@ -765,10 +765,6 @@
             const nextBatch = allData.slice(offset, offset + limit);
             this.fetchProgress[key] = offset + nextBatch.length;
 
-            console.log(
-                `[InfiniteScrollPlugin] Fetched offset ${offset}  for ${key}`
-            );
-
             return nextBatch;
         }
 
@@ -779,7 +775,7 @@
             console.log("[InfiniteScrollPlugin] Fetching more items...");
 
             try {
-                const items = await this.fetchCatalogTitles(type, 9, catalog);
+                const items = await this.fetchCatalogTitles(type, 15, catalog);
                 if (!items?.length) {
                     console.log(
                         "[InfiniteScrollPlugin] No more items to load."

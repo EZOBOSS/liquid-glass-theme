@@ -998,7 +998,7 @@
                                         if (c !== card) c.classList.add("dim");
                                         else c.classList.add("hover");
                                     });
-                                console.log(this.state.visibleCards);
+
                                 this.state.visibleCards.forEach((c) => {
                                     if (c !== card) c.classList.add("dim");
                                 });
