@@ -53,16 +53,10 @@
 
         onHashChange() {
             if (!this.isHomepage()) {
-                console.log(
-                    "[InfiniteScrollPlugin] Navigated away from homepage. Clearing state."
-                );
                 this.activeScrolls.clear();
                 this.isLoopRunning = false;
                 this.disconnectObserver();
             } else {
-                console.log(
-                    "[InfiniteScrollPlugin] Navigated to homepage. Re-checking."
-                );
                 if (!this.findAndInitTracks()) {
                     this.initObserver();
                 }
@@ -72,7 +66,6 @@
         initObserver() {
             if (this.observer) return;
 
-            console.log("[InfiniteScrollPlugin] Starting MutationObserver");
             this.observer = new MutationObserver((mutations) => {
                 if (!this.isHomepage()) return;
 
@@ -97,9 +90,6 @@
 
         disconnectObserver() {
             if (this.observer) {
-                console.log(
-                    "[InfiniteScrollPlugin] Disconnecting MutationObserver"
-                );
                 this.observer.disconnect();
                 this.observer = null;
             }
@@ -144,9 +134,6 @@
                     if (!headerContainer) return;
 
                     const titleText = headerContainer.textContent.trim();
-                    console.log(
-                        `[InfiniteScrollPlugin] Found track: "${titleText}"`
-                    );
 
                     // Determine catalog type based on title
                     let catalog = null;
@@ -161,9 +148,6 @@
                     if (catalog) {
                         this.initWheelScroll(track, catalog);
                         initializedCount++;
-                        console.log(
-                            `[InfiniteScrollPlugin] Initialized "${titleText}" with catalog "${catalog}"`
-                        );
                     }
                 });
 
