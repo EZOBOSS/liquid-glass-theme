@@ -9,7 +9,7 @@
     class UpcomingReleasesPlugin {
         static CONFIG = {
             FETCH_TIMEOUT: 5000,
-            CACHE_TTL: 1000 * 60 * 60 * 6, // 6 hours for the main catalog list
+            CACHE_TTL: 1000 * 60 * 60 * 12, // 12 hours for the main catalog list
             CACHE_PREFIX: "upcoming_cache_",
             VIDEO_CACHE_EXPIRY_MS: 14 * 24 * 60 * 60 * 1000, // 14 days for individual series videos
             VIDEO_CACHE_PREFIX: "videos_cache_", // Prefix for long-term video cache
