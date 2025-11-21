@@ -17,18 +17,18 @@ class StreamListSorter {
         // Use 6-digit hex colors only (e.g., #ff9800)
         // ========================================
         this.qualityTagsConfig = [
-            { tag: "HDR", color: "#ff9800" }, // Orange
-            { tag: "DV", color: "#9c27b0" }, // Purple
-            { tag: "DOLBY VISION", color: "#9c27b0" }, // Purple - matches full text
+            { tag: "HDR", color: "#ff9800" },
+            { tag: "DV", color: "#9c27b0" },
+            { tag: "DOLBY VISION", color: "#9c27b0" },
             { tag: "(?:BD|UHD)?REMUX", color: "#4eb951" }, // Green - matches REMUX, BDRemux, UHDRemux
-            { tag: "IMAX", color: "#00bcd4" }, // Cyan
-            { tag: "TMAX", color: "#00bcd4" }, // Cyan
-            { tag: "AI", color: "#00e5ff" }, // Bright Cyan
-            { tag: "UPSCALE", color: "#00e5ff" }, // Bright Cyan
-            { tag: "60FPS", color: "#00e5ff" }, // Bright Cyan
-            { tag: "7\\.1", color: "#009688" }, // Teal (escaped dot for regex)
-            { tag: "HDR10\\+", color: "#d92602" }, // Red-Orange (escaped + for regex)
-            { tag: "HDR10", color: "#ff9800" }, // Orange
+            { tag: "IMAX", color: "#00bcd4" },
+            { tag: "TMAX", color: "#00bcd4" },
+            { tag: "AI", color: "#00e5ff" },
+            { tag: "UPSCALE", color: "#00e5ff" },
+            { tag: "60FPS", color: "#00e5ff" },
+            { tag: "7\\.1", color: "#009688" },
+            { tag: "HDR10\\+", color: "#d92602" },
+            { tag: "HDR10", color: "#ff9800" },
 
             // Add more tags here:
             // { tag: 'ATMOS', color: '#e91e63' },  // Pink

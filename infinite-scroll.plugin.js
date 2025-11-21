@@ -823,7 +823,9 @@
                     .createRange()
                     .createContextualFragment(html);
 
-                requestAnimationFrame(track.appendChild(fragment));
+                requestAnimationFrame(() => {
+                    track.appendChild(fragment);
+                });
             } catch (err) {
                 console.error("[InfiniteScrollPlugin] Fetch error", err);
             } finally {
