@@ -1494,9 +1494,7 @@ body.ghost-clicking #heroLoadingScreen {
 
 .multiselect-menu-qMdaj .multiselect-button-XXdgA {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 0.1px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    box-shadow: var(--box-shadow) !important;
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
 }
@@ -1930,7 +1928,11 @@ body.ghost-clicking #heroLoadingScreen {
     transition: all 0.5s ease;
 }
 .label-container-XOyzm:hover {
-    background-image: linear-gradient(to top, #c71d6f95 0%, #d0969391 100%);
+    background-image: linear-gradient(
+        to top,
+        #c71d6f95 0%,
+        #d0969391 100%
+    ) !important;
     box-shadow: var(--box-shadow) !important;
 }
 /*
@@ -2488,9 +2490,14 @@ body.ghost-clicking #heroLoadingScreen {
     border-radius: 10px 0 0 10px;
     backdrop-filter: blur(8px);
     box-shadow: var(--box-shadow);
-    transition: all 0.3s ease;
+    transition: all 0.5s ease;
     z-index: 10;
-    opacity: 0;
+    padding: 4px;
+    gap: 3px;
+}
+.upcoming-toggle-bar.dim {
+    opacity: 0.3;
+    transform: translateX(35%);
 }
 .upcoming-toggle-bar:hover {
     opacity: 1;
@@ -2499,7 +2506,6 @@ body.ghost-clicking #heroLoadingScreen {
     background: var(--colorAccent, #666);
     color: #fff886;
     border: none;
-    padding: 6px 6px;
     cursor: pointer;
     opacity: 0.3;
     width: 100%;
@@ -2507,6 +2513,8 @@ body.ghost-clicking #heroLoadingScreen {
     transition: opacity 0.4s, background 0.2s;
     display: flex;
     justify-content: center;
+    border-radius: 10px;
+    box-shadow: var(--box-shadow);
 }
 .btn-label {
     color: white;
@@ -2608,12 +2616,13 @@ body.ghost-clicking #heroLoadingScreen {
 /* Episode Card Styling */
 .video-container-ezBpK {
     padding: 0 !important;
-    overflow: hidden !important;
+
     box-shadow: var(--box-shadow) !important;
     border-radius: 15px !important;
 }
 .video-container-ezBpK:hover {
     transform: scale(1.02) !important;
+    z-index: 10 !important;
 }
 .video-container-ezBpK .thumbnail-container-Zm8Cl {
     position: absolute !important;
@@ -2642,19 +2651,34 @@ body.ghost-clicking #heroLoadingScreen {
 .stream-container-JPdah {
     align-items: flex-start !important;
     max-height: 70px !important;
-    background-color: rgba(0, 0, 0, 0.678) !important;
+    background-image: linear-gradient(
+        -20deg,
+        #e9defa1c 0%,
+        #fbfcdb0a 100%
+    ) !important;
+    background-color: transparent !important;
+    box-shadow: var(--box-shadow) !important;
+}
+.stream-container-JPdah:hover {
+    transform: scale(1.02) !important;
+    z-index: 10 !important;
 }
 .stream-container-JPdah .description-container-vW_De {
     flex-direction: row !important;
     align-items: center !important;
     font-size: 12px !important;
 }
+.stream-container-JPdah .info-container-TihQo .addon-name-tC8PX {
+    font-size: 0.9rem !important;
+}
+/* Green Play Button */
 .stream-container-JPdah .icon-rAZvO {
     z-index: 2 !important;
     padding: 0 !important;
     position: absolute !important;
     top: 0 !important;
     right: 0 !important;
+    display: none !important;
 }
 /* Side Drawer Styling (inside player) */
 .player-container-wIELK .side-drawer-r9EuA {

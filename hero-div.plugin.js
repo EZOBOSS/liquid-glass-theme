@@ -993,12 +993,14 @@
                                     .querySelector(".upcoming-list")
                                     ?.classList.add("dim");
                                 document
+                                    .querySelector(".upcoming-toggle-bar")
+                                    ?.classList.add("dim");
+                                document
                                     .querySelectorAll(".upcoming-card")
                                     ?.forEach((c) => {
                                         if (c !== card) c.classList.add("dim");
                                         else c.classList.add("hover");
                                     });
-
                                 this.state.visibleCards.forEach((c) => {
                                     if (c !== card) c.classList.add("dim");
                                 });
@@ -1035,7 +1037,6 @@
                                 clearTimeout(timers.playTimeout);
                                 this.state.cardTimers.delete(card);
                             }
-
                             document
                                 .querySelectorAll(".upcoming-card")
                                 ?.forEach((c) =>
@@ -1043,6 +1044,9 @@
                                 );
                             document
                                 .querySelector(".upcoming-list")
+                                ?.classList.remove("dim");
+                            document
+                                .querySelector(".upcoming-toggle-bar")
                                 ?.classList.remove("dim");
                             this.state.visibleCards.forEach((c) =>
                                 c.classList.remove("dim")

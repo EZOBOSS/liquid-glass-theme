@@ -15,7 +15,8 @@
             VIDEO_CACHE_PREFIX: "videos_cache_", // Prefix for long-term video cache
             CACHE_DEBOUNCE_MS: 500, // Debounce cache updates
             DAY_BUFFER: 86400000 * 4, // Include 4 days of future videos
-            BATCH_SIZE: 50, // Number of concurrent promises to process at once (optimized for speed while preventing system overload)
+            BATCH_SIZE: 50, // Number of concurrent promises to process at once
+            MAX_CACHE_ENTRIES: 200, // Maximum number of items to keep in video cache (LRU eviction)
             URLS: {
                 CINEMETA_CATALOG:
                     "https://cinemeta-catalogs.strem.io/top/catalog",
@@ -180,6 +181,7 @@
                 const now = Date.now();
                 let dirty = false;
 
+                // Clean up expired entries
                 for (const k in cache) {
                     if (
                         now - cache[k].timestamp >
@@ -188,6 +190,35 @@
                         delete cache[k];
                         dirty = true;
                     }
+                }
+
+                // LRU eviction if cache is too large
+                const entries = Object.entries(cache);
+                if (
+                    entries.length >
+                    UpcomingReleasesPlugin.CONFIG.MAX_CACHE_ENTRIES
+                ) {
+                    // Sort by timestamp (oldest first)
+                    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+                    // Keep only the newest MAX_CACHE_ENTRIES items
+                    const toKeep = entries.slice(
+                        -UpcomingReleasesPlugin.CONFIG.MAX_CACHE_ENTRIES
+                    );
+                    const newCache = {};
+                    for (const [key, value] of toKeep) {
+                        newCache[key] = value;
+                    }
+
+                    console.log(
+                        `[UpcomingReleases] Cache size limit reached. Evicted ${
+                            entries.length - toKeep.length
+                        } oldest entries`
+                    );
+
+                    this.videoMemoryCache = newCache;
+                    this.saveVideoCache(newCache);
+                    return newCache;
                 }
 
                 if (dirty) this.saveVideoCache(cache);
@@ -571,17 +602,26 @@
             }
 
             try {
-                // 1. Initial Catalog Fetch
+                // 1. Initial Catalog Fetch (2 pages per type for more content)
                 const types = ["movie", "series"];
-                const results = await Promise.allSettled(
-                    types.map((t) =>
-                        this.safeFetch(
-                            `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_CATALOG}/${t}/${catalog}.json`
-                        )
-                    )
-                );
+                const skipValues = [0, 50]; // Fetch 2 pages
+
+                const fetchPromises = [];
+                for (const t of types) {
+                    for (const skip of skipValues) {
+                        const url =
+                            skip === 0
+                                ? `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_CATALOG}/${t}/${catalog}.json`
+                                : `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_CATALOG}/${t}/${catalog}/skip=${skip}.json`;
+                        fetchPromises.push(this.safeFetch(url));
+                    }
+                }
+
+                const results = await Promise.allSettled(fetchPromises);
 
                 const all = [];
+                const seenIds = new Set(); // Track unique IDs
+
                 for (const res of results) {
                     if (res.status === "fulfilled" && res.value) {
                         const payload = res.value;
@@ -590,15 +630,36 @@
                             : Array.isArray(payload)
                             ? payload
                             : [];
-                        all.push(...metas);
+
+                        // Only add items with unique IDs
+                        for (const meta of metas) {
+                            if (meta.id && !seenIds.has(meta.id)) {
+                                seenIds.add(meta.id);
+                                all.push(meta);
+                            }
+                        }
                     }
                 }
 
-                // 2. Optimized Series Videos Fetch with batched processing
-                const seriesMetas = all.filter((m) => m.type === "series");
+                console.log(
+                    `[UpcomingReleases] Fetched ${all.length} unique items from ${results.length} catalog pages`
+                );
+
+                // 2. Filter and optimize series for metadata fetching
+                let seriesMetas = all.filter((m) => m.type === "series");
                 const movieMetas = all.filter((m) => m.type === "movie");
 
-                const promiseFns = seriesMetas.map((m) => async () => {
+                // Only process series that are still Continuing or Upcoming
+                const activeSeries = seriesMetas.filter((m) => {
+                    const status = m.status?.toLowerCase();
+                    return status === "continuing" || status === "upcoming";
+                });
+
+                console.log(
+                    `[UpcomingReleases] Filtered series: ${activeSeries.length} active (from ${seriesMetas.length} total)`
+                );
+
+                const promiseFns = activeSeries.map((m) => async () => {
                     const metaCacheKey = `fullmeta:${m.id}`;
                     let cachedMeta = this.videoCacheGet(metaCacheKey);
 
@@ -612,11 +673,6 @@
                                 this.videoCacheSet(
                                     metaCacheKey,
                                     this.mapToListItem(cachedMeta)
-                                );
-                                console.log(
-                                    "[UpcomingReleases] Fetched meta for",
-                                    m.id,
-                                    m.title
                                 );
                             }
                         } catch (err) {
