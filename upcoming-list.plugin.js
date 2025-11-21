@@ -817,7 +817,7 @@
 
             const loader = document.createElement("div");
             loader.className = "upcoming-list upcoming-loading";
-            loader.innerHTML = `<div class="loading-spinner"></div>`; // Assuming CSS for this exists or we add it
+            loader.innerHTML = `<div class="loading-spinner"></div>`;
             container.appendChild(loader);
         }
 

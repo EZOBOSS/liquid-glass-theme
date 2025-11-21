@@ -1,8 +1,9 @@
 /**
  * @name Timeline Hover Time Display
  * @description Shows time position when hovering over the video timeline
- * @version 1.0.0
+ * @version 2.0.0
  * @author allecsc
+ * @optimization Improved performance with caching, RAF throttling, and proper cleanup
  */
 
 (function () {
@@ -10,22 +11,34 @@
 
     // Configuration
     const CONFIG = {
-        updateInterval: 100, // How often to update time display during hover (ms)
         tooltipOffset: 10, // Pixels above the timeline
         timeFormat: "HH:MM:SS", // or 'MM:SS' for shorter format
+        durationPollInterval: 5000, // How often to poll for duration updates
+        reinitRetryDelay: 1000, // Delay before retrying initialization
+        transitionDuration: 200, // Tooltip fade transition duration (ms)
     };
 
-    let tooltipElement = null;
-    let currentVideoDuration = 0;
-    let hoverTimeout = null;
+    // State management
+    const state = {
+        tooltipElement: null,
+        currentVideoDuration: 0,
+        seekBarRect: null,
+        resizeObserver: null,
+        durationInterval: null,
+        mutationObserver: null,
+        rafId: null,
+        isInitialized: false,
+        currentSeekBar: null,
+        isHovering: false,
+    };
 
-    // Create tooltip element
+    // Create tooltip element with smooth transitions
     function createTooltip() {
-        if (tooltipElement) return tooltipElement;
+        if (state.tooltipElement) return state.tooltipElement;
 
-        tooltipElement = document.createElement("div");
-        tooltipElement.id = "timeline-tooltip";
-        tooltipElement.style.cssText = `
+        const tooltip = document.createElement("div");
+        tooltip.id = "timeline-tooltip";
+        tooltip.style.cssText = `
             position: absolute;
             background: rgba(70, 70, 70, 0.22);
             color: white;
@@ -36,16 +49,20 @@
             font-weight: 600;
             pointer-events: none;
             z-index: 9999;
-            display: none;
+            opacity: 0;
             white-space: nowrap;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), 
+                        inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(12px) saturate(160%);
             border: 1px solid rgba(255, 255, 255, 0.04);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            transition: opacity ${CONFIG.transitionDuration}ms ease-in-out;
+            will-change: transform, opacity;
         `;
 
-        document.body.appendChild(tooltipElement);
-        return tooltipElement;
+        document.body.appendChild(tooltip);
+        state.tooltipElement = tooltip;
+        return tooltip;
     }
 
     // Format time in seconds to HH:MM:SS or MM:SS
@@ -58,16 +75,30 @@
             return `${hours.toString().padStart(2, "0")}:${minutes
                 .toString()
                 .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-        } else {
-            return `${minutes.toString().padStart(2, "0")}:${secs
-                .toString()
-                .padStart(2, "0")}`;
         }
+        return `${minutes.toString().padStart(2, "0")}:${secs
+            .toString()
+            .padStart(2, "0")}`;
     }
 
-    // Get video duration from Stremio's player
+    // Helper function to parse time string to seconds
+    function parseTimeToSeconds(timeString) {
+        const match =
+            timeString.match(/(\d{1,2}):(\d{2}):(\d{2})/) ||
+            timeString.match(/(\d{1,2}):(\d{2})/);
+
+        if (!match) return 0;
+
+        const parts = match.slice(1).map(Number);
+        if (parts.length === 3) {
+            return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+        return parts[0] * 60 + parts[1];
+    }
+
+    // Get video duration from Stremio's player (optimized)
     function getVideoDuration() {
-        // Try different selectors for the video element
+        // Try video element first (most reliable)
         const videoSelectors = [
             "video",
             ".video-player video",
@@ -77,71 +108,32 @@
 
         for (const selector of videoSelectors) {
             const video = document.querySelector(selector);
-            if (video && video.duration && !isNaN(video.duration)) {
+            if (video?.duration && !isNaN(video.duration)) {
                 return video.duration;
             }
         }
 
-        // Fallback: try to find duration in Stremio's UI labels
-        // Based on HTML structure, look for the duration label in seek bar
+        // Fallback: parse duration from UI labels
         const durationLabels = document.querySelectorAll(
-            ".seek-bar-I7WeY .label-QFbsS"
+            ".seek-bar-I7WeY .label-QFbsS, " +
+                '[class*="time"], [class*="duration"]'
         );
+
         let maxDuration = 0;
-
         for (const label of durationLabels) {
-            const text = label.textContent || "";
-
-            // Look for time format like "00:24:00" (total duration)
-            const match =
-                text.match(/(\d{1,2}):(\d{2}):(\d{2})/) ||
-                text.match(/(\d{1,2}):(\d{2})/);
-            if (match) {
-                const parts = match.slice(1).map(Number);
-                let duration = 0;
-                if (parts.length === 3) {
-                    duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                } else if (parts.length === 2) {
-                    duration = parts[0] * 60 + parts[1];
-                }
-
-                // Assume the larger time value is the total duration
-                if (duration > maxDuration) {
-                    maxDuration = duration;
-                }
+            const duration = parseTimeToSeconds(label.textContent || "");
+            if (duration > maxDuration) {
+                maxDuration = duration;
             }
         }
 
-        if (maxDuration > 0) {
-            return maxDuration;
-        }
-
-        // Additional fallback: look for any time elements
-        const timeElements = document.querySelectorAll(
-            '[class*="time"], [class*="duration"]'
-        );
-        for (const el of timeElements) {
-            const text = el.textContent || "";
-            const match =
-                text.match(/(\d{1,2}):(\d{2}):(\d{2})/) ||
-                text.match(/(\d{1,2}):(\d{2})/);
-            if (match) {
-                const parts = match.slice(1).map(Number);
-                if (parts.length === 3) {
-                    return parts[0] * 3600 + parts[1] * 60 + parts[2];
-                } else if (parts.length === 2) {
-                    return parts[0] * 60 + parts[1];
-                }
-            }
-        }
-
-        return 0;
+        return maxDuration;
     }
 
     // Find the seek bar element
     function findSeekBar() {
         const seekBarSelectors = [
-            ".seek-bar-I7WeY .slider-hBDOf", // Primary selector based on HTML structure
+            ".seek-bar-I7WeY .slider-hBDOf",
             ".seek-bar-container-JGGTa .slider-hBDOf",
             '[class*="seek-bar"] [class*="slider"]',
             ".control-bar-container-xsWA7 .seek-bar-I7WeY",
@@ -157,68 +149,166 @@
         return null;
     }
 
-    // Handle mouse movement over seek bar
+    // Update cached seek bar rect
+    function updateSeekBarRect(seekBar) {
+        state.seekBarRect = seekBar.getBoundingClientRect();
+    }
+
+    // Handle mouse movement over seek bar (throttled with RAF)
     function handleSeekBarHover(event) {
-        const seekBar = event.currentTarget;
-        const tooltip = createTooltip();
-
-        if (!tooltip) return;
-
-        // Get seek bar dimensions
-        const rect = seekBar.getBoundingClientRect();
-        const progress = Math.max(
-            0,
-            Math.min(1, (event.clientX - rect.left) / rect.width)
-        );
-
-        // Calculate time position
-        const duration = getVideoDuration() || currentVideoDuration;
-
-        /*
-        // Debug logging (only log occasionally to avoid spam)
-        if (Math.random() < 0.1) {
-            // Log only 10% of the time
-            console.log("Seek bar hover:", {
-                progress: progress.toFixed(3),
-                duration: duration,
-                timePosition: (duration * progress).toFixed(1),
-                rect: { left: rect.left, width: rect.width },
-                mouseX: event.clientX,
-            });
+        if (!state.isHovering) {
+            state.isHovering = true;
+            showTooltip();
         }
-        */
 
-        const timePosition = duration * progress;
-
-        // Update tooltip content
-        tooltip.textContent = formatTime(timePosition);
-
-        // Position tooltip above the seek bar
-        tooltip.style.left = `${event.clientX}px`;
-        tooltip.style.top = `${
-            rect.top - CONFIG.tooltipOffset - tooltip.offsetHeight
-        }px`;
-        tooltip.style.display = "block";
-
-        // Center horizontally on cursor
-        const tooltipRect = tooltip.getBoundingClientRect();
-        tooltip.style.left = `${event.clientX - tooltipRect.width / 2}px`;
-
-        // Keep tooltip within viewport bounds
-        const viewportWidth = window.innerWidth;
-        if (tooltipRect.right > viewportWidth) {
-            tooltip.style.left = `${viewportWidth - tooltipRect.width - 5}px`;
+        // Cancel any pending RAF
+        if (state.rafId) {
+            cancelAnimationFrame(state.rafId);
         }
-        if (tooltipRect.left < 0) {
-            tooltip.style.left = "5px";
+
+        // Throttle updates using RAF
+        state.rafId = requestAnimationFrame(() => {
+            const tooltip = state.tooltipElement;
+            if (!tooltip || !state.seekBarRect) return;
+
+            // Calculate progress using cached rect
+            const progress = Math.max(
+                0,
+                Math.min(
+                    1,
+                    (event.clientX - state.seekBarRect.left) /
+                        state.seekBarRect.width
+                )
+            );
+
+            const duration = state.currentVideoDuration;
+            const timePosition = duration * progress;
+
+            // Update tooltip content
+            tooltip.textContent = formatTime(timePosition);
+
+            // Position tooltip (use cached height if available)
+            const tooltipHeight = tooltip.offsetHeight || 40; // Fallback height
+            let left = event.clientX;
+            const top =
+                state.seekBarRect.top - CONFIG.tooltipOffset - tooltipHeight;
+
+            // Apply initial position
+            tooltip.style.top = `${top}px`;
+            tooltip.style.left = `${left}px`;
+
+            // Center horizontally on cursor and keep within viewport
+            const tooltipWidth = tooltip.offsetWidth;
+            left = event.clientX - tooltipWidth / 2;
+
+            const viewportWidth = window.innerWidth;
+            if (left + tooltipWidth > viewportWidth) {
+                left = viewportWidth - tooltipWidth - 5;
+            }
+            if (left < 5) {
+                left = 5;
+            }
+
+            tooltip.style.left = `${left}px`;
+            state.rafId = null;
+        });
+    }
+
+    // Show tooltip with smooth transition
+    function showTooltip() {
+        if (state.tooltipElement) {
+            state.tooltipElement.style.opacity = "1";
         }
     }
 
     // Hide tooltip when mouse leaves seek bar
     function handleSeekBarLeave() {
-        if (tooltipElement) {
-            tooltipElement.style.display = "none";
+        state.isHovering = false;
+
+        if (state.rafId) {
+            cancelAnimationFrame(state.rafId);
+            state.rafId = null;
         }
+
+        if (state.tooltipElement) {
+            state.tooltipElement.style.opacity = "0";
+        }
+    }
+
+    // Start duration polling
+    function startDurationPolling() {
+        // Clear existing interval
+        if (state.durationInterval) {
+            clearInterval(state.durationInterval);
+        }
+
+        // Update immediately
+        state.currentVideoDuration = getVideoDuration();
+
+        // Poll periodically
+        state.durationInterval = setInterval(() => {
+            state.currentVideoDuration = getVideoDuration();
+        }, CONFIG.durationPollInterval);
+    }
+
+    // Stop duration polling
+    function stopDurationPolling() {
+        if (state.durationInterval) {
+            clearInterval(state.durationInterval);
+            state.durationInterval = null;
+        }
+    }
+
+    // Setup ResizeObserver for seek bar
+    function observeSeekBarResize(seekBar) {
+        // Disconnect existing observer
+        if (state.resizeObserver) {
+            state.resizeObserver.disconnect();
+        }
+
+        // Create new ResizeObserver
+        state.resizeObserver = new ResizeObserver(() => {
+            updateSeekBarRect(seekBar);
+        });
+
+        state.resizeObserver.observe(seekBar);
+
+        // Initial rect cache
+        updateSeekBarRect(seekBar);
+    }
+
+    // Cleanup function
+    function cleanup() {
+        // Remove event listeners
+        if (state.currentSeekBar) {
+            state.currentSeekBar.removeEventListener(
+                "mousemove",
+                handleSeekBarHover
+            );
+            state.currentSeekBar.removeEventListener(
+                "mouseleave",
+                handleSeekBarLeave
+            );
+            state.currentSeekBar = null;
+        }
+
+        // Stop polling
+        stopDurationPolling();
+
+        // Disconnect observers
+        if (state.resizeObserver) {
+            state.resizeObserver.disconnect();
+            state.resizeObserver = null;
+        }
+
+        // Cancel RAF
+        if (state.rafId) {
+            cancelAnimationFrame(state.rafId);
+            state.rafId = null;
+        }
+
+        state.isInitialized = false;
+        state.seekBarRect = null;
     }
 
     // Initialize hover functionality
@@ -226,59 +316,76 @@
         const seekBar = findSeekBar();
 
         if (!seekBar) {
-            // Retry after a short delay if seek bar not found
-            setTimeout(initializeTimelineHover, 1000);
+            // Retry after a delay if seek bar not found
+            setTimeout(initializeTimelineHover, CONFIG.reinitRetryDelay);
             return;
         }
 
-        // Remove existing listeners to avoid duplicates
-        seekBar.removeEventListener("mousemove", handleSeekBarHover);
-        seekBar.removeEventListener("mouseleave", handleSeekBarLeave);
+        // Don't re-initialize the same seek bar
+        if (state.isInitialized && state.currentSeekBar === seekBar) {
+            return;
+        }
 
-        // Add hover listeners
+        // Cleanup previous initialization
+        cleanup();
+
+        // Store reference
+        state.currentSeekBar = seekBar;
+
+        // Add event listeners
         seekBar.addEventListener("mousemove", handleSeekBarHover);
         seekBar.addEventListener("mouseleave", handleSeekBarLeave);
 
-        // Update duration periodically
-        currentVideoDuration = getVideoDuration();
-        setInterval(() => {
-            currentVideoDuration = getVideoDuration();
-        }, 5000);
+        // Setup resize observer for rect caching
+        observeSeekBarResize(seekBar);
+
+        // Start duration polling
+        startDurationPolling();
+
+        state.isInitialized = true;
+
+        // Disconnect mutation observer once initialized successfully
+        if (state.mutationObserver) {
+            state.mutationObserver.disconnect();
+            state.mutationObserver = null;
+        }
     }
 
-    // Watch for video player changes
+    // Watch for video player changes (only until first successful init)
     function watchForPlayerChanges() {
-        const observer = new MutationObserver((mutations) => {
+        if (state.mutationObserver) return; // Already observing
+
+        state.mutationObserver = new MutationObserver((mutations) => {
             let shouldReinitialize = false;
 
-            mutations.forEach((mutation) => {
+            for (const mutation of mutations) {
                 if (mutation.type === "childList") {
-                    mutation.addedNodes.forEach((node) => {
+                    for (const node of mutation.addedNodes) {
                         if (node.nodeType === 1) {
                             // Check if a video player or control bar was added
                             if (
-                                node.matches &&
-                                (node.matches('[class*="seek-bar"]') ||
-                                    node.matches('[class*="control-bar"]') ||
-                                    node.matches('[class*="player"]') ||
-                                    node.querySelector('[class*="seek-bar"]') ||
-                                    node.querySelector(
-                                        '[class*="control-bar"]'
-                                    ))
+                                node.matches?.(
+                                    '[class*="seek-bar"], [class*="control-bar"], [class*="player"]'
+                                ) ||
+                                node.querySelector?.(
+                                    '[class*="seek-bar"], [class*="control-bar"]'
+                                )
                             ) {
                                 shouldReinitialize = true;
+                                break;
                             }
                         }
-                    });
+                    }
                 }
-            });
+                if (shouldReinitialize) break;
+            }
 
             if (shouldReinitialize) {
                 setTimeout(initializeTimelineHover, 500);
             }
         });
 
-        observer.observe(document.body, {
+        state.mutationObserver.observe(document.body, {
             childList: true,
             subtree: true,
         });
@@ -292,17 +399,15 @@
 
         // Re-initialize on navigation changes (Stremio-specific)
         window.addEventListener("hashchange", () => {
-            setTimeout(initializeTimelineHover, 1000);
+            setTimeout(initializeTimelineHover, CONFIG.reinitRetryDelay);
         });
     }
 
-    // Start initialization
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", init);
+    // Start initialization when browser is idle
+    if (window.requestIdleCallback) {
+        window.requestIdleCallback(() => init());
     } else {
-        init();
+        // Fallback for browsers without requestIdleCallback
+        setTimeout(init, 500);
     }
-
-    // Also initialize after a delay to catch dynamically loaded players
-    setTimeout(init, 2000);
 })();

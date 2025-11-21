@@ -1,4 +1,4 @@
-/*
+/**
  * @name Dynamic Hero
  * @description Netflix-style rotating hero banner.
  * @version 3.0.0
@@ -1216,5 +1216,7 @@
     }
 
     // Instantiate the plugin
-    new HeroPlugin();
+    requestIdleCallback(() => {
+        new HeroPlugin();
+    });
 })();
