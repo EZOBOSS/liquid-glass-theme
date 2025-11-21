@@ -27,12 +27,12 @@ class StreamListSorter {
             { tag: "UPSCALE", color: "#00e5ff" },
             { tag: "60FPS", color: "#00e5ff" },
             { tag: "7\\.1", color: "#009688" },
+            { tag: "5\\.1", color: "#03a9f4" },
             { tag: "HDR10\\+", color: "#d92602" },
             { tag: "HDR10", color: "#ff9800" },
 
             // Add more tags here:
             // { tag: 'ATMOS', color: '#e91e63' },  // Pink
-            // { tag: '5\\.1', color: '#03a9f4' },  // Light Blue
             // { tag: 'DOLBY', color: '#673ab7' },  // Deep Purple
         ];
 

@@ -2,7 +2,7 @@
  * @name Timeline Hover Time Display
  * @description Shows time position when hovering over the video timeline
  * @version 2.0.0
- * @author allecsc
+ * @author allecsc, EZOBOSS
  * @optimization Improved performance with caching, RAF throttling, and proper cleanup
  */
 

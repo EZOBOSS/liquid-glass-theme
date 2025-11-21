@@ -1929,9 +1929,9 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .label-container-XOyzm:hover {
     background-image: linear-gradient(
-        to top,
-        #c71d6f95 0%,
-        #d0969391 100%
+        45deg,
+        #8baaaab5 0%,
+        #ae8b9cb5 100%
     ) !important;
     box-shadow: var(--box-shadow) !important;
 }
@@ -2630,6 +2630,7 @@ body.ghost-clicking #heroLoadingScreen {
     left: 0 !important;
     width: 100% !important;
     height: 100% !important;
+    border-radius: 1rem !important;
 }
 .video-container-ezBpK .thumbnail-container-Zm8Cl .thumbnail-J81W3 {
     width: 100% !important;
