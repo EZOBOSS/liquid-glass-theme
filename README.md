@@ -28,12 +28,11 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
 ### 🎬 Player & Content Details
 
 -   **Enhanced Title Bar**: Upgrades the standard title bar with rich metadata.
+
     -   Displays IMDb ratings, genres, year, and runtime.
     -   Shows "NEW" or "UPCOMING" badges based on release dates.
     -   Lazy-loads data for performance.
--   **Enhanced Video Player**:
-    -   **Picture-in-Picture (PiP)**: Adds a custom button to toggle PiP mode.
-    -   **Smart Title Formatting**: Cleans up and reformats video titles (e.g., separating Series Name from Episode Title).
+
 -   **Seekbar Hover Time**: Displays the exact timestamp when hovering over the video timeline/seekbar for precise navigation.
 
 ### 📋 Stream List Management
@@ -54,4 +53,4 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
 
 ## Credits
 
-Created by **EZOBOSS** and **Fxy**.
+original [fork](https://github.com/Fxy6969/Stremio-Glass-Theme) by Fxy
