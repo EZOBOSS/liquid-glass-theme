@@ -109,12 +109,20 @@
             const tracks = document.querySelectorAll(
                 InfiniteScrollPlugin.CONFIG.CONTAINER_SELECTOR
             );
-            console.log("[InfiniteScrollPlugin] Tracks found: ", tracks.length);
 
             // Ensure that DOM has loaded enough tracks
             if (tracks.length > 6) {
                 // Check if already initialized to prevent double logs/work
-                if (tracks[1].dataset.wheelScrollInitialized === "true") {
+                // Count how many tracks are already initialized
+                let alreadyInitializedCount = 0;
+                tracks.forEach((track) => {
+                    if (track.dataset.wheelScrollInitialized === "true") {
+                        alreadyInitializedCount++;
+                    }
+                });
+
+                // If we already have 4+ initialized tracks, we're done
+                if (alreadyInitializedCount >= 4) {
                     this.disconnectObserver();
                     return true;
                 }
@@ -814,7 +822,8 @@
                 const fragment = document
                     .createRange()
                     .createContextualFragment(html);
-                track.appendChild(fragment);
+
+                requestAnimationFrame(track.appendChild(fragment));
             } catch (err) {
                 console.error("[InfiniteScrollPlugin] Fetch error", err);
             } finally {
@@ -823,6 +832,8 @@
         }
     }
 
-    // Initialize
-    new InfiniteScrollPlugin();
+    // Initialize on idle callback to avoid blocking main thread
+    requestIdleCallback(() => {
+        new InfiniteScrollPlugin();
+    });
 })();

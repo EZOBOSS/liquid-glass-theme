@@ -454,10 +454,13 @@ class StreamListSorter {
 }
 
 // Initialize the plugin when DOM is ready
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
+if (window.requestIdleCallback) {
+    window.requestIdleCallback(() => {
         window.streamListSorter = new StreamListSorter();
     });
 } else {
-    window.streamListSorter = new StreamListSorter();
+    // Fallback for browsers that don't support requestIdleCallback
+    setTimeout(() => {
+        window.streamListSorter = new StreamListSorter();
+    }, 1);
 }

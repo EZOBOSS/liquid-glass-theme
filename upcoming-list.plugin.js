@@ -932,5 +932,7 @@
     }
 
     // Initialize
-    new UpcomingReleasesPlugin();
+    requestIdleCallback(() => {
+        new UpcomingReleasesPlugin();
+    });
 })();
