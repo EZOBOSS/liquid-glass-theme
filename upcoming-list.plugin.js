@@ -15,6 +15,7 @@
             VIDEO_CACHE_PREFIX: "videos_cache_", // Prefix for long-term video cache
             CACHE_DEBOUNCE_MS: 500, // Debounce cache updates
             DAY_BUFFER: 86400000 * 4, // Include 4 days of future videos
+            BATCH_SIZE: 50, // Number of concurrent promises to process at once (optimized for speed while preventing system overload)
             URLS: {
                 CINEMETA_CATALOG:
                     "https://cinemeta-catalogs.strem.io/top/catalog",
@@ -291,6 +292,30 @@
             return `${day}<br>${month}`;
         }
 
+        async batchPromiseAllSettled(
+            promiseFns,
+            batchSize = UpcomingReleasesPlugin.CONFIG.BATCH_SIZE
+        ) {
+            const results = [];
+
+            for (let i = 0; i < promiseFns.length; i += batchSize) {
+                const batch = promiseFns.slice(i, i + batchSize);
+                const batchPromises = batch.map((fn) => fn());
+                const batchResults = await Promise.allSettled(batchPromises);
+                results.push(...batchResults);
+
+                console.log(
+                    `[UpcomingReleases] Processed batch ${
+                        Math.floor(i / batchSize) + 1
+                    }/${Math.ceil(promiseFns.length / batchSize)} (${
+                        i + batch.length
+                    }/${promiseFns.length} total)`
+                );
+            }
+
+            return results;
+        }
+
         // --- Data Logic ---
 
         getUserLibrarySeries() {
@@ -479,41 +504,42 @@
                 return [];
             }
 
-            const results = await Promise.allSettled(
-                seriesIds.map(async (meta) => {
-                    const id = meta._id;
-                    const metaCacheKey = `fullmeta:${id}`;
-                    let cachedMeta = this.videoCacheGet(metaCacheKey);
+            // Use batched processing for large libraries (300+ items)
+            const promiseFns = seriesIds.map((meta) => async () => {
+                const id = meta._id;
+                const metaCacheKey = `fullmeta:${id}`;
+                let cachedMeta = this.videoCacheGet(metaCacheKey);
 
-                    if (!cachedMeta) {
-                        try {
-                            const data = await this.safeFetch(
-                                `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/series/${id}.json`
-                            );
-                            const fetchedMeta = data?.meta;
+                if (!cachedMeta) {
+                    try {
+                        const data = await this.safeFetch(
+                            `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/series/${id}.json`
+                        );
+                        const fetchedMeta = data?.meta;
 
-                            if (fetchedMeta) {
-                                this.videoCacheSet(
-                                    metaCacheKey,
-                                    this.mapToListItem(fetchedMeta, "series")
-                                );
-                                cachedMeta = fetchedMeta;
-                            }
-                        } catch (err) {
-                            console.warn(
-                                "[UpcomingReleases] Failed to fetch meta for",
-                                id,
-                                err
+                        if (fetchedMeta) {
+                            this.videoCacheSet(
+                                metaCacheKey,
+                                this.mapToListItem(fetchedMeta, "series")
                             );
-                            return null;
+                            cachedMeta = fetchedMeta;
                         }
+                    } catch (err) {
+                        console.warn(
+                            "[UpcomingReleases] Failed to fetch meta for",
+                            id,
+                            err
+                        );
+                        return null;
                     }
-                    if (cachedMeta) {
-                        Object.assign(meta, cachedMeta);
-                    }
-                    return meta;
-                })
-            );
+                }
+                if (cachedMeta) {
+                    Object.assign(meta, cachedMeta);
+                }
+                return meta;
+            });
+
+            const results = await this.batchPromiseAllSettled(promiseFns);
 
             let metas = results
                 .filter((r) => r.status === "fulfilled" && r.value)
@@ -568,46 +594,47 @@
                     }
                 }
 
-                // 2. Optimized Series Videos Fetch
+                // 2. Optimized Series Videos Fetch with batched processing
                 const seriesMetas = all.filter((m) => m.type === "series");
                 const movieMetas = all.filter((m) => m.type === "movie");
 
-                const seriesEnrichmentResults = await Promise.allSettled(
-                    seriesMetas.map(async (m) => {
-                        const metaCacheKey = `fullmeta:${m.id}`;
-                        let cachedMeta = this.videoCacheGet(metaCacheKey);
+                const promiseFns = seriesMetas.map((m) => async () => {
+                    const metaCacheKey = `fullmeta:${m.id}`;
+                    let cachedMeta = this.videoCacheGet(metaCacheKey);
 
-                        if (!cachedMeta) {
-                            try {
-                                const data = await this.safeFetch(
-                                    `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/${m.type}/${m.id}.json`
+                    if (!cachedMeta) {
+                        try {
+                            const data = await this.safeFetch(
+                                `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/${m.type}/${m.id}.json`
+                            );
+                            cachedMeta = data?.meta || [];
+                            if (cachedMeta) {
+                                this.videoCacheSet(
+                                    metaCacheKey,
+                                    this.mapToListItem(cachedMeta)
                                 );
-                                cachedMeta = data?.meta || [];
-                                if (cachedMeta) {
-                                    this.videoCacheSet(
-                                        metaCacheKey,
-                                        this.mapToListItem(cachedMeta)
-                                    );
-                                    console.log(
-                                        "[UpcomingReleases] Fetched meta for",
-                                        m.id,
-                                        m.title
-                                    );
-                                }
-                            } catch (err) {
-                                console.warn(
-                                    "[UpcomingReleases] Failed to pre-fetch meta for",
+                                console.log(
+                                    "[UpcomingReleases] Fetched meta for",
                                     m.id,
-                                    err
+                                    m.title
                                 );
                             }
+                        } catch (err) {
+                            console.warn(
+                                "[UpcomingReleases] Failed to pre-fetch meta for",
+                                m.id,
+                                err
+                            );
                         }
-                        if (cachedMeta) {
-                            Object.assign(m, cachedMeta);
-                        }
-                        return m;
-                    })
-                );
+                    }
+                    if (cachedMeta) {
+                        Object.assign(m, cachedMeta);
+                    }
+                    return m;
+                });
+
+                const seriesEnrichmentResults =
+                    await this.batchPromiseAllSettled(promiseFns);
 
                 let allMetasWithVideos = [
                     ...movieMetas,
