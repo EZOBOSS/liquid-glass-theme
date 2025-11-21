@@ -1287,7 +1287,14 @@ body.ghost-clicking #heroLoadingScreen {
     color: rgba(255, 255, 255, 1) !important;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) !important;
 }
-
+.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO {
+    background-image: linear-gradient(
+        to right,
+        #6a11cbc7 0%,
+        #2575fce0 100%
+    ) !important;
+    background-color: transparent !important;
+}
 /* ========================= UPCOMING FLAG GLASS STYLING (GREEN) ========================= */
 
 /* Upcoming flag container - keep original position */
@@ -1430,93 +1437,6 @@ body.ghost-clicking #heroLoadingScreen {
 .meta-item-container-Tj0Ib .poster-container-qkw48,
 .meta-item-container-Tj0Ib .poster-image-NiV7O {
     position: relative !important; /* ensure overlay absolutely positions over poster */
-}
-
-/* Make sure the watched layer covers the full poster image (not the small icon circle) */
-.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO,
-.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 8px !important;
-    background: rgba(0, 0, 0, 0.595) !important; /* darken the poster image */
-    color: #fff !important;
-    z-index: 50 !important;
-    border-radius: inherit !important;
-    backdrop-filter: var(--backdrop-filter) !important;
-    border: 0 !important;
-    pointer-events: none !important; /* let clicks pass through if needed */
-    opacity: 1 !important;
-    transition: opacity 0.25s ease !important;
-    opacity: 0.5 !important;
-    margin-top: 1rem !important;
-}
-
-/* Hide any existing inner icons/svg so only our pseudo-elements show */
-.meta-item-container-Tj0Ib
-    .poster-container-qkw48
-    .watched-icon-layer-bi3DO
-    > *,
-.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO > *,
-.meta-item-container-Tj0Ib
-    .poster-container-qkw48
-    .watched-icon-layer-bi3DO
-    svg,
-.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO svg,
-.meta-item-container-Tj0Ib
-    .poster-container-qkw48
-    .watched-icon-layer-bi3DO
-    .icon,
-.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO .icon {
-    display: none !important;
-}
-
-/* Ensure no padding/margins interfere with centering */
-.meta-item-container-Tj0Ib .poster-container-qkw48 .watched-icon-layer-bi3DO,
-.meta-item-container-Tj0Ib .poster-image-NiV7O .watched-icon-layer-bi3DO {
-    padding: 0 !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
-}
-
-/* White checkmark */
-.meta-item-container-Tj0Ib
-    .poster-container-qkw48
-    .watched-icon-layer-bi3DO::before,
-.meta-item-container-Tj0Ib
-    .poster-image-NiV7O
-    .watched-icon-layer-bi3DO::before {
-    content: "";
-    display: block;
-    width: 32px;
-    height: 20px;
-    border-left: 4px solid #fff;
-    border-bottom: 4px solid #fff;
-    transform: rotate(-45deg);
-    margin-bottom: 6px; /* spacing between check and label */
-    box-sizing: border-box;
-}
-
-/* Watched label */
-.meta-item-container-Tj0Ib
-    .poster-container-qkw48
-    .watched-icon-layer-bi3DO::after,
-.meta-item-container-Tj0Ib
-    .poster-image-NiV7O
-    .watched-icon-layer-bi3DO::after {
-    content: "Watched";
-    display: block;
-    color: #fff;
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 0.6px;
-    text-transform: none;
 }
 
 .dropdown-MWaxp {
