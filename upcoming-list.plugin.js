@@ -699,7 +699,10 @@
                         .map((r) => r.value),
                 ];
 
+                // Apply user watch data before processing
                 allMetasWithVideos = this.getUserData(allMetasWithVideos);
+
+                // Process and filter: only items with upcoming releases will be included
                 const metadataList =
                     this.processMetasToList(allMetasWithVideos);
 
@@ -719,64 +722,58 @@
 
         processMetasToList(metas) {
             const list = [];
+            const posterBase = UpcomingReleasesPlugin.CONFIG.URLS.POSTER;
+            const logoBase = UpcomingReleasesPlugin.CONFIG.URLS.LOGO;
+
             for (const m of metas) {
                 const closest = this.getClosestFutureVideo(m);
                 if (!closest) continue;
 
                 const { dateMs, video } = closest;
-                const releaseDate = new Date(dateMs);
-                const episodeText =
-                    video.season > 0 && video.episode > 0
-                        ? `S${video.season} E${video.episode}`
-                        : "Movie";
+                const isSeries = video.season > 0 && video.episode > 0;
+                const id = m.id || m._id;
 
-                const href =
-                    video.season > 0 && video.episode > 0
-                        ? `#/detail/${m.type}/${m.id}` // Series usually goes to detail
-                        : `#/detail/${m.type}/${m.id}/${m.id}`; // Movies might need specific ID
+                // Compute episode-related data once
+                const episodeText = isSeries
+                    ? `S${video.season} E${video.episode}`
+                    : "Movie";
+                const href = isSeries
+                    ? `#/detail/${m.type}/${id}`
+                    : `#/detail/${m.type}/${id}/${id}`;
+                const isNewSeason = video.episode === 1;
 
-                const trailer =
-                    m?.trailer ||
-                    m?.trailers?.[0]?.source ||
-                    m?.trailers?.[0]?.url ||
-                    m?.videos?.[0]?.url ||
-                    null;
-
-                let latestSeasonVideos = [];
-                if (video.season > 0) {
-                    latestSeasonVideos = m.videos.filter(
-                        (v) =>
-                            v.season === video.season ||
-                            (v.season === 0 && v.episode === 0)
-                    );
-                }
+                // Only filter videos if it's a series
+                const latestSeasonVideos = isSeries
+                    ? m.videos.filter(
+                          (v) =>
+                              v.season === video.season ||
+                              (v.season === 0 && v.episode === 0)
+                      )
+                    : [];
 
                 list.push({
-                    id: m.id || m._id,
+                    id,
                     type: m.type,
                     title: m.name,
-                    releaseDate,
+                    releaseDate: new Date(dateMs),
                     releaseText: this.formatDaysUntil(dateMs),
                     episodeText,
-                    poster: `${UpcomingReleasesPlugin.CONFIG.URLS.POSTER}/${
-                        m.id || m._id
-                    }/img`,
-                    logo: `${UpcomingReleasesPlugin.CONFIG.URLS.LOGO}/${
-                        m.id || m._id
-                    }/img`,
+                    poster: `${posterBase}/${id}/img`,
+                    logo: `${logoBase}/${id}/img`,
                     href,
-                    trailer,
+                    trailer:
+                        m?.trailer ||
+                        m?.trailers?.[0]?.source ||
+                        m?.trailers?.[0]?.url ||
+                        m?.videos?.[0]?.url ||
+                        null,
                     description: m.description,
                     rating: m.imdbRating || "",
                     year: m.year || m.releaseInfo || "",
                     runtime: m.runtime,
-                    genres: Array.isArray(m.genre)
-                        ? m.genre
-                        : Array.isArray(m.genres)
-                        ? m.genres
-                        : [],
-                    videos: latestSeasonVideos || [],
-                    isNewSeason: video.episode === 1,
+                    genres: m.genre || m.genres || [],
+                    videos: latestSeasonVideos,
+                    isNewSeason,
                 });
             }
             return list;

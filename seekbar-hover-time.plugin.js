@@ -30,6 +30,7 @@
         isInitialized: false,
         currentSeekBar: null,
         isHovering: false,
+        isActive: false, // Track if script should be active
     };
 
     // Create tooltip element with smooth transitions
@@ -143,6 +144,7 @@
 
         for (const selector of seekBarSelectors) {
             const element = document.querySelector(selector);
+
             if (element) return element;
         }
 
@@ -311,6 +313,33 @@
         state.seekBarRect = null;
     }
 
+    // Check if we're on the player page
+    function checkIfPlayerPage() {
+        const isPlayerPage = window.location.href.includes("player");
+
+        if (isPlayerPage && !state.isActive) {
+            // Activate the script
+            state.isActive = true;
+            initializeTimelineHover();
+            watchForPlayerChanges();
+        } else if (!isPlayerPage && state.isActive) {
+            // Deactivate the script
+            state.isActive = false;
+            cleanup();
+
+            // Disconnect mutation observer
+            if (state.mutationObserver) {
+                state.mutationObserver.disconnect();
+                state.mutationObserver = null;
+            }
+
+            // Hide tooltip
+            if (state.tooltipElement) {
+                state.tooltipElement.style.opacity = "0";
+            }
+        }
+    }
+
     // Initialize hover functionality
     function initializeTimelineHover() {
         const seekBar = findSeekBar();
@@ -394,12 +423,17 @@
     // Initialize when DOM is ready
     function init() {
         createTooltip();
-        initializeTimelineHover();
-        watchForPlayerChanges();
 
-        // Re-initialize on navigation changes (Stremio-specific)
-        window.addEventListener("hashchange", () => {
-            setTimeout(initializeTimelineHover, CONFIG.reinitRetryDelay);
+        // Check if we should be active based on current URL
+        checkIfPlayerPage();
+
+        // Monitor URL changes (hash changes)
+        window.addEventListener("hashchange", (event) => {
+            if (event.newURL.includes("player")) {
+                checkIfPlayerPage();
+            } else {
+                checkIfPlayerPage();
+            }
         });
     }
 
