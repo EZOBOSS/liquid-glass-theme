@@ -53,4 +53,4 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
 
 ## Credits
 
-original [fork](https://github.com/Fxy6969/Stremio-Glass-Theme) by Fxy
+forked from [original](https://github.com/Fxy6969/Stremio-Glass-Theme) by Fxy
