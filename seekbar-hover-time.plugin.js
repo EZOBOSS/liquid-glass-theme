@@ -42,6 +42,7 @@
         tooltip.style.cssText = `
             position: absolute;
             background: rgba(70, 70, 70, 0.22);
+            top: 0;
             color: white;
             padding: 6px 12px;
             border-radius: 999px;

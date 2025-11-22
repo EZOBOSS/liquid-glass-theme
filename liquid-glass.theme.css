@@ -47,11 +47,6 @@
 
 html body {
     background: var(--background);
-    overflow-y: scroll !important;
-    scroll-snap-type: y mandatory !important;
-}
-html {
-    scroll-behavior: smooth !important;
 }
 
 ::-webkit-scrollbar {
@@ -1493,7 +1488,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 .multiselect-menu-qMdaj .multiselect-button-XXdgA {
-    background: rgba(70, 70, 70, 0.22) !important;
+    background: transparent !important;
     box-shadow: var(--box-shadow) !important;
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
@@ -2672,6 +2667,32 @@ body.ghost-clicking #heroLoadingScreen {
 .stream-container-JPdah .info-container-TihQo .addon-name-tC8PX {
     font-size: 0.9rem !important;
 }
+.videos-list-container-NepX5 {
+    margin-right: 20px !important;
+    margin-bottom: 20px !important;
+    border-radius: 20px !important;
+    padding-bottom: 1rem !important;
+    backdrop-filter: blur(15px) saturate(2) !important;
+}
+/* Streams List */
+.metadetails-content-Uz5EV .streams-list-container-xYMJo {
+    margin-right: 20px !important;
+    margin-bottom: 20px !important;
+    border-radius: 20px !important;
+    backdrop-filter: blur(15px) saturate(2) !important;
+}
+.streams-container-bbSc4 {
+    margin-bottom: 1rem !important;
+}
+.button-container-zVLH6 {
+    transition: all 0.3s ease !important;
+    z-index: 10 !important;
+}
+
+.button-container-zVLH6:hover {
+    transform: scale(1.05) !important;
+}
+
 /* Green Play Button */
 .stream-container-JPdah .icon-rAZvO {
     z-index: 2 !important;
