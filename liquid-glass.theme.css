@@ -11,8 +11,8 @@
 * {
     font-family: "Open Sans", sans-serif !important;
     font-optical-sizing: auto;
-
-    scrollbar-width: none;
+    scrollbar-width: none !important;
+    scrollbar-color: transparent transparent !important; /* Prevents scrollbar-color animations in performance profiler */
 }
 
 /* change the accent color from purple to white */
@@ -41,8 +41,7 @@ html body {
 }
 
 ::-webkit-scrollbar {
-    width: 0; /* removes scrollbar track */
-    height: 0;
+    display: none;
 }
 
 /* ========================= NAV BAR / HEADER ========================= */
@@ -1647,9 +1646,39 @@ body.ghost-clicking #heroLoadingScreen {
     height: 100% !important;
     object-fit: cover !important;
     border-radius: inherit !important;
-    transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
+    transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
+        opacity 0.3s ease !important;
     display: block !important;
 }
+
+/* Lazy loading placeholder - subtle gradient background while loading */
+.meta-item-container-Tj0Ib .poster-image-NiV7O.lazy-load-img:not([src]) {
+    background: linear-gradient(
+        135deg,
+        rgba(30, 30, 30, 0.4) 0%,
+        rgba(50, 50, 50, 0.4) 50%,
+        rgba(30, 30, 30, 0.4) 100%
+    );
+    background-size: 200% 200%;
+    animation: shimmer 2s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+@keyframes shimmer {
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+/* Fade in when loaded */
+.meta-item-container-Tj0Ib .poster-image-NiV7O.lazy-load-img[src] {
+    opacity: 1;
+}
+
 /* Make sure poster fully fills container */
 .meta-item-container-Tj0Ib .poster-container-qkw48,
 .meta-item-container-Tj0Ib .poster-image-NiV7O {

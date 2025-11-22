@@ -7,6 +7,7 @@
 
 const CONFIG = {
     apiBase: "https://v3-cinemeta.strem.io/meta",
+    corsProxy: "https://corsproxy.io/?", // CORS proxy to bypass restrictions
     timeout: 5000,
     updateInterval: 10000, // refresh every 10s
     concurrency: 4, // limit simultaneous fetches
@@ -251,9 +252,13 @@ async function getMetadata(id, type) {
                 () => controller.abort(),
                 CONFIG.timeout
             );
-            const res = await fetch(`${CONFIG.apiBase}/${type}/${id}.json`, {
-                signal: controller.signal,
-            });
+            const res = await fetch(
+                `${CONFIG.corsProxy}${CONFIG.apiBase}/${type}/${id}.json`,
+                {
+                    signal: controller.signal,
+                    credentials: "omit", // Block cookies and credentials
+                }
+            );
             clearTimeout(timeoutId);
 
             if (!res.ok) throw new Error(res.statusText);

@@ -36,6 +36,27 @@
             this.activeScrolls = new Set();
             this.isLoopRunning = false;
 
+            // Lazy Loading Observer - preload images before they enter viewport
+            this.lazyLoadObserver = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            const src = img.dataset.src;
+                            if (src && !img.src) {
+                                img.src = src;
+                                img.removeAttribute("data-src");
+                                this.lazyLoadObserver.unobserve(img);
+                            }
+                        }
+                    });
+                },
+                {
+                    rootMargin: "2000px", // Start loading 2000px before entering viewport
+                    threshold: 0,
+                }
+            );
+
             // Bind methods
             this.globalTick = this.globalTick.bind(this);
             this.onHashChange = this.onHashChange.bind(this);
@@ -357,9 +378,11 @@
         }
 
         updateScrollIndicator(track, indicator) {
+            // PHASE 1: READ ALL LAYOUT PROPERTIES FIRST (batched reads)
             const scrollLeft = track.scrollLeft;
-            const maxScroll = track.scrollWidth - track.clientWidth;
-            const threshold = 5;
+            const scrollWidth = track.scrollWidth;
+            const clientWidth = track.clientWidth;
+            const childrenLength = track.children.length;
 
             // Use cached element references (no querySelector needed!)
             const leftArrow = indicator._leftArrow;
@@ -367,35 +390,50 @@
             const scrollCount = indicator._scrollCount;
             const lastState = indicator._lastState;
 
+            // Read current class states
+            const isIndicatorHidden = indicator.classList.contains(
+                "scroll-indicator-hidden"
+            );
+
+            const threshold = 5;
+            const maxScroll = scrollWidth - clientWidth;
+
+            // PHASE 2: CALCULATE (no DOM access)
             // Hide entire indicator if there's no scrollable content
             if (maxScroll <= 0) {
-                if (!indicator.classList.contains("scroll-indicator-hidden")) {
+                if (!isIndicatorHidden) {
                     indicator.classList.add("scroll-indicator-hidden");
                 }
                 return;
-            } else {
-                if (indicator.classList.contains("scroll-indicator-hidden")) {
-                    indicator.classList.remove("scroll-indicator-hidden");
-                }
             }
 
             // Recalculate totalItems and itemWidth only if they've changed
-            const currentTotalItems = track.children.length;
-            if (currentTotalItems !== lastState.totalItems) {
-                lastState.totalItems = currentTotalItems;
-                lastState.itemWidth =
-                    currentTotalItems > 0
-                        ? track.scrollWidth / currentTotalItems
-                        : 0;
+            let itemWidth = lastState.itemWidth;
+            if (childrenLength !== lastState.totalItems) {
+                lastState.totalItems = childrenLength;
+                itemWidth =
+                    childrenLength > 0 ? scrollWidth / childrenLength : 0;
+                lastState.itemWidth = itemWidth;
             }
 
             // Calculate current item using cached values
             let currentItem = 1;
-            if (lastState.totalItems > 0 && lastState.itemWidth > 0) {
+            if (lastState.totalItems > 0 && itemWidth > 0) {
                 currentItem = Math.min(
-                    Math.floor(scrollLeft / lastState.itemWidth) + 1,
+                    Math.floor(scrollLeft / itemWidth) + 1,
                     lastState.totalItems
                 );
+            }
+
+            // Determine arrow visibility
+            const atStart = scrollLeft <= threshold;
+            const atEnd = scrollLeft >= maxScroll - threshold;
+            const shouldHideIndicator = atStart && atEnd;
+
+            // PHASE 3: WRITE ALL DOM CHANGES (batched writes)
+            // Show indicator if it was hidden and there's scrollable content
+            if (isIndicatorHidden && !shouldHideIndicator) {
+                indicator.classList.remove("scroll-indicator-hidden");
             }
 
             // Update scroll count only if changed
@@ -409,10 +447,6 @@
                     scrollCount.classList.add("scroll-count-hidden");
                 }
             }
-
-            // Determine arrow visibility
-            const atStart = scrollLeft <= threshold;
-            const atEnd = scrollLeft >= maxScroll - threshold;
 
             // Update left arrow only if state changed
             if (atStart !== lastState.atStart) {
@@ -435,15 +469,8 @@
             }
 
             // Hide entire indicator if both arrows are hidden
-            const shouldHideIndicator = atStart && atEnd;
-            const isCurrentlyHidden = indicator.classList.contains(
-                "scroll-indicator-hidden"
-            );
-
-            if (shouldHideIndicator && !isCurrentlyHidden) {
+            if (shouldHideIndicator && !isIndicatorHidden) {
                 indicator.classList.add("scroll-indicator-hidden");
-            } else if (!shouldHideIndicator && isCurrentlyHidden) {
-                indicator.classList.remove("scroll-indicator-hidden");
             }
         }
 
@@ -805,10 +832,9 @@
                         <div class="poster-container-qkw48">
                             <div class="poster-image-layer-KimPZ">
                                 <img
-                                    class="poster-image-NiV7O"
-                                    src="${meta.background}"
+                                    class="poster-image-NiV7O lazy-load-img"
+                                    data-src="${meta.background}"
                                     alt=""
-                                    loading="lazy"
                                     decoding="async"
                                 />
                             </div>
@@ -825,6 +851,14 @@
 
                 requestAnimationFrame(() => {
                     track.appendChild(fragment);
+
+                    // Observe all newly added images for lazy loading
+                    const newImages = track.querySelectorAll(
+                        ".lazy-load-img[data-src]"
+                    );
+                    newImages.forEach((img) => {
+                        this.lazyLoadObserver.observe(img);
+                    });
                 });
             } catch (err) {
                 console.error("[InfiniteScrollPlugin] Fetch error", err);
