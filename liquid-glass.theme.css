@@ -17,7 +17,7 @@
 
 /* change the accent color from purple to white */
 :root {
-    --primary-accent-color: #fff;
+    --primary-accent-color: #ffffffdf;
     --background: radial-gradient(
         circle,
         rgba(18, 19, 7, 0.749) 0%,
@@ -1822,7 +1822,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 /* card margin */
 .meta-items-container-qcuUA {
-    margin-left: 1rem !important;
+    margin-left: 2rem !important;
     height: 18rem !important;
 }
 
@@ -2739,7 +2739,7 @@ body.ghost-clicking #heroLoadingScreen {
 /* Icon-Only Navigation with Hover Reveal */
 
 /* Target the navigation links in the horizontal bar */
-#app [class*="horizontal-nav-bar"] a {
+#app [class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] a {
     display: flex !important;
     flex-direction: row !important; /* Force side-by-side */
     flex-wrap: nowrap !important; /* Prevent wrapping */
@@ -2753,7 +2753,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 /* Style the icon (SVG) */
-#app [class*="horizontal-nav-bar"] a svg {
+#app [class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] a svg {
     width: 20px !important;
     height: 20px !important;
     flex-shrink: 0 !important;
@@ -2764,7 +2764,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 /* Style the label (text) - Hidden by default */
-#app [class*="horizontal-nav-bar"] a .nav-label {
+#app [class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] a .nav-label {
     max-width: 0 !important;
     opacity: 0 !important;
     overflow: hidden !important;
@@ -2774,8 +2774,16 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 /* Hover State - Reveal Text */
-#app [class*="horizontal-nav-bar"] a:hover .nav-label,
-#app [class*="horizontal-nav-bar"] [class*="selected"] .nav-label {
+#app
+    [class*="horizontal-nav-bar"]
+    [class*="vertical-nav-bar"]
+    a:hover
+    .nav-label,
+#app
+    [class*="horizontal-nav-bar"]
+    [class*="vertical-nav-bar"]
+    [class*="selected"]
+    .nav-label {
     max-width: 150px !important; /* Sufficient width for text */
     opacity: 1 !important;
     padding: 0 5px !important; /* Add padding back */
@@ -2783,6 +2791,144 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 /* Optional: Hover background effect for the link */
-#app [class*="horizontal-nav-bar"] a:hover {
+#app [class*="horizontal-nav-bar"][class*="vertical-nav-bar"] a:hover {
     background: rgba(255, 255, 255, 0.1) !important;
+}
+/* Homepage Row Headers Styling */
+
+/* Header Container */
+#app [class*="board-container"] [class*="header-container"] {
+    background: transparent !important; /* Removed background */
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    border: none !important;
+    padding: 0 1.5rem !important; /* Reduced padding */
+    margin-bottom: 1rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2 !important; /* Ensure it sits on top if needed */
+    pointer-events: none !important; /* Let clicks pass through the empty space */
+}
+
+/* Title */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="title-container"] {
+    color: var(--primary-accent-color) !important;
+    font-size: 1.2rem !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+    letter-spacing: 0.5px !important;
+
+    /* Glass Effect moved here */
+    background: rgba(70, 70, 70, 0.22) !important;
+    border-radius: 999px !important; /* Pill shape for title too? Or 12px */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(10px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+    padding: 0.5rem 1.5rem !important;
+    width: fit-content !important; /* Don't stretch */
+    pointer-events: auto !important; /* Re-enable clicks */
+    flex-grow: 0 !important; /* Prevent growing */
+    flex-basis: auto !important; /* Only take necessary space */
+    margin-right: auto !important; /* Push everything else to the right, just in case */
+}
+
+/* "See All" Button Container */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="see-all-container"] {
+    background: rgba(70, 70, 70, 0.22) !important;
+    border-radius: 999px !important;
+    padding: 6px 8px !important; /* Reduced padding for icon only state */
+    transition: all 0.3s ease !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    backdrop-filter: blur(10px) saturate(180%) !important;
+    pointer-events: auto !important;
+    width: fit-content !important;
+    gap: 0 !important; /* Ensure no gap between collapsed label and icon */
+}
+
+/* Hide Label by Default */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="see-all-container"]
+    [class*="label-bytni"] {
+    max-width: 0 !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    transition: all 0.3s ease !important;
+    margin: 0 !important;
+    padding: 0 !important; /* Ensure no padding takes up space */
+    border: none !important;
+}
+
+/* Show Label on Hover */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="see-all-container"]:hover
+    [class*="label-bytni"] {
+    max-width: 100px !important; /* Adjust as needed */
+    opacity: 1 !important;
+    margin-right: 8px !important; /* Space between label and icon */
+}
+
+/* Icon Style */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="see-all-container"]
+    [class*="icon-Sj7HO"] {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1.2rem !important; /* Adjust icon size */
+    margin: 0 !important; /* Ensure no margin on icon */
+}
+
+/* "See All" Button Hover Container Effect */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="see-all-container"]:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    color: #fff !important;
+    padding: 6px 16px !important; /* Increase padding when text is shown */
+}
+
+/* Ensure the button container inside doesn't override */
+#app
+    [class*="board-container"]
+    [class*="header-container"]
+    [class*="see-all-container"]
+    [class*="button-container"] {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
 }
