@@ -510,6 +510,16 @@ function handleIntersection(entries) {
     });
 }
 
+function observeElement(el) {
+    if (
+        !el.classList.contains("enhanced-title-bar") &&
+        !el.dataset.etbObserved
+    ) {
+        el.dataset.etbObserved = "true";
+        intersectionObserver.observe(el);
+    }
+}
+
 function initObservers() {
     if (intersectionObserver) return;
 
@@ -519,20 +529,29 @@ function initObservers() {
     });
 
     // Initial scan
-    scanAndObserve();
+    document.querySelectorAll(TITLE_BAR_SELECTOR).forEach(observeElement);
 
     // Mutation Observer for new content
     if (typeof MutationObserver !== "undefined") {
         const mutationObserver = new MutationObserver((mutations) => {
-            let shouldScan = false;
             for (const m of mutations) {
-                if (m.type === "childList" && m.addedNodes.length > 0) {
-                    shouldScan = true;
-                    break;
+                if (m.type === "childList") {
+                    m.addedNodes.forEach((node) => {
+                        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+                        // Check if the node itself is a title bar
+                        if (node.matches && node.matches(TITLE_BAR_SELECTOR)) {
+                            observeElement(node);
+                        }
+
+                        // Check children of the added node
+                        if (node.querySelectorAll) {
+                            node.querySelectorAll(TITLE_BAR_SELECTOR).forEach(
+                                observeElement
+                            );
+                        }
+                    });
                 }
-            }
-            if (shouldScan) {
-                scanAndObserve();
             }
         });
 
@@ -541,19 +560,6 @@ function initObservers() {
             subtree: true,
         });
     }
-}
-
-function scanAndObserve() {
-    const elements = document.querySelectorAll(TITLE_BAR_SELECTOR);
-    elements.forEach((el) => {
-        if (
-            !el.classList.contains("enhanced-title-bar") &&
-            !el.dataset.etbObserved
-        ) {
-            el.dataset.etbObserved = "true";
-            intersectionObserver.observe(el);
-        }
-    });
 }
 
 function init() {

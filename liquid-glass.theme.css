@@ -209,7 +209,7 @@ html body {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.4),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    backdrop-filter: var(--backdrop-filter2) !important;
+    backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     transform: scale(0.8) !important;
     opacity: 1 !important;
@@ -2617,7 +2617,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .video-container-ezBpK:hover {
     transform: scale(1.02) !important;
-    z-index: 10 !important;
+    z-index: 15 !important;
 }
 .video-container-ezBpK .thumbnail-container-Zm8Cl {
     position: absolute !important;
@@ -2686,7 +2686,6 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .button-container-zVLH6 {
     transition: all 0.3s ease !important;
-    z-index: 10 !important;
 }
 
 .button-container-zVLH6:hover {
@@ -2736,4 +2735,54 @@ body.ghost-clicking #heroLoadingScreen {
     box-shadow: var(--box-shadow) !important;
     opacity: 0.9 !important;
     border-radius: 15px !important;
+}
+/* Icon-Only Navigation with Hover Reveal */
+
+/* Target the navigation links in the horizontal bar */
+#app [class*="horizontal-nav-bar"] a {
+    display: flex !important;
+    flex-direction: row !important; /* Force side-by-side */
+    flex-wrap: nowrap !important; /* Prevent wrapping */
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px 12px !important; /* Adjust padding as needed */
+    transition: all 0.3s ease !important;
+    gap: 0 !important; /* Removed gap to fix centering */
+    text-decoration: none !important;
+    border-radius: 999px !important; /* Pill shape */
+}
+
+/* Style the icon (SVG) */
+#app [class*="horizontal-nav-bar"] a svg {
+    width: 20px !important;
+    height: 20px !important;
+    flex-shrink: 0 !important;
+    fill: currentColor !important; /* Use text color */
+    display: block !important; /* Ensure it's visible */
+    margin: 0 !important; /* Remove any default margins */
+    align-self: center !important; /* Explicitly center vertically */
+}
+
+/* Style the label (text) - Hidden by default */
+#app [class*="horizontal-nav-bar"] a .nav-label {
+    max-width: 0 !important;
+    opacity: 0 !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    transition: all 0.3s ease !important;
+    padding: 0 !important; /* Remove padding when hidden */
+}
+
+/* Hover State - Reveal Text */
+#app [class*="horizontal-nav-bar"] a:hover .nav-label,
+#app [class*="horizontal-nav-bar"] [class*="selected"] .nav-label {
+    max-width: 150px !important; /* Sufficient width for text */
+    opacity: 1 !important;
+    padding: 0 5px !important; /* Add padding back */
+    margin-left: 8px !important; /* Add spacing on hover/selected */
+}
+
+/* Optional: Hover background effect for the link */
+#app [class*="horizontal-nav-bar"] a:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
 }

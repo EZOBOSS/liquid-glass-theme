@@ -33,6 +33,7 @@
         constructor() {
             this.memoryCache = new Map();
             this.videoMemoryCache = null;
+            this.libraryRecentCache = null; // New cache for library data
             this.videoCacheTimeoutId = null;
             this.updateState = false;
             this.renderTimeout = null;
@@ -52,6 +53,7 @@
             window.addEventListener("hashchange", (event) => {
                 if (event.oldURL.includes("player")) {
                     this.updateState = true;
+                    this.libraryRecentCache = null; // Invalidate cache on player exit
                 }
                 // Debounce render
                 if (this.renderTimeout) clearTimeout(this.renderTimeout);
@@ -77,13 +79,10 @@
                 return false;
             };
 
-            // If found immediately, we still observe briefly in case it's the old one being removed
-            // But if we render, the duplicate check protects us.
-            // Actually, if we find it, we might want to wait to see if it disappears?
-            // For simplicity and speed: render if found.
-            check();
+            if (check()) return;
 
             this.heroObserver = new MutationObserver((mutations) => {
+                let found = false;
                 for (const mutation of mutations) {
                     // Optimization: Ignore if target is inside hero (we only care about hero creation)
                     if (
@@ -93,21 +92,22 @@
                         continue;
 
                     for (const node of mutation.addedNodes) {
-                        if (node.nodeType === 1) {
-                            if (
-                                node.classList?.contains("hero-container") ||
-                                node.querySelector?.(".hero-container")
-                            ) {
-                                if (check()) {
-                                    // Found and rendered (or already present)
-                                    if (this.heroObserver) {
-                                        this.heroObserver.disconnect();
-                                        this.heroObserver = null;
-                                    }
-                                    return;
-                                }
-                            }
+                        if (
+                            node.nodeType === 1 &&
+                            (node.classList?.contains("hero-container") ||
+                                node.querySelector?.(".hero-container"))
+                        ) {
+                            found = true;
+                            break;
                         }
+                    }
+                    if (found) break;
+                }
+
+                if (found && check()) {
+                    if (this.heroObserver) {
+                        this.heroObserver.disconnect();
+                        this.heroObserver = null;
                     }
                 }
             });
@@ -295,8 +295,7 @@
             }
         }
 
-        formatDaysUntil(dateMs) {
-            const now = Date.now();
+        formatDaysUntil(dateMs, now = Date.now()) {
             const dayMs = 86400000;
             const diff = Math.ceil((dateMs - now) / dayMs);
 
@@ -350,6 +349,8 @@
         // --- Data Logic ---
 
         getUserLibrarySeries() {
+            if (this.libraryRecentCache) return this.libraryRecentCache;
+
             try {
                 const raw = localStorage.getItem(
                     UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
@@ -358,7 +359,7 @@
                 const library = JSON.parse(raw);
                 const libraryItems = Object.values(library.items || {});
 
-                return libraryItems.filter((item) => {
+                const filtered = libraryItems.filter((item) => {
                     if (item?.type !== "series") return false;
                     if (!item?._id?.startsWith("tt")) return false;
 
@@ -368,6 +369,9 @@
                     const [, s, e] = watched.split(":");
                     return +s > 1 || +e > 1; // exclude only-watched pilot
                 });
+
+                this.libraryRecentCache = filtered;
+                return filtered;
             } catch (err) {
                 console.warn(
                     "[UpcomingReleases] Failed to read library_recent",
@@ -467,6 +471,7 @@
 
             const enriched = this.getUserData(cache);
             const updated = [];
+            const now = Date.now();
 
             for (const m of enriched) {
                 const closest = this.getClosestFutureVideo(m);
@@ -479,7 +484,7 @@
                         : "Movie";
 
                 m.releaseDate = new Date(dateMs);
-                m.releaseText = this.formatDaysUntil(dateMs);
+                m.releaseText = this.formatDaysUntil(dateMs, now);
                 m.isNewSeason = video.episode === 1;
                 m.episodeText = episodeText;
 
@@ -909,7 +914,7 @@
         buildGridHtml(upcoming) {
             const thresholdMs =
                 Date.now() - UpcomingReleasesPlugin.CONFIG.DAY_BUFFER;
-            let gridHtml = "";
+            const gridItems = [];
 
             for (const m of upcoming) {
                 let episodesContainerHtml = "";
@@ -921,7 +926,7 @@
                         nextUp = { season: +match[1], episode: +match[2] };
                     }
 
-                    let episodesHtml = "";
+                    const episodesHtmlParts = [];
                     for (const ep of m.videos) {
                         const released = Date.parse(ep.released) <= thresholdMs;
                         const isWatched = ep.watched;
@@ -948,7 +953,7 @@
                             ? '<div class="upcoming-episode-watched-tag">&#x2713;</div>'
                             : "";
 
-                        episodesHtml += `
+                        episodesHtmlParts.push(`
                         <div class="upcoming-episode-card ${stateClass}">
                             <div class="upcoming-episode-number">${
                                 ep.episode
@@ -961,9 +966,11 @@
                             )}</div>
                             ${watchedTextDiv}
                             <div class="upcoming-episode-thumbnail">${thumbnailHtml}</div>
-                        </div>`;
+                        </div>`);
                     }
-                    episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtml}</div>`;
+                    episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtmlParts.join(
+                        ""
+                    )}</div>`;
                 }
 
                 const upcomingSeasonNumber = m.isNewSeason
@@ -974,7 +981,7 @@
                     ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERE</div>`
                     : "";
 
-                gridHtml += `
+                gridItems.push(`
                 <a tabindex="0" class="upcoming-card${newSeasonClass}" href="${
                     m.href
                 }"
@@ -1005,9 +1012,9 @@
                         <div class="upcoming-episode">${m.episodeText}</div>
                         ${episodesContainerHtml}
                     </div>
-                </a>`;
+                </a>`);
             }
-            return gridHtml;
+            return gridItems.join("");
         }
     }
 
