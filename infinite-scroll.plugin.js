@@ -207,13 +207,21 @@
 
             // Phase 1: Read & Calculate (No DOM writes here)
             for (const state of this.activeScrolls) {
-                const { track, widthCache, scrollTarget, velocity } = state;
+                const {
+                    track,
+                    widthCache,
+                    scrollTarget,
+                    velocity,
+                    currentScroll,
+                } = state;
 
                 // Re-read scrollWidth/clientWidth if needed, or rely on ResizeObserver cache
                 // For strict separation, we rely on widthCache which is updated via ResizeObserver
                 const maxScroll =
                     widthCache.scrollWidth - widthCache.clientWidth;
-                const currentLeft = track.scrollLeft; // DOM Read
+
+                // Use cached scroll position instead of reading from DOM
+                const currentLeft = currentScroll;
                 const diff = state.scrollTarget - currentLeft;
 
                 let newVelocity = state.velocity * FRICTION;
@@ -252,13 +260,22 @@
                 } = update;
 
                 state.track.scrollLeft = nextPos; // DOM Write
+                state.currentScroll = nextPos; // Update cache
                 state.velocity = newVelocity;
                 state.scrollTarget = newTarget;
+
+                // Update indicator with cached values to avoid it reading DOM
+                this.updateScrollIndicator(state.track, state.scrollIndicator, {
+                    scrollLeft: nextPos,
+                    scrollWidth: state.widthCache.scrollWidth,
+                    clientWidth: state.widthCache.clientWidth,
+                });
 
                 if (isStopped) {
                     this.activeScrolls.delete(state);
                     state.velocity = 0;
                     state.scrollTarget = state.track.scrollLeft;
+                    state.currentScroll = state.track.scrollLeft; // Ensure sync
                 } else {
                     // Check for fetch trigger
                     const preloadOffset = state.widthCache.clientWidth * 2;
@@ -377,11 +394,12 @@
             return indicator;
         }
 
-        updateScrollIndicator(track, indicator) {
+        updateScrollIndicator(track, indicator, values = null) {
             // PHASE 1: READ ALL LAYOUT PROPERTIES FIRST (batched reads)
-            const scrollLeft = track.scrollLeft;
-            const scrollWidth = track.scrollWidth;
-            const clientWidth = track.clientWidth;
+            // If values are provided (from globalTick), use them to avoid DOM reads
+            const scrollLeft = values ? values.scrollLeft : track.scrollLeft;
+            const scrollWidth = values ? values.scrollWidth : track.scrollWidth;
+            const clientWidth = values ? values.clientWidth : track.clientWidth;
             const childrenLength = track.children.length;
 
             // Use cached element references (no querySelector needed!)
@@ -499,6 +517,7 @@
                 type,
                 catalog,
                 scrollTarget: track.scrollLeft,
+                currentScroll: track.scrollLeft, // Cache initial scroll
                 velocity: 0,
                 widthCache: {
                     scrollWidth: track.scrollWidth,
@@ -546,6 +565,7 @@
                 if (!this.activeScrolls.has(state)) {
                     // Reset target to current position to avoid jumps if re-engaging
                     state.scrollTarget = track.scrollLeft;
+                    state.currentScroll = track.scrollLeft; // Sync cache
                     this.activeScrolls.add(state);
 
                     if (!this.isLoopRunning) {
@@ -564,8 +584,25 @@
             track.addEventListener(
                 "scroll",
                 () => {
+                    // If this scroll is being driven by our physics loop, ignore it
+                    // to prevent "Write (globalTick) -> Read (scroll listener)" thrashing
+                    if (this.activeScrolls.has(state)) {
+                        // Check if user interference happened (large discrepancy)
+                        const diff = Math.abs(
+                            track.scrollLeft - state.currentScroll
+                        );
+                        if (diff > 5) {
+                            // User likely dragged the scrollbar or touched
+                            state.scrollTarget = track.scrollLeft;
+                            state.currentScroll = track.scrollLeft;
+                            state.velocity = 0;
+                        }
+                        return;
+                    }
+
                     if (!this.activeScrolls.has(state)) {
                         state.scrollTarget = track.scrollLeft;
+                        state.currentScroll = track.scrollLeft;
                     }
 
                     // Throttle indicator updates to once per frame

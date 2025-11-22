@@ -12,7 +12,7 @@
     font-family: "Open Sans", sans-serif !important;
     font-optical-sizing: auto;
     scrollbar-width: none !important;
-    scrollbar-color: transparent transparent !important; /* Prevents scrollbar-color animations in performance profiler */
+    scrollbar-color: transparent transparent !important;
 }
 
 /* change the accent color from purple to white */
