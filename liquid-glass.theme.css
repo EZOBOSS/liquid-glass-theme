@@ -2407,6 +2407,11 @@ body.ghost-clicking #heroLoadingScreen {
     align-self: anchor-center;
     display: none;
 }
+.btn-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
 .toggle-btn:hover .btn-label {
     display: block;
 }
@@ -2417,8 +2422,6 @@ body.ghost-clicking #heroLoadingScreen {
         45deg,
         #cfad93c8 0% rgba (228, 239, 233, 0.726) e9 100%
     );
-
-    box-shadow: var(--box-shadow);
 }
 
 .toggle-btn.active {
@@ -2427,7 +2430,7 @@ body.ghost-clicking #heroLoadingScreen {
         rgba(122, 0, 0, 0.831) 8.1%,
         rgba(217, 42, 42, 0.803) 74.4%
     );
-    box-shadow: var(--box-shadow);
+
     opacity: 1;
 }
 

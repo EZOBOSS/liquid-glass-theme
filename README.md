@@ -49,7 +49,7 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
 
 ## Installation
 
-1.  Copy all files to stremio-community install webmods folder
+1.  Copy all files to [stremio-community-v5](https://github.com/Zaarrg/stremio-community-v5) install webmods folder
 
 ## Credits
 
