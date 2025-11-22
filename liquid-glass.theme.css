@@ -23,27 +23,18 @@
         rgba(18, 19, 7, 0.749) 0%,
         rgb(0, 0, 0) 100%
     );
-
     --bg-color: rgb(250, 251, 255, 0.74);
     --bg-color-img: linear-gradient(45deg, #f4f4fc, #f4f4fc);
     --bg-progress-color: #0c0c0c;
     --bg-hover-color: rgba(12, 12, 12, 0.05);
     --bg-input-color: rgba(157, 157, 157, 0.74);
-
     --border-radius: 10px;
     --backdrop-filter: blur(5px) saturate(180%);
-
     --box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1);
     --poster-shape-ratio: 1;
 }
-
-/* glass effect: */
-/*     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    backdrop-filter: var(--backdrop-filter) !important;
-    border: 1px solid rgba(255, 255, 255, 0.04) !important; */
 
 html body {
     background: var(--background);
@@ -228,40 +219,7 @@ html body {
     left: 91px !important;
     top: 0.5px !important;
     z-index: 1 !important;
-}
-
-/* Style the vertical nav container (layout, spacing, scroll) */
-#app [class*="vertical-nav-bar-container"] {
-    align-items: center !important;
-    background-color: transparent !important;
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 1rem !important;
-    overflow-y: auto !important;
-    padding: 1rem 0 !important;
-    scrollbar-width: none !important;
-    width: auto !important;
-    position: relative !important;
-}
-
-/* Optional custom label you add in markup */
-.nav-label {
-    color: var(--primary-accent-color) !important;
-    font-weight: 600 !important;
-    padding: 0 5px !important;
-}
-
-/* Selected tab look */
-#app [class*="nav-tab-button-container"].selected {
-    background: rgba(70, 70, 70, 0.22) !important;
-    border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
-    backdrop-filter: var(--backdrop-filter) !important;
-    border: 1px solid rgba(255, 255, 255, 0.04) !important;
-    opacity: 1 !important;
-    transform: translateY(0px) scale(1) !important;
+    height: 82.5px !important;
 }
 
 /* Ensure nav content is flush left */
@@ -269,38 +227,12 @@ html body {
     left: 0 !important;
 }
 
-/* Nav button sizing/padding */
-#app [class*="vertical-nav-bar-container"] [class*="nav-tab-button"] {
-    min-height: auto !important;
-    height: auto !important;
-    width: auto !important;
-    padding: 7px 10px !important;
-    transition: padding 0.2s ease-out !important;
-}
-
 /* account dropdown */
 /* settings menu */
 .poster-image-NiV7O:hover {
     cursor: pointer;
 }
-
 /* settings menu */
-
-.nav-menu-container-Pl25j,
-.nav-menu-container-Pl25j {
-    background-color: transparent !important;
-}
-
-.label-container-XOyzm,
-.menu-container-B6cqK {
-    background-color: transparent !important;
-}
-
-.label-container-XOyzm {
-    background-color: transparent !important;
-    box-shadow: none !important;
-}
-
 .menu-container-B6cqK {
     background-color: rgba(0, 0, 0, 0.9) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -334,10 +266,6 @@ html body {
     height: 1.5rem;
     border-radius: 0.4rem;
     padding: 0 0.7rem;
-}
-
-.slider-container-nJz5F .track-gItfW {
-    background-color: #ffffff;
 }
 
 .seek-bar-container-JGGTa .slider-hBDOf .thumb-PiTF5,
@@ -456,13 +384,11 @@ html body {
     object-fit: cover;
     object-position: center 10%;
     display: block;
-
     -webkit-mask-image: linear-gradient(to top, transparent, black 45%),
         linear-gradient(to right, transparent, black 75%);
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-size: cover;
     -webkit-mask-composite: intersect;
-
     mask-image: linear-gradient(to top, transparent, black 45%),
         linear-gradient(to right, transparent, black 75%);
     mask-repeat: no-repeat;
@@ -476,9 +402,7 @@ html body {
     width: 40%;
     padding-left: 6%;
     bottom: 0;
-
     color: white;
-
     font-family: "Inter", sans-serif !important;
     z-index: 3;
 }
@@ -983,14 +907,6 @@ body.ghost-clicking #heroLoadingScreen {
     color: rgb(204, 204, 204) !important;
 }
 
-.custom-series-name {
-    font-size: 2.4rem !important;
-    font-weight: bold !important;
-    margin-bottom: 4px !important;
-    margin-left: 11px !important;
-    color: rgb(255, 255, 255) !important;
-}
-
 .seek-bar-container-JGGTa .label-QFbsS {
     width: none !important;
 }
@@ -1427,11 +1343,6 @@ body.ghost-clicking #heroLoadingScreen {
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
-}
-
-.meta-item-container-Tj0Ib .poster-container-qkw48,
-.meta-item-container-Tj0Ib .poster-image-NiV7O {
-    position: relative !important; /* ensure overlay absolutely positions over poster */
 }
 
 .dropdown-MWaxp {
@@ -1930,24 +1841,7 @@ body.ghost-clicking #heroLoadingScreen {
     ) !important;
     box-shadow: var(--box-shadow) !important;
 }
-/*
-.label-container-XOyzm:hover .addon-name-tC8PX {
-    color: black !important;
-}
 
-.label-container-XOyzm:hover .description-container-vW_De {
-    color: black !important;
-}
-.label-container-XOyzm:hover .title-container-NcfV9 {
-    color: black !important;
-}
-    */
-
-/* Hover animation 
-.meta-item-container-Tj0Ib:hover {
-    transform: scale(1.06);
-}
-*/
 .meta-item-container-Tj0Ib:hover .poster-image-NiV7O {
     transform: scale(1.06);
 }
@@ -2047,7 +1941,6 @@ body.ghost-clicking #heroLoadingScreen {
     animation-range-end: cover 25%;
 }
 
-/* Example CSS that must be defined elsewhere */
 /* ========================================= */
 /* 1. Set up Default/Final State (Visibility) */
 /* ========================================= */
@@ -2113,9 +2006,6 @@ body.ghost-clicking #heroLoadingScreen {
     padding-right: 1rem !important;
 }
 
-.meta-item-container-Tj0Ib {
-    min-width: 15rem !important;
-}
 .meta-row-container-xtlB1 .header-container-tR3Ev {
     position: absolute;
     top: -45px;
@@ -2739,7 +2629,7 @@ body.ghost-clicking #heroLoadingScreen {
 /* Icon-Only Navigation with Hover Reveal */
 
 /* Target the navigation links in the horizontal bar */
-#app [class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] a {
+#app [class*="vertical-nav-bar"] a {
     display: flex !important;
     flex-direction: row !important; /* Force side-by-side */
     flex-wrap: nowrap !important; /* Prevent wrapping */
@@ -2753,7 +2643,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 /* Style the icon (SVG) */
-#app [class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] a svg {
+#app [class*="vertical-nav-bar"] a svg {
     width: 20px !important;
     height: 20px !important;
     flex-shrink: 0 !important;
@@ -2764,36 +2654,33 @@ body.ghost-clicking #heroLoadingScreen {
 }
 
 /* Style the label (text) - Hidden by default */
-#app [class*="horizontal-nav-bar"] [class*="vertical-nav-bar"] a .nav-label {
+#app [class*="vertical-nav-bar"] a [class*="label-"] {
     max-width: 0 !important;
+    width: 0 !important;
     opacity: 0 !important;
     overflow: hidden !important;
     white-space: nowrap !important;
-    transition: all 0.3s ease !important;
+    transition: max-width 0.5s ease, opacity 0.5s ease, width 0.5s ease,
+        margin-left 0.5s ease, padding 0.5s ease !important;
     padding: 0 !important; /* Remove padding when hidden */
+    margin-left: 0 !important;
 }
 
 /* Hover State - Reveal Text */
-#app
-    [class*="horizontal-nav-bar"]
-    [class*="vertical-nav-bar"]
-    a:hover
-    .nav-label,
-#app
-    [class*="horizontal-nav-bar"]
-    [class*="vertical-nav-bar"]
-    [class*="selected"]
-    .nav-label {
-    max-width: 150px !important; /* Sufficient width for text */
+#app [class*="vertical-nav-bar"] a:hover [class*="label-"],
+#app [class*="vertical-nav-bar"] a[class*="selected"] [class*="label-"] {
+    max-width: 150px !important;
+    width: auto !important;
     opacity: 1 !important;
-    padding: 0 5px !important; /* Add padding back */
-    margin-left: 8px !important; /* Add spacing on hover/selected */
+    padding: 0 5px !important;
+    margin-left: 8px !important;
 }
 
 /* Optional: Hover background effect for the link */
-#app [class*="horizontal-nav-bar"][class*="vertical-nav-bar"] a:hover {
+#app [class*="vertical-nav-bar"] a:hover {
     background: rgba(255, 255, 255, 0.1) !important;
 }
+
 /* Homepage Row Headers Styling */
 
 /* Header Container */
