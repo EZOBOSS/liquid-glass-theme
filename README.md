@@ -45,6 +45,9 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
     -   **Episode Matching**: Prioritizes streams that match the current episode number for series.
     -   **Visual Size Meter**: Adds a visual bar indicating file size relative to others.
 
+<img width="801" height="1515" alt="image" src="https://github.com/user-attachments/assets/a2c02c0f-3721-4eaf-a9a9-f9085f53364b" />
+
+
 ### ⚙️ Settings
 
 -   **Settings Toggle**: Adds a custom toggle in the Stremio settings menu to enable/disable the "Play trailer on hover" feature for the Hero banner.
