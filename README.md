@@ -1,3 +1,5 @@
+<img width="3839" height="1915" alt="image" src="https://github.com/user-attachments/assets/fa920ebd-2dff-4324-abfb-44ffcdddc4b1" />
+
 # Liquid Glass Theme for Stremio Web
 
 A modern, feature-rich theme for Stremio Web (v5) that overhauls the UI with a "Liquid Glass" aesthetic and introduces powerful functional enhancements through a suite of custom plugins.
