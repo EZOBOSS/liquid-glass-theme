@@ -26,6 +26,8 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
     -   Tracks release dates for items in your library.
     -   Shows countdowns (e.g., "in 3 days", "Tomorrow").
     -   Smart caching to minimize API requests.
+      <img width="300" height="400" alt="image" src="https://github.com/user-attachments/assets/e9c036e8-ca6d-473b-8da9-182115bb537b" />
+
 
 ### 🎬 Player & Content Details
 
@@ -45,7 +47,7 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
     -   **Episode Matching**: Prioritizes streams that match the current episode number for series.
     -   **Visual Size Meter**: Adds a visual bar indicating file size relative to others.
 
-<img width="801" height="1515" alt="image" src="https://github.com/user-attachments/assets/a2c02c0f-3721-4eaf-a9a9-f9085f53364b" />
+<img width="400" height="900" alt="image" src="https://github.com/user-attachments/assets/a2c02c0f-3721-4eaf-a9a9-f9085f53364b" />
 
 
 ### ⚙️ Settings
