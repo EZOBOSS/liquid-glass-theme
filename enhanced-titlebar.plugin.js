@@ -496,7 +496,7 @@ async function enhanceTitleBar(titleBar) {
 }
 
 const TITLE_BAR_SELECTOR =
-    ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container'],[class*='media-title']";
+    ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container']:not([class*='search-hints']),[class*='media-title']";
 
 // --- Intersection Observer for Lazy Loading ---
 let intersectionObserver;

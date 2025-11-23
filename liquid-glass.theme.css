@@ -46,6 +46,76 @@ html body {
 
 /* ========================= NAV BAR / HEADER ========================= */
 
+/*search suggestions*/
+.search-bar-container-asfq1 .menu-container-GcXNG {
+    position: absolute !important;
+    bottom: 100% !important;
+    top: auto !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin-bottom: 10px !important;
+    display: flex !important;
+    flex-direction: column-reverse !important;
+
+    /* Glass Theme Styles */
+    background: rgba(20, 20, 20, 0.9) !important;
+    backdrop-filter: blur(30px) saturate(180%) !important;
+    border-radius: 10px !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+    padding: 5px !important;
+    gap: 5px !important;
+
+    /* Visibility Animation */
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transform: translateY(10px) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    pointer-events: none !important;
+}
+
+/* Show when search bar is focused */
+.search-bar-container-asfq1:focus-within .menu-container-GcXNG {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+}
+
+/* Style menu items */
+.search-bar-container-asfq1 .menu-container-GcXNG > * {
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    transition: background 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+.search-bar-container-asfq1 .menu-container-GcXNG > *:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.search-bar-container-asfq1 .menu-container-GcXNG .item-TgYCX {
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    transition: background 0.2s ease, transform 0.2s ease !important;
+    cursor: pointer !important;
+    background: transparent !important;
+    margin: 2px 0 !important;
+}
+
+.search-bar-container-asfq1 .menu-container-GcXNG .item-TgYCX:hover,
+.search-bar-container-asfq1 .menu-container-GcXNG .item-TgYCX:focus {
+    background: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.15),
+        rgba(255, 255, 255, 0.05)
+    ) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    transform: translateX(5px) !important; /* Subtle movement on hover */
+}
+
 .search-bar-container-asfq1 {
     position: fixed;
     bottom: 20px;
@@ -61,7 +131,7 @@ html body {
     align-items: center;
     padding: 10px;
     z-index: 9999;
-    overflow: hidden; /* Hide overflowing content when collapsed */
+    overflow: visible !important; /* Allow menu to show outside */
 
     /* Smooth animation */
     transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -128,7 +198,7 @@ html body {
     backdrop-filter: blur(4.7px) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
     opacity: 1 !important;
-    overflow: hidden !important;
+
     display: flex !important
 ;
     align-items: center !important;
