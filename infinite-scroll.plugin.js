@@ -61,6 +61,9 @@
             this.globalTick = this.globalTick.bind(this);
             this.onHashChange = this.onHashChange.bind(this);
 
+            // Expose instance globally
+            window.InfiniteScrollPluginInstance = this;
+
             this.init();
         }
 
@@ -283,20 +286,22 @@
                         nextPos + state.widthCache.clientWidth >=
                         maxScroll - preloadOffset
                     ) {
-                        // Debounce fetch? The original didn't really debounce other than the loading flag
-                        this.fetchMoreItems(
-                            state.track,
-                            state.type,
-                            state.catalog
-                        )
-                            .then(() => {
-                                // Update widths after fetch
-                                state.widthCache.scrollWidth =
-                                    state.track.scrollWidth;
-                                state.widthCache.clientWidth =
-                                    state.track.clientWidth;
-                            })
-                            .catch(console.error);
+                        if (!state.disableFetch) {
+                            // Debounce fetch? The original didn't really debounce other than the loading flag
+                            this.fetchMoreItems(
+                                state.track,
+                                state.type,
+                                state.catalog
+                            )
+                                .then(() => {
+                                    // Update widths after fetch
+                                    state.widthCache.scrollWidth =
+                                        state.track.scrollWidth;
+                                    state.widthCache.clientWidth =
+                                        state.track.clientWidth;
+                                })
+                                .catch(console.error);
+                        }
                     }
                 }
             }
@@ -492,7 +497,7 @@
             }
         }
 
-        initWheelScroll(track, catalog = "top") {
+        initWheelScroll(track, catalog = "top", options = {}) {
             if (!track || track.dataset.wheelScrollInitialized === "true")
                 return;
             track.dataset.wheelScrollInitialized = "true";
@@ -502,8 +507,14 @@
             track.style.contain = "layout style";
 
             // Try to determine type from first child
-            const type = track.firstChild?.href?.split?.("/")[5];
-            if (!type) return;
+            let type = track.firstChild?.href?.split?.("/")[5];
+
+            // Allow type override from options if not found in DOM
+            if (!type && options.type) {
+                type = options.type;
+            }
+
+            if (!type && !options.disableFetch) return; // Only require type if fetching is enabled
 
             const key = `${type}_${catalog}`;
             this.fetchProgress[key] = 0;
@@ -516,6 +527,7 @@
                 track,
                 type,
                 catalog,
+                disableFetch: !!options.disableFetch,
                 scrollTarget: track.scrollLeft,
                 currentScroll: track.scrollLeft, // Cache initial scroll
                 velocity: 0,

@@ -41,6 +41,9 @@
                 month: "short",
                 timeZone: "UTC",
             });
+            this.observer = null;
+            this.currentMode = null;
+            this.currentDataSignature = null;
 
             this.init();
         }
@@ -712,10 +715,10 @@
                     this.processMetasToList(allMetasWithVideos);
 
                 metadataList.sort((a, b) => a.releaseDate - b.releaseDate);
-                const finalList = metadataList.slice(0, limit);
+                //const finalList = metadataList.slice(0, limit);
 
-                this.cacheSet(key, finalList);
-                return finalList;
+                this.cacheSet(key, metadataList);
+                return metadataList;
             } catch (e) {
                 console.warn(
                     "[UpcomingReleases] Failed to fetch upcoming titles",
@@ -790,17 +793,35 @@
             const heroContainer = document.querySelector(".hero-container");
             if (!heroContainer) return;
 
-            this.renderButtonBar(heroContainer);
+            // Ensure wrapper structure exists
+            let wrapper = heroContainer.querySelector(".upcoming-wrapper");
+            if (!wrapper) {
+                wrapper = document.createElement("div");
+                wrapper.className = "upcoming-wrapper";
+                wrapper.innerHTML = `
+                    <div class="upcoming-vertical-tab">
+                        <span>UPCOMING</span>
+                    </div>
+                    <div class="upcoming-container">
+                        <div class="floating-date-indicator"></div>
+                    </div>
+                `;
+                heroContainer.appendChild(wrapper);
+            }
+
+            const container = wrapper.querySelector(".upcoming-container");
+
+            this.renderButtonBar(container);
 
             const lastMode =
                 localStorage.getItem(
                     UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE
                 ) || "all";
-            await this.renderListMode(lastMode);
+            await this.renderListMode(lastMode, container);
         }
 
-        renderButtonBar(heroContainer) {
-            let buttonBar = document.querySelector(".upcoming-toggle-bar");
+        renderButtonBar(container) {
+            let buttonBar = container.querySelector(".upcoming-toggle-bar");
             if (buttonBar) return;
 
             const lastMode =
@@ -833,7 +854,7 @@
                     <span class="btn-label">My Library</span>
                 </button>
             `;
-            heroContainer.insertAdjacentElement("beforeend", buttonBar);
+            container.appendChild(buttonBar);
 
             buttonBar.addEventListener("click", (e) => {
                 const btn = e.target.closest(".toggle-btn");
@@ -849,50 +870,185 @@
                     UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE,
                     mode
                 );
-                this.renderListMode(mode);
+                this.renderListMode(mode, container);
             });
         }
 
-        async renderListMode(mode = "all") {
-            const heroContainer = document.querySelector(".hero-container");
-            if (!heroContainer) return;
+        async renderListMode(mode = "all", container) {
+            if (!container) return;
 
-            const existingList = heroContainer.querySelector(".upcoming-list");
-            if (existingList) {
+            // 1. Start fetching immediately (Parallel execution)
+            const fetchPromise =
+                mode === "library"
+                    ? this.fetchLibraryUpcoming(8)
+                    : this.fetchUpcomingTitles("movie", "top", 8);
+
+            const existingList = container.querySelector(".upcoming-list");
+
+            // 2. If mode changed, trigger fade out immediately for responsiveness
+            let fadeOutPromise = Promise.resolve();
+            if (existingList && mode !== this.currentMode) {
                 existingList.classList.add("fade-out");
-                await new Promise((resolve) => setTimeout(resolve, 300));
-                existingList.remove();
+                fadeOutPromise = new Promise((resolve) =>
+                    setTimeout(resolve, 300)
+                );
             }
 
-            // Show loading state
-            this.showLoading(heroContainer);
+            // 3. Wait for both
+            const [upcoming] = await Promise.all([
+                fetchPromise,
+                fadeOutPromise,
+            ]);
 
-            const upcoming =
-                mode === "library"
-                    ? await this.fetchLibraryUpcoming(8)
-                    : await this.fetchUpcomingTitles("movie", "top", 8);
+            // 4. Data Change Detection
+            // Create a simple signature based on IDs and release text
+            const newSignature = upcoming
+                .map((i) => i.id + i.releaseText)
+                .join("|");
 
-            // Remove loading state
-            this.hideLoading(heroContainer);
+            if (
+                this.currentMode === mode &&
+                this.currentDataSignature === newSignature &&
+                container.querySelector(".upcoming-groups-container") // Ensure list exists
+            ) {
+                // Data hasn't changed and we are in the same mode, skip re-render
+                // But ensure we remove any stale loading state if it exists
+                this.hideLoading(container);
+                return;
+            }
+
+            // 5. Render
+            // If we didn't fade out yet (same mode but data changed), do it now
+            if (existingList && !existingList.classList.contains("fade-out")) {
+                existingList.classList.add("fade-out");
+                // Short wait to allow animation to start, but don't block too long
+                await new Promise((resolve) => setTimeout(resolve, 150));
+            }
+
+            if (existingList) existingList.remove();
+
+            // Update state
+            this.currentMode = mode;
+            this.currentDataSignature = newSignature;
 
             if (!upcoming.length) {
-                heroContainer.insertAdjacentHTML(
+                this.hideLoading(container);
+                container.insertAdjacentHTML(
                     "beforeend",
                     `<div class="upcoming-list empty"><p>No upcoming releases found.</p></div>`
                 );
                 return;
             }
 
-            const gridHtml = this.buildGridHtml(upcoming);
+            // Group by date
+            const groupedByDate = {};
+            upcoming.forEach((item) => {
+                const dateKey = item.releaseText || "Unknown";
+                if (!groupedByDate[dateKey]) {
+                    groupedByDate[dateKey] = [];
+                }
+                groupedByDate[dateKey].push(item);
+            });
 
-            heroContainer.insertAdjacentHTML(
+            // Set initial indicator text
+            const indicator = container.querySelector(
+                ".floating-date-indicator"
+            );
+            if (indicator && Object.keys(groupedByDate).length > 0) {
+                indicator.innerText = Object.keys(groupedByDate)[0];
+            }
+
+            const groupsHtml = Object.entries(groupedByDate)
+                .map(
+                    ([dateKey, items]) => `
+                <div class="upcoming-date-group" data-date-key="${dateKey}">
+                    <h3 class="date-group-title">${dateKey}</h3>
+                    <div class="upcoming-grid">
+                        ${this.buildGridHtml(items)}
+                    </div>
+                </div>`
+                )
+                .join("");
+
+            container.insertAdjacentHTML(
                 "beforeend",
                 `<div class="upcoming-list">
-                    <div class="upcoming-grid">
-                        ${gridHtml}
+                    <div class="upcoming-groups-container">
+                        ${groupsHtml}
                     </div>
                 </div>`
             );
+
+            // Initialize intersection observer
+            this.initIntersectionObserver(container);
+
+            // Initialize smooth scroll if plugin is available
+            if (window.InfiniteScrollPluginInstance) {
+                const scrollContainer = container.querySelector(
+                    ".upcoming-groups-container"
+                );
+                if (scrollContainer) {
+                    window.InfiniteScrollPluginInstance.initWheelScroll(
+                        scrollContainer,
+                        "upcoming",
+                        { disableFetch: true, type: "upcoming" }
+                    );
+                }
+            }
+        }
+
+        initIntersectionObserver(container) {
+            const scrollContainer = container.querySelector(
+                ".upcoming-groups-container"
+            );
+            const indicator = container.querySelector(
+                ".floating-date-indicator"
+            );
+            const groups = container.querySelectorAll(".upcoming-date-group");
+
+            if (!scrollContainer || !indicator || !groups.length) return;
+
+            // Set initial active class
+            groups[0].classList.add("active");
+            let activeGroup = groups[0];
+
+            const observerOptions = {
+                root: scrollContainer,
+                rootMargin: "0px -50% 0px -50%",
+                threshold: 0,
+            };
+
+            const observerCallback = (entries) => {
+                const intersectingEntries = entries.filter(
+                    (entry) => entry.isIntersecting
+                );
+
+                if (intersectingEntries.length === 0) return;
+
+                const targetEntry =
+                    intersectingEntries[intersectingEntries.length - 1];
+                const targetElement = targetEntry.target;
+                const dateKey = targetElement.dataset.dateKey;
+
+                if (activeGroup !== targetElement) {
+                    requestAnimationFrame(() => {
+                        if (dateKey) {
+                            indicator.innerText = dateKey;
+                        }
+                        if (activeGroup) {
+                            activeGroup.classList.remove("active");
+                        }
+                        targetElement.classList.add("active");
+                        activeGroup = targetElement;
+                    });
+                }
+            };
+
+            this.observer = new IntersectionObserver(
+                observerCallback,
+                observerOptions
+            );
+            groups.forEach((el) => this.observer.observe(el));
         }
 
         showLoading(container) {
@@ -977,12 +1133,15 @@
                     ? m.videos[0]?.season
                     : 0;
                 const newSeasonClass = m.isNewSeason ? " new-season" : "";
+                const isFuture = new Date(m.releaseDate) > new Date();
+                const futureClass = isFuture ? " future" : "";
+
                 const newSeasonIndicator = m.isNewSeason
                     ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERE</div>`
                     : "";
 
                 gridItems.push(`
-                <a tabindex="0" class="upcoming-card${newSeasonClass}" href="${
+                <a tabindex="0" class="upcoming-card${newSeasonClass}${futureClass}" href="${
                     m.href
                 }"
                     data-trailer-url="${m.trailer || ""}"
