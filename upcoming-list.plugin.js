@@ -401,7 +401,7 @@
             if (!recentItems) return list;
 
             // Track which series have been updated so we can save them back to cache
-            const updatedSeries = [];
+            const updatedEpisodes = [];
 
             for (const item of list) {
                 if (item.type !== "series") continue;
@@ -426,47 +426,55 @@
                 const seasonVideos = videos.filter((v) => v.season === season);
                 if (!seasonVideos.length) continue;
 
-                let hasChanges = false;
                 for (const v of seasonVideos) {
                     if (v.episode <= episode && !v.watched) {
                         v.watched = true;
-                        hasChanges = true;
+                        updatedEpisodes.push({
+                            id: item.id,
+                            season: v.season,
+                            episode: v.episode,
+                        });
                     }
-                }
-
-                // If we made changes, track this series for cache update
-                if (hasChanges) {
-                    updatedSeries.push(item);
                 }
             }
 
             // Persist watched state changes back to videos_cache_all
-            if (updatedSeries.length > 0) {
+            if (updatedEpisodes.length > 0) {
                 const cache = this.loadVideoCache();
+                let modifiedCache = false;
 
-                for (const item of updatedSeries) {
-                    const cacheKey = `fullmeta:${item.id}`;
-                    const cachedEntry = cache[cacheKey]?.value?.videos;
-                    if (!cachedEntry) continue;
+                // Group episodes by series ID to minimize cache lookups
+                const episodesBySeries = new Map();
+                for (const ep of updatedEpisodes) {
+                    if (!episodesBySeries.has(ep.id)) {
+                        episodesBySeries.set(ep.id, []);
+                    }
+                    episodesBySeries.get(ep.id).push(ep);
+                }
 
-                    // Build a lookup map once per series
-                    const lookup = new Map();
-                    for (const vid of cachedEntry) {
-                        lookup.set(`${vid.season}-${vid.episode}`, vid);
+                // Process each series once
+                for (const [seriesId, episodes] of episodesBySeries) {
+                    const cacheKey = `fullmeta:${seriesId}`;
+                    const cachedVideos = cache[cacheKey]?.value?.videos;
+                    if (!cachedVideos) continue;
+
+                    // Build lookup map for this series
+                    const videoMap = new Map();
+                    for (const v of cachedVideos) {
+                        videoMap.set(`${v.season}-${v.episode}`, v);
                     }
 
-                    for (const updatedVideo of item.videos) {
-                        if (!updatedVideo.watched) continue;
-
-                        const key = `${updatedVideo.season}-${updatedVideo.episode}`;
-                        const cachedVideo = lookup.get(key);
-                        if (cachedVideo) {
-                            cachedVideo.watched = true;
+                    // Update all episodes for this series
+                    for (const { season, episode } of episodes) {
+                        const match = videoMap.get(`${season}-${episode}`);
+                        if (match && !match.watched) {
+                            match.watched = true;
+                            modifiedCache = true;
                         }
                     }
                 }
 
-                this.saveVideoCache(cache);
+                if (modifiedCache) this.saveVideoCache(cache);
             }
 
             return list;
