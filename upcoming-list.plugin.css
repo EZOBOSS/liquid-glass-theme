@@ -90,7 +90,7 @@
 .upcoming-toggle-bar {
     position: absolute;
     overflow: visible;
-    top: 1.5rem;
+    top: 0.5rem;
     right: 2rem;
     display: flex;
     gap: 1rem;
@@ -100,7 +100,7 @@
 .upcoming-toggle-bar .toggle-btn {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 0.75rem;
+    border-radius: 5rem;
     padding: 0.75rem;
     color: white;
     cursor: pointer;
@@ -181,6 +181,8 @@
     overflow-x: auto;
     overflow-y: hidden;
     pointer-events: auto;
+    scrollbar-color: #ffffff17 transparent !important;
+    scrollbar-width: thin !important;
 }
 
 .upcoming-groups-container::-webkit-scrollbar {
@@ -322,6 +324,7 @@
     width: 200px;
     height: 150px;
     flex-shrink: 0;
+    box-shadow: var(--box-shadow);
 }
 
 .upcoming-card.future {
@@ -506,6 +509,21 @@
     background-color: rgba(229, 215, 135, 0.659);
     opacity: 1 !important;
 }
+.upcoming-episode-card.upcoming-next::after {
+    z-index: 10 !important;
+
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(235, 244, 135, 0.3),
+        rgba(255, 226, 8, 0.7)
+    );
+}
 
 .upcoming-episode-card.upcoming-next .upcoming-episode-number,
 .upcoming-episode-card.upcoming-next .upcoming-episode-thumbnail,
@@ -514,7 +532,11 @@
 }
 
 .upcoming-episode-card.watched {
-    opacity: 0.6;
+    opacity: 0.8 !important;
+    filter: grayscale(1);
+}
+.upcoming-episode-card.watched .upcoming-episode-number {
+    opacity: 0 !important;
 }
 
 .upcoming-episode-card::before {
@@ -526,8 +548,8 @@
     bottom: 0;
     background: linear-gradient(
         to bottom,
-        rgba(0, 0, 0, 0.3),
-        rgba(0, 0, 0, 0.7)
+        rgba(0, 0, 0, 0.156),
+        rgba(0, 0, 0, 0.437)
     );
     z-index: 0;
 }
@@ -548,7 +570,7 @@
 
 .upcoming-episode-card .upcoming-episode-date {
     font-size: 7px;
-    color: rgb(159, 159, 159);
+    color: rgb(255, 255, 255);
     font-weight: 600;
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
     z-index: 1;

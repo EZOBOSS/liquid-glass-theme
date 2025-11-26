@@ -14,7 +14,7 @@
             CONTAINER_SELECTOR:
                 ".meta-row-container-xtlB1 .meta-items-container-qcuUA",
             SCROLL: {
-                FRICTION: 0.98,
+                FRICTION: 0.96,
                 EASE: 0.02,
                 WHEEL_FORCE: 0.35,
                 MIN_VELOCITY: 0.05,
@@ -268,11 +268,16 @@
                 state.scrollTarget = newTarget;
 
                 // Update indicator with cached values to avoid it reading DOM
-                this.updateScrollIndicator(state.track, state.scrollIndicator, {
-                    scrollLeft: nextPos,
-                    scrollWidth: state.widthCache.scrollWidth,
-                    clientWidth: state.widthCache.clientWidth,
-                });
+                state.scrollIndicator &&
+                    this.updateScrollIndicator(
+                        state.track,
+                        state.scrollIndicator,
+                        {
+                            scrollLeft: nextPos,
+                            scrollWidth: state.widthCache.scrollWidth,
+                            clientWidth: state.widthCache.clientWidth,
+                        }
+                    );
 
                 if (isStopped) {
                     this.activeScrolls.delete(state);
@@ -520,7 +525,9 @@
             this.fetchProgress[key] = 0;
 
             // Create scroll indicator
-            const scrollIndicator = this.createScrollIndicator(track);
+            const scrollIndicator = options.disableScrollIndicator
+                ? null
+                : this.createScrollIndicator(track);
 
             // Initial State
             const state = {
@@ -542,14 +549,16 @@
                 state.widthCache.scrollWidth = track.scrollWidth;
                 state.widthCache.clientWidth = track.clientWidth;
                 // Update indicator visibility when widths change
-                this.updateScrollIndicator(track, scrollIndicator);
+                scrollIndicator &&
+                    this.updateScrollIndicator(track, scrollIndicator);
             };
 
             const resizeObserver = new ResizeObserver(updateWidths);
             resizeObserver.observe(track);
 
             // Initial indicator update
-            this.updateScrollIndicator(track, scrollIndicator);
+            scrollIndicator &&
+                this.updateScrollIndicator(track, scrollIndicator);
 
             const handleWheel = (e) => {
                 e.preventDefault();
@@ -621,7 +630,11 @@
                     if (!rafPending) {
                         rafPending = true;
                         requestAnimationFrame(() => {
-                            this.updateScrollIndicator(track, scrollIndicator);
+                            scrollIndicator &&
+                                this.updateScrollIndicator(
+                                    track,
+                                    scrollIndicator
+                                );
                             rafPending = false;
                         });
                     }

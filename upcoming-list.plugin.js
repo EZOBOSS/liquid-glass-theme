@@ -588,10 +588,10 @@
             const list = this.processMetasToList(metas);
 
             list.sort((a, b) => a.releaseDate - b.releaseDate);
-            const finalList = list.slice(0, limit);
+            //const finalList = list.slice(0, limit);
 
-            this.cacheSet(key, finalList);
-            return finalList;
+            this.cacheSet(key, list);
+            return list;
         }
 
         async fetchUpcomingTitles(type = "movie", catalog = "top", limit = 10) {
@@ -991,7 +991,11 @@
                     window.InfiniteScrollPluginInstance.initWheelScroll(
                         scrollContainer,
                         "upcoming",
-                        { disableFetch: true, type: "upcoming" }
+                        {
+                            disableFetch: true,
+                            type: "upcoming",
+                            disableScrollIndicator: true,
+                        }
                     );
                 }
             }
