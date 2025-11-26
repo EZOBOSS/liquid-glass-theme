@@ -50,10 +50,12 @@
 
         saveSeenState() {
             try {
-                localStorage.setItem(
-                    NotificationsPlugin.CONFIG.SEEN_CACHE_KEY,
-                    JSON.stringify([...this.seenNotifications])
-                );
+                requestIdleCallback(() => {
+                    localStorage.setItem(
+                        NotificationsPlugin.CONFIG.SEEN_CACHE_KEY,
+                        JSON.stringify([...this.seenNotifications])
+                    );
+                });
             } catch (e) {
                 console.warn("Failed to save seen notifications", e);
             }
@@ -238,6 +240,8 @@
             notifications.sort(
                 (a, b) => new Date(b.released) - new Date(a.released)
             );
+            // Limit to 50 notifications
+            //  notifications = notifications.slice(0, 50);
 
             this.notifications = notifications;
             this.renderList();

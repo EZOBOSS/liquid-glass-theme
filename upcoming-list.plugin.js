@@ -400,6 +400,9 @@
             const recentItems = recent.items;
             if (!recentItems) return list;
 
+            // Track which series have been updated so we can save them back to cache
+            const updatedSeries = [];
+
             for (const item of list) {
                 if (item.type !== "series") continue;
 
@@ -423,12 +426,49 @@
                 const seasonVideos = videos.filter((v) => v.season === season);
                 if (!seasonVideos.length) continue;
 
+                let hasChanges = false;
                 for (const v of seasonVideos) {
-                    if (v.episode <= episode) {
+                    if (v.episode <= episode && !v.watched) {
                         v.watched = true;
+                        hasChanges = true;
                     }
                 }
+
+                // If we made changes, track this series for cache update
+                if (hasChanges) {
+                    updatedSeries.push(item);
+                }
             }
+
+            // Persist watched state changes back to videos_cache_all
+            if (updatedSeries.length > 0) {
+                const cache = this.loadVideoCache();
+
+                for (const item of updatedSeries) {
+                    const cacheKey = `fullmeta:${item.id}`;
+                    const cachedEntry = cache[cacheKey]?.value?.videos;
+                    if (!cachedEntry) continue;
+
+                    // Build a lookup map once per series
+                    const lookup = new Map();
+                    for (const vid of cachedEntry) {
+                        lookup.set(`${vid.season}-${vid.episode}`, vid);
+                    }
+
+                    for (const updatedVideo of item.videos) {
+                        if (!updatedVideo.watched) continue;
+
+                        const key = `${updatedVideo.season}-${updatedVideo.episode}`;
+                        const cachedVideo = lookup.get(key);
+                        if (cachedVideo) {
+                            cachedVideo.watched = true;
+                        }
+                    }
+                }
+
+                this.saveVideoCache(cache);
+            }
+
             return list;
         }
 

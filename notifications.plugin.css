@@ -13,9 +13,9 @@
     width: 42px;
     height: 42px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: rgb(114 114 114 / 10%);
+    backdrop-filter: blur(10px) saturate(2);
+    -webkit-backdrop-filter: blur(10px) saturate(2);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -124,7 +124,7 @@
     display: flex;
     padding: 12px 15px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.2s;
     cursor: pointer;
     position: relative;
     overflow: hidden;
