@@ -24,6 +24,9 @@
 
             // Check on navigation to home
             window.addEventListener("hashchange", () => {
+                // Hide bell in player, show otherwise
+                this.toggleBellVisibility();
+
                 if (!window.location.hash || window.location.hash === "#/") {
                     this.updateNotifications();
                 }
@@ -35,6 +38,18 @@
                     this.updateNotifications();
                 }
             });
+        }
+
+        toggleBellVisibility() {
+            const container = document.querySelector(
+                ".notifications-container"
+            );
+            if (!container) return;
+
+            const hash = window.location.hash;
+            const isInPlayer = hash.includes("/player/");
+
+            container.style.display = isInPlayer ? "none" : "block";
         }
 
         loadSeenState() {
