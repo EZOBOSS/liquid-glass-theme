@@ -3,16 +3,15 @@
     top: 20px;
     right: 140px; /* Adjust based on other UI elements */
     z-index: 9999;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-        Helvetica, Arial, sans-serif;
+
     /* Ensure container covers the gap for hover stability */
     padding-bottom: 20px;
     overflow: visible;
 }
 
 .notification-bell {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
@@ -23,7 +22,7 @@
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--box-shadow);
     overflow: visible;
 }
 
@@ -53,7 +52,7 @@
     align-items: center;
     justify-content: center;
     padding: 0 4px;
-    border: 2px solid #1a1a1a; /* Match background for cutout effect */
+    box-shadow: var(--box-shadow);
 }
 
 .notifications-dropdown {
@@ -97,6 +96,24 @@
     align-items: center;
 }
 
+.mark-all-seen-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: none;
+    font-weight: 500;
+}
+
+.mark-all-seen-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
 .notification-list {
     list-style: none;
     padding: 0;
@@ -111,6 +128,10 @@
     cursor: pointer;
     position: relative;
     overflow: hidden;
+    box-shadow: var(--box-shadow);
+    background-color: #ffffff32;
+    margin: 2px;
+    content-visibility: auto;
 }
 
 .notification-item:last-child {
@@ -118,7 +139,8 @@
 }
 
 .notification-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    transform: scale(1.02);
 }
 
 /* Mark as seen on hover logic handled by JS, but visual feedback here */
@@ -126,6 +148,8 @@
     opacity: 0.5;
     filter: grayscale(100%);
     transition: all 0.3s ease;
+    background-color: transparent;
+    box-shadow: none;
 }
 
 .notif-thumb {
@@ -143,6 +167,13 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+}
+
+.notif-time-since {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 600;
+    margin-bottom: 2px;
 }
 
 .notif-series {

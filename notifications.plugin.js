@@ -63,6 +63,13 @@
             if (!this.seenNotifications.has(id)) {
                 this.seenNotifications.add(id);
                 this.saveSeenState();
+
+                // Update the isSeen property in the notifications array
+                const notif = this.notifications.find((n) => n.id === id);
+                if (notif) {
+                    notif.isSeen = true;
+                }
+
                 this.updateBadge();
 
                 // Visually mark as seen
@@ -70,6 +77,59 @@
                 if (el) {
                     el.classList.add("seen");
                 }
+            }
+        }
+
+        markAllAsSeen() {
+            // Get all unseen notifications
+            const unseenNotifications = this.notifications.filter(
+                (n) => !n.isSeen
+            );
+
+            if (unseenNotifications.length === 0) return;
+
+            // Mark each as seen
+            unseenNotifications.forEach((notif) => {
+                this.seenNotifications.add(notif.id);
+                notif.isSeen = true;
+
+                // Visually mark as seen
+                const el = document.getElementById(`notif-${notif.id}`);
+                if (el) {
+                    el.classList.add("seen");
+                }
+            });
+
+            this.saveSeenState();
+            this.updateBadge();
+        }
+
+        getTimeSinceRelease(releaseDate) {
+            const now = Date.now();
+            const released = new Date(releaseDate).getTime();
+            const diffMs = now - released;
+
+            const minute = 60 * 1000;
+            const hour = 60 * minute;
+            const day = 24 * hour;
+            const month = 30 * day;
+            const year = 365 * day;
+
+            if (diffMs < hour) {
+                const minutes = Math.floor(diffMs / minute);
+                return minutes <= 1 ? "1m" : `${minutes}m`;
+            } else if (diffMs < day) {
+                const hours = Math.floor(diffMs / hour);
+                return `${hours}h`;
+            } else if (diffMs < month) {
+                const days = Math.floor(diffMs / day);
+                return `${days}d`;
+            } else if (diffMs < year) {
+                const months = Math.floor(diffMs / month);
+                return `${months}mo`;
+            } else {
+                const years = Math.floor(diffMs / year);
+                return `${years}y`;
             }
         }
 
@@ -164,7 +224,10 @@
                         season: video.season,
                         episode: video.episode,
                         title: video.title || `Episode ${video.episode}`,
-                        thumbnail: video.thumbnail || series.poster, // Fallback to poster
+                        thumbnail:
+                            video.thumbnail ||
+                            series.poster ||
+                            `https://images.metahub.space/poster/small/${series.id}/img`,
                         released: video.released,
                         isSeen: isSeen,
                     });
@@ -194,11 +257,21 @@
                 <div class="notifications-dropdown">
                     <div class="notifications-header">
                         <span>New Episodes</span>
+                        <button class="mark-all-seen-btn">Mark All as Seen</button>
                     </div>
                     <ul class="notification-list"></ul>
                 </div>
             `;
             document.body.appendChild(container);
+
+            // Add event listener for "Mark All as Seen" button
+            const markAllBtn = container.querySelector(".mark-all-seen-btn");
+            if (markAllBtn) {
+                markAllBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    this.markAllAsSeen();
+                });
+            }
         }
 
         renderList() {
@@ -222,8 +295,13 @@
                 li.innerHTML = `
                     <img src="${
                         notif.thumbnail
-                    }" class="notif-thumb" onerror="this.style.display='none'">
+                    }" class="notif-thumb" onerror="this.onerror=null; this.src='https://images.metahub.space/poster/small/${
+                    notif.seriesId
+                }/img';">
                     <div class="notif-content">
+                        <div class="notif-time-since">${this.getTimeSinceRelease(
+                            notif.released
+                        )}</div>
                         <div class="notif-series">${notif.seriesName}</div>
                         <div class="notif-episode">S${notif.season} E${
                     notif.episode
