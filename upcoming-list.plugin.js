@@ -814,7 +814,7 @@
                     ? `S${video.season} E${video.episode}`
                     : "Movie";
                 const href = isSeries
-                    ? `#/detail/${m.type}/${id}`
+                    ? `#/detail/${m.type}/${id}/${id}%3A${video.season}%3A${video.episode}`
                     : `#/detail/${m.type}/${id}/${id}`;
                 const isNewSeason = video.episode === 1;
 

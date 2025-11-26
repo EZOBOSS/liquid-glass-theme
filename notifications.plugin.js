@@ -220,8 +220,8 @@
                     const releaseDate = new Date(video.released).getTime();
                     if (releaseDate > now) return; // Not released yet
 
-                    // Check if too old (more than 1 year)
-                    const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+                    // Check if too old (more than 3 months)
+                    const oneYearMs = 90 * 24 * 60 * 60 * 1000;
                     if (now - releaseDate > oneYearMs) return;
 
                     // Check if watched (individual video property)

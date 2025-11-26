@@ -14,9 +14,9 @@
             CONTAINER_SELECTOR:
                 ".meta-row-container-xtlB1 .meta-items-container-qcuUA",
             SCROLL: {
-                FRICTION: 0.96,
-                EASE: 0.02,
-                WHEEL_FORCE: 0.35,
+                FRICTION: 0.97,
+                EASE: 0.01,
+                WHEEL_FORCE: 0.3,
                 MIN_VELOCITY: 0.05,
                 THRESHOLD: 0.4,
                 MAX_VELOCITY: 120,
