@@ -230,8 +230,6 @@
                     // Unique ID for the notification
                     const notifId = `${series.id}-${video.season}-${video.episode}`;
 
-                    // if (this.seenNotifications.has(notifId)) return;
-
                     const isSeen = this.seenNotifications.has(notifId);
 
                     notifications.push({
@@ -241,6 +239,7 @@
                         season: video.season,
                         episode: video.episode,
                         title: video.title || `Episode ${video.episode}`,
+                        logo: `https://images.metahub.space/logo/small/${series.id}/img`,
                         thumbnail:
                             video.thumbnail ||
                             series.poster ||
@@ -255,9 +254,9 @@
             notifications.sort(
                 (a, b) => new Date(b.released) - new Date(a.released)
             );
-            // Limit to 50 notifications
-            //  notifications = notifications.slice(0, 50);
-
+            if (notifications.length > 100) {
+                notifications = notifications.slice(0, 100);
+            }
             this.notifications = notifications;
             this.renderList();
             this.updateBadge();
@@ -291,6 +290,44 @@
                     this.markAllAsSeen();
                 });
             }
+
+            const list = container.querySelector(".notification-list");
+            if (list) {
+                list.addEventListener("click", (e) => {
+                    const item = e.target.closest(".notification-item");
+                    if (item) {
+                        const { seriesId, season, episode } = item.dataset;
+                        if (seriesId && season && episode) {
+                            window.location.hash = `#/detail/series/${seriesId}/${seriesId}%3A${season}%3A${episode}`;
+                        }
+                    }
+                });
+
+                list.addEventListener("mouseover", (e) => {
+                    const item = e.target.closest(".notification-item");
+                    if (!item) return;
+
+                    if (this.hoveredItem !== item) {
+                        if (this.markTimeout) clearTimeout(this.markTimeout);
+                        this.hoveredItem = item;
+                        this.markTimeout = setTimeout(() => {
+                            if (item.dataset.id) {
+                                this.markAsSeen(item.dataset.id);
+                            }
+                        }, 1000);
+                    }
+                });
+
+                list.addEventListener("mouseout", (e) => {
+                    const item = e.target.closest(".notification-item");
+                    if (!item) return;
+
+                    if (!item.contains(e.relatedTarget)) {
+                        if (this.markTimeout) clearTimeout(this.markTimeout);
+                        this.hoveredItem = null;
+                    }
+                });
+            }
         }
 
         renderList() {
@@ -305,17 +342,28 @@
                 return;
             }
 
+            const fragment = document.createDocumentFragment();
+
             this.notifications.forEach((notif) => {
                 const li = document.createElement("li");
                 li.className = `notification-item ${
                     notif.isSeen ? "seen" : ""
                 }`;
                 li.id = `notif-${notif.id}`;
+                li.dataset.id = notif.id;
+                li.dataset.seriesId = notif.seriesId;
+                li.dataset.season = notif.season;
+                li.dataset.episode = notif.episode;
+
                 li.innerHTML = `
                     <img src="${
                         notif.thumbnail
                     }" class="notif-thumb" onerror="this.onerror=null; this.src='https://images.metahub.space/poster/small/${
                     notif.seriesId
+                }/img';">
+                    <img src="${
+                        notif.logo
+                    }" class="notif-logo" onerror="this.onerror=null";
                 }/img';">
                     <div class="notif-content">
                         <div class="notif-time-since">${this.getTimeSinceRelease(
@@ -331,25 +379,10 @@
                     </div>
                 `;
 
-                // Mark as seen on hover
-                li.addEventListener("mouseenter", () => {
-                    // Small delay to prevent accidental clearing
-                    this.markTimeout = setTimeout(() => {
-                        this.markAsSeen(notif.id);
-                    }, 1000);
-                });
-
-                li.addEventListener("mouseleave", () => {
-                    if (this.markTimeout) clearTimeout(this.markTimeout);
-                });
-
-                // Click to navigate (optional, can be added later)
-                li.addEventListener("click", () => {
-                    window.location.hash = `#/detail/series/${notif.seriesId}`;
-                });
-
-                list.appendChild(li);
+                fragment.appendChild(li);
             });
+
+            list.appendChild(fragment);
         }
 
         updateBadge() {

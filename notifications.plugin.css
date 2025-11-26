@@ -162,6 +162,18 @@
     flex-shrink: 0;
 }
 
+.notif-logo {
+    position: absolute;
+    top: -15px;
+    right: 0;
+    width: 75px;
+    height: 75px;
+    border-radius: 6px;
+    object-fit: contain;
+    margin-right: 12px;
+    opacity: 0.5;
+}
+
 .notif-content {
     flex: 1;
     display: flex;

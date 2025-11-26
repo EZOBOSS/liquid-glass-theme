@@ -175,12 +175,27 @@
             }
         }
 
-        loadVideoCache() {
+        async loadVideoCache() {
             if (this.videoMemoryCache) return this.videoMemoryCache;
+
+            // Yield to main thread to avoid blocking
+            await new Promise((resolve) => setTimeout(resolve, 0));
 
             try {
                 const raw = localStorage.getItem(this.videoCacheKey);
-                const cache = raw ? JSON.parse(raw) : {};
+                let cache = {};
+
+                if (raw) {
+                    try {
+                        // Use Response.json() for non-blocking JSON parsing if possible
+                        cache = await new Response(raw).json();
+                    } catch {
+                        cache = JSON.parse(raw);
+                    }
+                } else {
+                    cache = {};
+                }
+
                 const now = Date.now();
                 let dirty = false;
 
@@ -241,7 +256,12 @@
         saveVideoCache(cache) {
             if (!cache) return;
             try {
-                localStorage.setItem(this.videoCacheKey, JSON.stringify(cache));
+                requestIdleCallback(() => {
+                    localStorage.setItem(
+                        this.videoCacheKey,
+                        JSON.stringify(cache)
+                    );
+                });
                 this.videoMemoryCache = cache;
             } catch (err) {
                 console.warn(
@@ -251,8 +271,8 @@
             }
         }
 
-        videoCacheSet(key, value) {
-            const cache = this.loadVideoCache();
+        async videoCacheSet(key, value) {
+            const cache = await this.loadVideoCache();
             cache[key] = { value, timestamp: Date.now() };
 
             if (this.videoCacheTimeoutId) {
@@ -264,8 +284,8 @@
             }, UpcomingReleasesPlugin.CONFIG.CACHE_DEBOUNCE_MS);
         }
 
-        videoCacheGet(key) {
-            const cache = this.loadVideoCache();
+        async videoCacheGet(key) {
+            const cache = await this.loadVideoCache();
             const entry = cache[key];
             return entry ? entry.value : null;
         }
@@ -384,7 +404,7 @@
             }
         }
 
-        getUserData(list) {
+        async getUserData(list) {
             const recentStr = localStorage.getItem(
                 UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
             );
@@ -440,7 +460,7 @@
 
             // Persist watched state changes back to videos_cache_all
             if (updatedEpisodes.length > 0) {
-                const cache = this.loadVideoCache();
+                const cache = await this.loadVideoCache();
                 let modifiedCache = false;
 
                 // Group episodes by series ID to minimize cache lookups
@@ -517,10 +537,10 @@
             );
         }
 
-        refreshWatchedState(cache) {
+        async refreshWatchedState(cache) {
             if (!Array.isArray(cache)) return [];
 
-            const enriched = this.getUserData(cache);
+            const enriched = await this.getUserData(cache);
             const updated = [];
             const now = Date.now();
 
@@ -576,7 +596,7 @@
                 console.log("[UpcomingReleases] Fetched cached", key);
                 if (this.updateState) {
                     this.updateState = false;
-                    const updated = this.refreshWatchedState(cached);
+                    const updated = await this.refreshWatchedState(cached);
                     this.cacheSet(key, updated);
                     return updated;
                 }
@@ -595,7 +615,7 @@
             const promiseFns = seriesIds.map((meta) => async () => {
                 const id = meta._id;
                 const metaCacheKey = `fullmeta:${id}`;
-                let cachedMeta = this.videoCacheGet(metaCacheKey);
+                let cachedMeta = await this.videoCacheGet(metaCacheKey);
 
                 if (!cachedMeta) {
                     try {
@@ -605,7 +625,7 @@
                         const fetchedMeta = data?.meta;
 
                         if (fetchedMeta) {
-                            this.videoCacheSet(
+                            await this.videoCacheSet(
                                 metaCacheKey,
                                 this.mapToListItem(fetchedMeta, "series")
                             );
@@ -632,7 +652,7 @@
                 .filter((r) => r.status === "fulfilled" && r.value)
                 .map((r) => r.value);
 
-            metas = this.getUserData(metas);
+            metas = await this.getUserData(metas);
             const list = this.processMetasToList(metas);
 
             list.sort((a, b) => a.releaseDate - b.releaseDate);
@@ -717,7 +737,7 @@
 
                 const promiseFns = activeSeries.map((m) => async () => {
                     const metaCacheKey = `fullmeta:${m.id}`;
-                    let cachedMeta = this.videoCacheGet(metaCacheKey);
+                    let cachedMeta = await this.videoCacheGet(metaCacheKey);
 
                     if (!cachedMeta) {
                         try {
@@ -726,7 +746,7 @@
                             );
                             cachedMeta = data?.meta || [];
                             if (cachedMeta) {
-                                this.videoCacheSet(
+                                await this.videoCacheSet(
                                     metaCacheKey,
                                     this.mapToListItem(cachedMeta)
                                 );
@@ -756,7 +776,7 @@
                 ];
 
                 // Apply user watch data before processing
-                allMetasWithVideos = this.getUserData(allMetasWithVideos);
+                allMetasWithVideos = await this.getUserData(allMetasWithVideos);
 
                 // Process and filter: only items with upcoming releases will be included
                 const metadataList =
