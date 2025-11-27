@@ -36,26 +36,8 @@
             this.activeScrolls = new Set();
             this.isLoopRunning = false;
 
-            // Lazy Loading Observer - preload images before they enter viewport
-            this.lazyLoadObserver = new IntersectionObserver(
-                (entries) => {
-                    entries.forEach((entry) => {
-                        if (entry.isIntersecting) {
-                            const img = entry.target;
-                            const src = img.dataset.src;
-                            if (src && !img.src) {
-                                img.src = src;
-                                img.removeAttribute("data-src");
-                                this.lazyLoadObserver.unobserve(img);
-                            }
-                        }
-                    });
-                },
-                {
-                    rootMargin: "2000px", // Start loading 2000px before entering viewport
-                    threshold: 0,
-                }
-            );
+            // Lazy Loading Observer Map - one observer per track
+            this.trackObservers = new WeakMap();
 
             // Bind methods
             this.globalTick = this.globalTick.bind(this);
@@ -556,6 +538,36 @@
             const resizeObserver = new ResizeObserver(updateWidths);
             resizeObserver.observe(track);
 
+            // Initialize Lazy Load Observer for this track
+            const lazyObserver = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            const src = img.dataset.src;
+                            if (src && !img.src) {
+                                img.src = src;
+                                img.removeAttribute("data-src");
+                                lazyObserver.unobserve(img);
+                            }
+                        }
+                    });
+                },
+                {
+                    root: track, // Important: relative to the scrolling container
+                    rootMargin: "2000px", // Preload 2000px ahead
+                    threshold: 0,
+                }
+            );
+            this.trackObservers.set(track, lazyObserver);
+
+            // Initial observe of existing images
+            track
+                .querySelectorAll(".lazy-load-img[data-src]")
+                .forEach((img) => {
+                    lazyObserver.observe(img);
+                });
+
             // Initial indicator update
             scrollIndicator &&
                 this.updateScrollIndicator(track, scrollIndicator);
@@ -609,16 +621,22 @@
                     // to prevent "Write (globalTick) -> Read (scroll listener)" thrashing
                     if (this.activeScrolls.has(state)) {
                         // Check if user interference happened (large discrepancy)
-                        const diff = Math.abs(
-                            track.scrollLeft - state.currentScroll
-                        );
-                        if (diff > 5) {
-                            // User likely dragged the scrollbar or touched
-                            state.scrollTarget = track.scrollLeft;
-                            state.currentScroll = track.scrollLeft;
-                            state.velocity = 0;
+                        if (!rafPending) {
+                            rafPending = true;
+                            requestAnimationFrame(() => {
+                                const diff = Math.abs(
+                                    track.scrollLeft - state.currentScroll
+                                );
+                                if (diff > 5) {
+                                    // User likely dragged the scrollbar or touched
+                                    state.scrollTarget = track.scrollLeft;
+                                    state.currentScroll = track.scrollLeft;
+                                    state.velocity = 0;
+                                }
+                                rafPending = false;
+                                return;
+                            });
                         }
-                        return;
                     }
 
                     if (!this.activeScrolls.has(state)) {
@@ -781,7 +799,7 @@
                 background: `https://images.metahub.space/background/large/${m.id}/img`,
                 logo: `https://images.metahub.space/logo/medium/${m.id}/img`,
                 description: m.description || `Discover ${m.name}`,
-                year: String(m.year || "2024"),
+                year: m.year || "2024",
                 runtime: m.runtime || null,
                 type: m.type || type,
                 href:
@@ -918,9 +936,12 @@
                     const newImages = track.querySelectorAll(
                         ".lazy-load-img[data-src]"
                     );
-                    newImages.forEach((img) => {
-                        this.lazyLoadObserver.observe(img);
-                    });
+                    const observer = this.trackObservers.get(track);
+                    if (observer) {
+                        newImages.forEach((img) => {
+                            observer.observe(img);
+                        });
+                    }
                 });
             } catch (err) {
                 console.error("[InfiniteScrollPlugin] Fetch error", err);

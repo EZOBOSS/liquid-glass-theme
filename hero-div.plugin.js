@@ -540,9 +540,9 @@
             setTimeout(
                 () => {
                     if (this.dom.heroImage && title.background)
-                        this.dom.heroImage.src = title.background;
+                        this.dom.heroImage.src = `https://images.metahub.space/background/large/${title.id}/img`;
                     if (this.dom.heroLogo && title.logo)
-                        this.dom.heroLogo.src = title.logo;
+                        this.dom.heroLogo.src = `https://images.metahub.space/logo/medium/${title.id}/img`;
                     if (this.dom.heroDescription)
                         this.dom.heroDescription.textContent =
                             title.description || "";

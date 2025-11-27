@@ -12,7 +12,7 @@ const CONFIG = {
     updateInterval: 10000,
     concurrency: 4,
     // Intersection Observer Config
-    OBSERVER_MARGIN: "600px 0px",
+    OBSERVER_MARGIN: "2000px 0px",
     DB_NAME: "ETB_MetadataDB",
     DB_VERSION: 1,
     STORE_NAME: "metadata",
@@ -365,7 +365,7 @@ async function getMetadata(id, type) {
             runtime: meta.runtime || null,
             type: meta.type || type,
             description: meta.description || null,
-            logo: `https://images.metahub.space/logo/medium/${id}/img`,
+            logo: `https://images.metahub.space/logo/small/${id}/img`,
             trailer,
             // Dynamic properties from Worker
             releaseDate: dynamicData.releaseDate,
@@ -539,15 +539,44 @@ const TITLE_BAR_SELECTOR =
     ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container']:not([class*='search-hints']),[class*='media-title']";
 
 // --- Intersection Observer ---
-let intersectionObserver;
+const containerObservers = new WeakMap();
+let globalObserver;
 
-function handleIntersection(entries) {
+function getObserverFor(element) {
+    // Find closest scrollable container
+    // Common selectors for Stremio horizontal lists and our custom lists
+    const container = element.closest(
+        ".meta-items-container-qcuUA, .upcoming-groups-container, .scroll-container"
+    );
+
+    if (!container) {
+        if (!globalObserver) {
+            globalObserver = new IntersectionObserver(handleIntersection, {
+                rootMargin: CONFIG.OBSERVER_MARGIN,
+                threshold: 0.01,
+            });
+        }
+        return globalObserver;
+    }
+
+    if (!containerObservers.has(container)) {
+        const observer = new IntersectionObserver(handleIntersection, {
+            root: container,
+            rootMargin: CONFIG.OBSERVER_MARGIN,
+            threshold: 0.01,
+        });
+        containerObservers.set(container, observer);
+    }
+    return containerObservers.get(container);
+}
+
+function handleIntersection(entries, observer) {
     entries.forEach((entry) => {
         if (entry.isIntersecting) {
             const target = entry.target;
             if (!target.classList.contains("enhanced-title-bar")) {
                 taskQueue.add(() => enhanceTitleBar(target));
-                intersectionObserver.unobserve(target);
+                observer.unobserve(target);
             }
         }
     });
@@ -559,18 +588,12 @@ function observeElement(el) {
         !el.dataset.etbObserved
     ) {
         el.dataset.etbObserved = "true";
-        intersectionObserver.observe(el);
+        const observer = getObserverFor(el);
+        observer.observe(el);
     }
 }
 
 function initObservers() {
-    if (intersectionObserver) return;
-
-    intersectionObserver = new IntersectionObserver(handleIntersection, {
-        rootMargin: CONFIG.OBSERVER_MARGIN,
-        threshold: 0.01,
-    });
-
     document.querySelectorAll(TITLE_BAR_SELECTOR).forEach(observeElement);
 
     if (typeof MutationObserver !== "undefined") {

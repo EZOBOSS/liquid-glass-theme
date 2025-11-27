@@ -738,9 +738,9 @@
             }
 
             try {
-                // 1. Initial Catalog Fetch (2 pages per type for more content)
+                // 1. Initial Catalog Fetch (3 pages per type for more content)
                 const types = ["movie", "series"];
-                const skipValues = [0, 50]; // Fetch 2 pages
+                const skipValues = [0, 50, 100]; // Fetch 3 pages
 
                 const fetchPromises = [];
                 for (const t of types) {
