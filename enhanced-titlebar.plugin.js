@@ -18,7 +18,7 @@ const CONFIG = {
     STORE_NAME: "metadata",
     CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series (new seasons)
 };
-
+let db;
 // --- Web Worker for Dynamic Calculations ---
 const WORKER_CODE = `
 self.onmessage = function(e) {
@@ -104,6 +104,7 @@ self.onmessage = function(e) {
 const workerBlob = new Blob([WORKER_CODE], { type: "application/javascript" });
 const workerUrl = URL.createObjectURL(workerBlob);
 const worker = new Worker(workerUrl);
+URL.revokeObjectURL(workerUrl);
 
 // Promise wrapper for Worker
 const workerCallbacks = new Map();
@@ -115,6 +116,12 @@ worker.onmessage = (e) => {
         if (error) reject(error);
         else resolve(result);
     }
+};
+worker.onerror = (e) => {
+    console.error("[ETB] Worker Error:", e);
+    // Optional: Reject all pending callbacks if the worker dies
+    workerCallbacks.forEach(({ reject }) => reject("Worker crashed"));
+    workerCallbacks.clear();
 };
 
 function calculateDynamicData(meta, id) {
@@ -569,7 +576,7 @@ function initObservers() {
     if (typeof MutationObserver !== "undefined") {
         const mutationObserver = new MutationObserver((mutations) => {
             for (const m of mutations) {
-                if (m.type === "childList") {
+                if (m.type === "childList" && m.addedNodes.length > 0) {
                     m.addedNodes.forEach((node) => {
                         if (node.nodeType !== Node.ELEMENT_NODE) return;
 
