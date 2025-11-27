@@ -6,6 +6,7 @@
  */
 
 (function () {
+    // MetadataDB helper class
     class MetadataDB {
         static CONFIG = {
             DB_NAME: "ETB_MetadataDB",
@@ -140,6 +141,7 @@
             store.delete(id);
         }
     }
+    // UpcomingReleasesPlugin Main class
     class UpcomingReleasesPlugin {
         static CONFIG = {
             FETCH_TIMEOUT: 5000,
@@ -297,31 +299,6 @@
                 return data.value;
             } catch {
                 return null;
-            }
-        }
-
-        // --- IndexedDB Metadata Methods ---
-
-        async metadataGet(id) {
-            try {
-                return await this.metadataDB.get(id);
-            } catch (err) {
-                console.warn(
-                    `[UpcomingReleases] Failed to get metadata for ${id}:`,
-                    err
-                );
-                return null;
-            }
-        }
-
-        async metadataPut(id, data, type) {
-            try {
-                await this.metadataDB.put(id, data, type);
-            } catch (err) {
-                console.warn(
-                    `[UpcomingReleases] Failed to save metadata for ${id}:`,
-                    err
-                );
             }
         }
 
@@ -534,7 +511,7 @@
                 for (const [seriesId, episodes] of episodesBySeries) {
                     try {
                         // 1. Get current metadata from DB
-                        const meta = await this.metadataGet(seriesId);
+                        const meta = await this.metadataDB.get(seriesId);
                         if (!meta || !meta.videos) continue;
 
                         let modified = false;
@@ -559,7 +536,7 @@
 
                         // 4. Save back to DB if changed
                         if (modified) {
-                            await this.metadataPut(seriesId, meta, "series");
+                            await this.metadataDB.put(seriesId, meta, "series");
                             console.log(
                                 `[UpcomingReleases] Updated watched state for ${seriesId} (${episodes.length} updates)`
                             );
@@ -690,7 +667,7 @@
             // Use batched processing for large libraries (300+ items)
             const promiseFns = seriesIds.map((meta) => async () => {
                 const id = meta._id;
-                let cachedMeta = await this.metadataGet(id);
+                let cachedMeta = await this.metadataDB.get(id);
 
                 if (!cachedMeta) {
                     try {
@@ -700,7 +677,11 @@
                         const fetchedMeta = data?.meta;
 
                         if (fetchedMeta) {
-                            await this.metadataPut(id, fetchedMeta, "series");
+                            await this.metadataDB.put(
+                                id,
+                                fetchedMeta,
+                                "series"
+                            );
                             console.log(
                                 "[UpcomingReleases] Fetched meta for",
                                 id
@@ -815,7 +796,7 @@
                 );
 
                 const promiseFns = activeSeries.map((m) => async () => {
-                    let cachedMeta = await this.metadataGet(m.id);
+                    let cachedMeta = await this.metadataDB.get(m.id);
 
                     if (!cachedMeta) {
                         try {
@@ -824,7 +805,7 @@
                             );
                             const fetchedMeta = data?.meta;
                             if (fetchedMeta) {
-                                await this.metadataPut(
+                                await this.metadataDB.put(
                                     m.id,
                                     fetchedMeta,
                                     m.type

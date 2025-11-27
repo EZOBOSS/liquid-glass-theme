@@ -399,16 +399,10 @@ async function extractMediaInfo(element) {
         element.previousElementSibling?.querySelector?.('img[src*="tt"]');
     if (img) {
         const idMatch = img.src.match(RE_ID);
-        console.log(`[ETB] Found img for ${idMatch}`);
-
         if (idMatch && idMatch[0]) {
             const id = idMatch[0];
-            console.log(`[ETB] Checking DB for ${id}`);
-
             const meta = await db.get(id).catch(() => null);
-
             if (meta && meta.type) {
-                console.log(`[ETB] DB result for ${id}`, meta.type);
                 return { id, type: meta.type };
             }
         }

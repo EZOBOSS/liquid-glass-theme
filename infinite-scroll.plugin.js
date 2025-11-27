@@ -15,8 +15,8 @@
                 ".meta-row-container-xtlB1 .meta-items-container-qcuUA",
             SCROLL: {
                 FRICTION: 0.97,
-                EASE: 0.01,
-                WHEEL_FORCE: 0.3,
+                EASE: 0.02,
+                WHEEL_FORCE: 0.4,
                 MIN_VELOCITY: 0.05,
                 THRESHOLD: 0.4,
                 MAX_VELOCITY: 120,

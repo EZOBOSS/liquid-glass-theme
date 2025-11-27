@@ -133,8 +133,11 @@
     margin: 2px;
     content-visibility: auto;
 }
-
-.notification-item:last-child {
+.notification-item:not(.seen):first-child {
+    border-radius: 18px 18px 0 0;
+}
+.notification-item:not(.seen):last-child {
+    border-radius: 0 0 18px 18px;
     border-bottom: none;
 }
 
