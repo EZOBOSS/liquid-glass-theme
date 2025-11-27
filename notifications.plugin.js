@@ -6,15 +6,113 @@
  */
 
 (function () {
+    class MetadataDB {
+        static CONFIG = {
+            DB_NAME: "ETB_MetadataDB",
+            DB_VERSION: 1,
+            STORE_NAME: "metadata",
+            CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series (new seasons)
+        };
+        constructor() {
+            this.db = null;
+            this.initPromise = this.init();
+        }
+
+        init() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(
+                    MetadataDB.CONFIG.DB_NAME,
+                    MetadataDB.CONFIG.DB_VERSION
+                );
+
+                request.onerror = () => {
+                    console.error("[MetadataDB] DB Open Error", request.error);
+                    reject(request.error);
+                };
+
+                request.onsuccess = (event) => {
+                    this.db = event.target.result;
+                    resolve();
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (
+                        !db.objectStoreNames.contains(
+                            MetadataDB.CONFIG.STORE_NAME
+                        )
+                    ) {
+                        db.createObjectStore(MetadataDB.CONFIG.STORE_NAME, {
+                            keyPath: "id",
+                        });
+                    }
+                };
+            });
+        }
+
+        async getAll() {
+            await this.initPromise;
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(
+                    [MetadataDB.CONFIG.STORE_NAME],
+                    "readonly"
+                );
+                const store = transaction.objectStore(
+                    MetadataDB.CONFIG.STORE_NAME
+                );
+                const request = store.getAll();
+
+                request.onsuccess = () => {
+                    const record = request.result;
+
+                    resolve(record);
+                };
+
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async put(id, data, type) {
+            await this.initPromise;
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(
+                    [MetadataDB.CONFIG.STORE_NAME],
+                    "readwrite"
+                );
+                const store = transaction.objectStore(
+                    MetadataDB.CONFIG.STORE_NAME
+                );
+                const request = store.put({
+                    id,
+                    data,
+                    type, // Store type to determine expiration logic
+                    timestamp: Date.now(),
+                });
+
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async delete(id) {
+            await this.initPromise;
+            const transaction = this.db.transaction(
+                [MetadataDB.CONFIG.STORE_NAME],
+                "readwrite"
+            );
+            const store = transaction.objectStore(MetadataDB.CONFIG.STORE_NAME);
+            store.delete(id);
+        }
+    }
     class NotificationsPlugin {
         static CONFIG = {
-            CACHE_KEY: "videos_cache_all",
             SEEN_CACHE_KEY: "notifications_seen",
         };
 
         constructor() {
             this.notifications = [];
             this.seenNotifications = this.loadSeenState();
+            this.metadataDB = new MetadataDB();
             this.init();
         }
 
@@ -150,28 +248,14 @@
             }
         }
 
-        getMetadata() {
-            try {
-                const raw = localStorage.getItem(
-                    NotificationsPlugin.CONFIG.CACHE_KEY
-                );
-                if (!raw) return {};
-                // The cache structure is { key: { value: data, timestamp: ... } }
-                const cache = JSON.parse(raw);
-                return cache;
-            } catch (e) {
-                console.warn("Failed to read video cache", e);
-                return {};
-            }
-        }
-
-        updateNotifications() {
-            const cache = this.getMetadata();
+        async updateNotifications() {
+            await this.metadataDB.initPromise;
+            const cache = await this.metadataDB.getAll();
             const notifications = [];
             const now = Date.now();
 
             Object.values(cache).forEach((entry) => {
-                const series = entry.value;
+                const series = entry.data;
                 if (!series || series.type !== "series" || !series.videos)
                     return;
 
@@ -250,14 +334,29 @@
                 });
             });
 
-            // Sort by released date (newest first)
-            notifications.sort(
-                (a, b) => new Date(b.released) - new Date(a.released)
-            );
-            if (notifications.length > 100) {
-                notifications = notifications.slice(0, 100);
-            }
+            // Sort by unseen first, then released date (newest first)
+            notifications.sort((a, b) => {
+                if (a.isSeen === b.isSeen) {
+                    return new Date(b.released) - new Date(a.released);
+                }
+                return a.isSeen ? 1 : -1;
+            });
+
             this.notifications = notifications;
+
+            // Prune seen state to only rendered notifications
+            const currentIds = new Set(notifications.map((n) => n.id));
+            const previousSize = this.seenNotifications.size;
+
+            // Filter seenNotifications to only include those currently in the list
+            this.seenNotifications = new Set(
+                [...this.seenNotifications].filter((id) => currentIds.has(id))
+            );
+
+            if (this.seenNotifications.size !== previousSize) {
+                this.saveSeenState();
+            }
+
             this.renderList();
             this.updateBadge();
         }

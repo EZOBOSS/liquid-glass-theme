@@ -1,23 +1,249 @@
 /*
  * @name Enhanced Title Bar Optimized
- * @description Optimized version with concurrency limit and better DOM handling.
- * @version 1.1.2 (Genre Fix)
+ * @description Optimized version with IndexedDB and Web Workers.
+ * @version 1.2.0
  * @author Fxy, EZOBOSS
  */
 
 const CONFIG = {
     apiBase: "https://v3-cinemeta.strem.io/meta",
-    corsProxy: "https://corsproxy.io/?", // CORS proxy to bypass restrictions
+    corsProxy: "https://corsproxy.io/?",
     timeout: 5000,
-    updateInterval: 10000, // refresh every 10s
-    concurrency: 4, // limit simultaneous fetches
-    // ADDED: Persistent Cache TTL (12 hours)
-    CACHE_TTL: 12 * 60 * 60 * 1000,
-    CACHE_PREFIX: "etb_meta_cache_v2_", // New prefix for localStorage
-    CACHE_MAX_SIZE: 1000, // Max items in cache
-    // ADDED: Intersection Observer Config
-    OBSERVER_MARGIN: "600px 0px", // Preload before viewport
+    updateInterval: 10000,
+    concurrency: 4,
+    // Intersection Observer Config
+    OBSERVER_MARGIN: "600px 0px",
+    DB_NAME: "ETB_MetadataDB",
+    DB_VERSION: 1,
+    STORE_NAME: "metadata",
+    CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series (new seasons)
 };
+
+// --- Web Worker for Dynamic Calculations ---
+const WORKER_CODE = `
+self.onmessage = function(e) {
+    const { meta, id } = e.data;
+    
+    if (!meta) {
+        self.postMessage({ id, error: "No metadata provided" });
+        return;
+    }
+
+    try {
+        // --- Helper Functions inside Worker ---
+        function getDaysSinceRelease(releaseDateStr) {
+            if (!releaseDateStr) return "";
+            const oneDay = 86400000;
+            const release = Date.parse(releaseDateStr);
+            if (isNaN(release)) return "";
+
+            const diffMs = Date.now() - release;
+            const diffDays = diffMs / oneDay;
+
+            if (diffDays >= 0) {
+                const days = Math.trunc(diffDays);
+                if (days === 0) return "Today";
+                if (days >= 365) {
+                    const years = Math.trunc(days / 365);
+                    return \`\${years} year\${years > 1 ? "s" : ""} ago\`;
+                }
+                return \`\${days} day\${days > 1 ? "s" : ""} ago\`;
+            }
+
+            const daysAhead = Math.ceil(Math.abs(diffDays));
+            return \`in \${daysAhead} day\${daysAhead > 1 ? "s" : ""}\`;
+        }
+
+        // --- Calculation Logic ---
+        const videos = meta.videos || [];
+        let closestFuture = null;
+        let latestPast = null;
+        const now = new Date();
+        now.setDate(now.getDate() - 1); // Adjust for UTC/Timezone
+
+        for (const v of videos) {
+            if (!v.released) continue;
+            const date = new Date(v.released);
+            if (isNaN(date.getTime())) continue;
+            
+            if (date > now && (!closestFuture || date < closestFuture.date))
+                closestFuture = { date, released: v.released };
+            if (date <= now && (!latestPast || date > latestPast.date))
+                latestPast = { date, released: v.released };
+        }
+
+        const releaseDateStr = (closestFuture || latestPast || { released: meta.released }).released;
+        const releaseDate = getDaysSinceRelease(releaseDateStr);
+
+        // --- New Tag Logic ---
+        let newTag = null;
+        if (releaseDate && releaseDate.includes("day")) {
+            const match = releaseDate.match(/^(\\d+)/);
+            if (match) {
+                const days = parseInt(match[1], 10);
+                if (days <= 14) newTag = "NEW";
+            } else {
+                newTag = "UPCOMING";
+            }
+        }
+
+        self.postMessage({ 
+            id, 
+            result: { 
+                releaseDate, 
+                newTag 
+            } 
+        });
+
+    } catch (err) {
+        self.postMessage({ id, error: err.message });
+    }
+};
+`;
+
+const workerBlob = new Blob([WORKER_CODE], { type: "application/javascript" });
+const workerUrl = URL.createObjectURL(workerBlob);
+const worker = new Worker(workerUrl);
+
+// Promise wrapper for Worker
+const workerCallbacks = new Map();
+worker.onmessage = (e) => {
+    const { id, result, error } = e.data;
+    if (workerCallbacks.has(id)) {
+        const { resolve, reject } = workerCallbacks.get(id);
+        workerCallbacks.delete(id);
+        if (error) reject(error);
+        else resolve(result);
+    }
+};
+
+function calculateDynamicData(meta, id) {
+    return new Promise((resolve, reject) => {
+        workerCallbacks.set(id, { resolve, reject });
+        worker.postMessage({ meta, id });
+    });
+}
+
+/**
+ * IndexedDB wrapper for metadata caching with smart expiration logic:
+ * - Old movies (>1 year): cached forever
+ * - New movies (≤1 year): 30-day TTL to update ratings
+ * - Series: 30-day TTL to catch new seasons
+ */
+class MetadataDB {
+    constructor() {
+        this.db = null;
+        this.initPromise = this.init();
+    }
+
+    init() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(CONFIG.DB_NAME, CONFIG.DB_VERSION);
+
+            request.onerror = () => {
+                console.error("[MetadataDB] DB Open Error", request.error);
+                reject(request.error);
+            };
+
+            request.onsuccess = (event) => {
+                this.db = event.target.result;
+                resolve();
+            };
+
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(CONFIG.STORE_NAME)) {
+                    db.createObjectStore(CONFIG.STORE_NAME, { keyPath: "id" });
+                }
+            };
+        });
+    }
+
+    async get(id) {
+        await this.initPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(
+                [CONFIG.STORE_NAME],
+                "readonly"
+            );
+            const store = transaction.objectStore(CONFIG.STORE_NAME);
+            const request = store.get(id);
+
+            request.onsuccess = () => {
+                const record = request.result;
+                if (!record) {
+                    resolve(null);
+                    return;
+                }
+
+                // Check TTL based on content type and age
+                // Old movies (>1 year): never expire (cached forever)
+                // New movies (≤1 year): expire after 30 days to update ratings
+                // Series: expire after 30 days to catch new seasons
+                let shouldExpire = false;
+
+                if (record.type === "series") {
+                    // Series always expire after TTL
+                    shouldExpire =
+                        Date.now() - record.timestamp > CONFIG.CACHE_TTL_SERIES;
+                } else if (record.type === "movie") {
+                    // Check if movie is new (released within last year)
+                    const currentYear = new Date().getFullYear();
+                    const releaseYear =
+                        record.data?.year || record.data?.releaseInfo;
+                    const movieAge = currentYear - parseInt(releaseYear);
+
+                    // Only apply expiration to movies released in the last year
+                    if (movieAge <= 1) {
+                        shouldExpire =
+                            Date.now() - record.timestamp >
+                            CONFIG.CACHE_TTL_SERIES;
+                    }
+                    // Old movies never expire (shouldExpire remains false)
+                }
+
+                if (shouldExpire) {
+                    this.delete(id); // Fire and forget delete
+                    resolve(null);
+                } else {
+                    resolve(record.data);
+                }
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async put(id, data, type) {
+        await this.initPromise;
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(
+                [CONFIG.STORE_NAME],
+                "readwrite"
+            );
+            const store = transaction.objectStore(CONFIG.STORE_NAME);
+            const request = store.put({
+                id,
+                data,
+                type, // Store type to determine expiration logic
+                timestamp: Date.now(),
+            });
+
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async delete(id) {
+        await this.initPromise;
+        const transaction = this.db.transaction(
+            [CONFIG.STORE_NAME],
+            "readwrite"
+        );
+        const store = transaction.objectStore(CONFIG.STORE_NAME);
+        store.delete(id);
+    }
+}
 
 // --- Task Queue for Concurrency Control ---
 const taskQueue = {
@@ -47,152 +273,7 @@ const taskQueue = {
     },
 };
 
-// --- Self-Pruning LRU Cache ---
-
-class SelfPruningLRUCache {
-    constructor(maxSize = 100, ttl = 3600000, storageKey = "lru_cache") {
-        this.maxSize = maxSize;
-        this.ttl = ttl;
-        this.storageKey = storageKey;
-        this.cache = new Map();
-        this.load();
-    }
-
-    load() {
-        try {
-            const raw = localStorage.getItem(this.storageKey);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                // Sort by timestamp to approximate LRU order if needed,
-                // but mostly we rely on Map insertion order.
-                // Re-inserting them preserves order if saved correctly.
-                // However, JSON.stringify/parse might lose Map order if treated as object.
-                // We'll assume parsed is an array of entries or an object.
-                // If object, order is not guaranteed.
-                // Better to store as array of [key, value].
-
-                let entries = [];
-                if (Array.isArray(parsed)) {
-                    entries = parsed;
-                } else {
-                    // Migration or fallback for object format
-                    entries = Object.entries(parsed);
-                }
-
-                const now = Date.now();
-                entries.forEach(([key, value]) => {
-                    if (now - value.timestamp <= this.ttl) {
-                        this.cache.set(key, value);
-                    }
-                });
-            }
-        } catch (e) {
-            console.warn("[ETB] Failed to load cache", e);
-        }
-    }
-
-    save() {
-        try {
-            // Save as array of entries to preserve order
-            const entries = Array.from(this.cache.entries());
-            localStorage.setItem(this.storageKey, JSON.stringify(entries));
-        } catch (e) {
-            console.warn("[ETB] Failed to save cache", e);
-        }
-    }
-
-    get(key) {
-        if (!this.cache.has(key)) return null;
-
-        const item = this.cache.get(key);
-        const now = Date.now();
-
-        if (now - item.timestamp > this.ttl) {
-            this.cache.delete(key);
-            this.scheduleSave();
-            return null;
-        }
-
-        // Refresh item position (LRU logic: move to end)
-        this.cache.delete(key);
-        this.cache.set(key, item);
-        // OPTIMIZATION: Don't save on every get() - only on set/prune
-        // This reduces localStorage write frequency significantly
-
-        return item.data;
-    }
-
-    set(key, data) {
-        // Remove if exists to update position
-        if (this.cache.has(key)) {
-            this.cache.delete(key);
-        }
-
-        this.cache.set(key, {
-            data,
-            timestamp: Date.now(),
-        });
-
-        this.prune();
-        this.scheduleSave();
-    }
-
-    prune() {
-        if (this.cache.size > this.maxSize) {
-            // Map.keys().next().value returns the first inserted (oldest) key
-            // because we re-insert on access.
-            const oldestKey = this.cache.keys().next().value;
-            this.cache.delete(oldestKey);
-            // Recurse in case we need to remove more (unlikely if size=1)
-            if (this.cache.size > this.maxSize) {
-                this.prune();
-            }
-        }
-    }
-
-    scheduleSave() {
-        if (this.saveTimeout) clearTimeout(this.saveTimeout);
-        this.saveTimeout = setTimeout(() => {
-            this.save();
-        }, 2000); // Increased to 2s to batch writes better
-    }
-}
-
-const metadataCache = new SelfPruningLRUCache(
-    CONFIG.CACHE_MAX_SIZE,
-    CONFIG.CACHE_TTL,
-    CONFIG.CACHE_PREFIX + "storage"
-);
-
-function getDaysSinceRelease(releaseDateStr) {
-    if (!releaseDateStr) return "";
-    const oneDay = 86400000;
-    const release = Date.parse(releaseDateStr);
-    if (isNaN(release)) return "";
-
-    // 1. Calculate difference in milliseconds, then days
-    const diffMs = Date.now() - release;
-    const diffDays = diffMs / oneDay;
-
-    if (diffDays >= 0) {
-        // Past or current day
-        const days = Math.trunc(diffDays); // Use Math.trunc for whole days passed
-        if (days === 0) return "Today";
-
-        if (days >= 365) {
-            const years = Math.trunc(days / 365);
-            // 3. FIX: Pluralize based on the calculated number of years
-            return `${years} year${years > 1 ? "s" : ""} ago`;
-        }
-        return `${days} day${days > 1 ? "s" : ""} ago`;
-    }
-
-    // Future release
-    // 1. FIX: Use Math.ceil on the absolute difference to correctly count days ahead
-    const daysAhead = Math.ceil(Math.abs(diffDays));
-    return `in ${daysAhead} day${daysAhead > 1 ? "s" : ""}`;
-}
-
+// --- Styles ---
 function injectStyles() {
     if (document.getElementById("enhanced-title-bar-styles")) return;
     const style = document.createElement("style");
@@ -209,115 +290,61 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
-// --- External Cache Optimization ---
-let externalCacheMemory = null;
-
-function getExternalCache() {
-    if (!externalCacheMemory) {
-        try {
-            const raw = localStorage.getItem("videos_cache_all");
-            externalCacheMemory = raw ? JSON.parse(raw) : {};
-        } catch {
-            externalCacheMemory = {};
-        }
-    }
-    return externalCacheMemory;
-}
+// --- Main Logic ---
 
 async function getMetadata(id, type) {
-    const key = `${type}-${id}`;
-
-    // 1. Check for short-term cache (using the passed 'key')
-    const cachedData = metadataCache.get(key);
-    if (cachedData) {
-        return cachedData;
-    }
-
-    let meta = null;
-
     try {
-        const longTermCacheKey = `fullmeta:${id}`;
+        // 1. Try to get raw metadata from IndexedDB
+        let meta = await db.get(id);
+        let source = "cache";
 
-        // Optimized: Use memory-cached version of localStorage data
-        const cache = getExternalCache();
-        const cachedMeta = cache[longTermCacheKey];
-
-        if (cachedMeta) {
-            meta = cachedMeta.value;
-        }
-
+        // 2. If not in DB, fetch from API
         if (!meta) {
+            source = "api";
             const controller = new AbortController();
             const timeoutId = setTimeout(
                 () => controller.abort(),
                 CONFIG.timeout
             );
-            const res = await fetch(
-                `${CONFIG.corsProxy}${CONFIG.apiBase}/${type}/${id}.json`,
-                {
-                    signal: controller.signal,
-                    credentials: "omit", // Block cookies and credentials
+
+            try {
+                const res = await fetch(
+                    `${CONFIG.corsProxy}${CONFIG.apiBase}/${type}/${id}.json`,
+                    {
+                        signal: controller.signal,
+                        credentials: "omit",
+                    }
+                );
+                clearTimeout(timeoutId);
+
+                if (!res.ok) throw new Error(res.statusText);
+
+                const data = await res.json();
+                meta = data.meta;
+
+                if (meta) {
+                    console.log(`[ETB] Fetched ${id} from API`, meta.type);
+                    // Save raw meta to DB with type for expiration logic
+                    await db.put(id, meta, type);
                 }
-            );
-            clearTimeout(timeoutId);
-
-            if (!res.ok) throw new Error(res.statusText);
-
-            const data = await res.json();
-            meta = data.meta; // Assign fetched data to the 'meta' variable
-
-            if (!meta) {
+            } catch (fetchErr) {
+                console.warn(`[ETB] Fetch failed for ${id}:`, fetchErr);
                 return null;
             }
         }
 
-        // --- Metadata Processing (Runs for both cached and fetched data) ---
+        if (!meta) return null;
 
-        // Compute release date
-        const videos = meta.videos || [];
-        let closestFuture = null,
-            latestPast = null;
-        const now = new Date();
-        // Adjust for UTC offset and include videos released today at 00:00
-        now.setDate(now.getDate() - 1);
-        for (const v of videos) {
-            if (!v.released) continue;
-            const date = new Date(v.released);
-            if (isNaN(date)) continue;
-            if (date > now && (!closestFuture || date < closestFuture.date))
-                closestFuture = { date, released: v.released };
-            if (date <= now && (!latestPast || date > latestPast.date))
-                latestPast = { date, released: v.released };
-        }
+        // 3. Calculate dynamic data using Web Worker
+        const dynamicData = await calculateDynamicData(meta, id);
 
-        const releaseDate = getDaysSinceRelease(
-            (closestFuture || latestPast || { released: meta.released })
-                .released
-        );
-
-        // --- Compute newTag from releaseDate ---
-        const newTag = (() => {
-            const releaseStr = releaseDate;
-            if (releaseStr && releaseStr.includes("day")) {
-                const match = releaseStr.match(/^(\d+)/);
-                if (match) {
-                    const days = parseInt(match[1], 10);
-                    if (days <= 14) return "NEW";
-                } else {
-                    return "UPCOMING";
-                }
-            }
-            return null;
-        })();
-
+        // 4. Construct final metadata object
         const trailer =
             meta?.trailer ||
             meta?.trailers?.[0]?.source ||
             meta?.trailers?.[0]?.url ||
             meta?.videos?.[0]?.url ||
             null;
-
-        // --- Final Metadata Object Construction ---
 
         const metadata = {
             id: meta.id || id,
@@ -332,24 +359,26 @@ async function getMetadata(id, type) {
             type: meta.type || type,
             description: meta.description || null,
             logo: `https://images.metahub.space/logo/medium/${id}/img`,
-            releaseDate,
-            newTag,
             trailer,
+            // Dynamic properties from Worker
+            releaseDate: dynamicData.releaseDate,
+            newTag: dynamicData.newTag,
         };
 
-        metadataCache.set(key, metadata);
+        // console.log(`[ETB] Loaded ${id} from ${source}`, metadata);
         return metadata;
     } catch (e) {
-        console.error(`Error fetching/processing metadata for ${id}:`, e);
+        console.error(`[ETB] Error in getMetadata for ${id}:`, e);
         return null;
     }
 }
-//regexes
+
+// --- DOM Helpers ---
+
 const RE_ID = /tt\d{7,}/;
 const RE_TYPE = /\/(movie|series)\//i;
-function extractMediaInfo(element) {
-    // Optimization: Use closest() to find link context immediately
-    // This replaces the loop and querySelectorAll logic
+
+async function extractMediaInfo(element) {
     const link =
         element.closest('a[href*="tt"]') ||
         element.querySelector('a[href*="tt"]');
@@ -366,17 +395,28 @@ function extractMediaInfo(element) {
         }
     }
 
-    // Fallback: check images if no link found
     const img =
         element.previousElementSibling?.querySelector?.('img[src*="tt"]');
-
     if (img) {
         const idMatch = img.src.match(RE_ID);
-        if (idMatch) return { id: idMatch[0], type: "movie" };
+        console.log(`[ETB] Found img for ${idMatch}`);
+
+        if (idMatch && idMatch[0]) {
+            const id = idMatch[0];
+            console.log(`[ETB] Checking DB for ${id}`);
+
+            const meta = await db.get(id).catch(() => null);
+
+            if (meta && meta.type) {
+                console.log(`[ETB] DB result for ${id}`, meta.type);
+                return { id, type: meta.type };
+            }
+        }
     }
 
-    return { id: "tt0000000", type: "movie" }; // Default safe return
+    return { id: "tt0000000", type: "movie" };
 }
+
 function createMetadataElements(metadata) {
     const elements = [];
 
@@ -444,9 +484,9 @@ async function enhanceTitleBar(titleBar) {
 
     titleBar.classList.add("enhanced-title-bar");
     titleBar.dataset.originalHtml = titleBar.innerHTML.trim();
-    titleBar.textContent = ""; // Faster than innerHTML
+    titleBar.textContent = "";
 
-    const mediaInfo = extractMediaInfo(titleBar);
+    const mediaInfo = await extractMediaInfo(titleBar);
 
     const fragment = document.createDocumentFragment();
     const titleContainer = Object.assign(document.createElement("div"), {
@@ -463,11 +503,10 @@ async function enhanceTitleBar(titleBar) {
     metadataContainer.appendChild(loading);
     fragment.appendChild(metadataContainer);
 
-    // Single append to DOM
     titleBar.appendChild(fragment);
 
     const metadata = await getMetadata(mediaInfo.id, mediaInfo.type);
-    metadataContainer.textContent = ""; // Faster than innerHTML
+    metadataContainer.textContent = "";
 
     if (metadata) {
         if (metadata.logo) {
@@ -498,17 +537,15 @@ async function enhanceTitleBar(titleBar) {
 const TITLE_BAR_SELECTOR =
     ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container']:not([class*='search-hints']),[class*='media-title']";
 
-// --- Intersection Observer for Lazy Loading ---
+// --- Intersection Observer ---
 let intersectionObserver;
 
 function handleIntersection(entries) {
     entries.forEach((entry) => {
         if (entry.isIntersecting) {
             const target = entry.target;
-            // Double check if already enhanced to avoid duplicate work
             if (!target.classList.contains("enhanced-title-bar")) {
                 taskQueue.add(() => enhanceTitleBar(target));
-                // Unobserve after enhancement to prevent double work
                 intersectionObserver.unobserve(target);
             }
         }
@@ -533,10 +570,8 @@ function initObservers() {
         threshold: 0.01,
     });
 
-    // Initial scan
     document.querySelectorAll(TITLE_BAR_SELECTOR).forEach(observeElement);
 
-    // Mutation Observer for new content
     if (typeof MutationObserver !== "undefined") {
         const mutationObserver = new MutationObserver((mutations) => {
             for (const m of mutations) {
@@ -544,12 +579,10 @@ function initObservers() {
                     m.addedNodes.forEach((node) => {
                         if (node.nodeType !== Node.ELEMENT_NODE) return;
 
-                        // Check if the node itself is a title bar
                         if (node.matches && node.matches(TITLE_BAR_SELECTOR)) {
                             observeElement(node);
                         }
 
-                        // Check children of the added node
                         if (node.querySelectorAll) {
                             node.querySelectorAll(TITLE_BAR_SELECTOR).forEach(
                                 observeElement
@@ -567,10 +600,14 @@ function initObservers() {
     }
 }
 
-function init() {
-    injectStyles();
-    initObservers();
-    // Removed fallback setInterval and eager enhanceAllTitleBars
+async function init() {
+    try {
+        db = new MetadataDB();
+        injectStyles();
+        initObservers();
+    } catch (error) {
+        console.error("[ETB] Failed to initialize:", error);
+    }
 }
 
 if (document.readyState === "loading") {

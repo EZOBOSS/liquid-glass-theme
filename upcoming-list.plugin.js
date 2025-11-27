@@ -1,22 +1,153 @@
 /**
  * @name Upcoming Releases List
- * @description Shows a list of upcoming releases (with localStorage caching)
- * @version 2.0.0
+ * @description Shows a list of upcoming releases (with IndexedDB metadata caching)
+ * @version 2.1.0
  * @author EZOBOSS
  */
 
 (function () {
+    class MetadataDB {
+        static CONFIG = {
+            DB_NAME: "ETB_MetadataDB",
+            DB_VERSION: 1,
+            STORE_NAME: "metadata",
+            CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series (new seasons)
+        };
+        constructor() {
+            this.db = null;
+            this.initPromise = this.init();
+        }
+
+        init() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(
+                    MetadataDB.CONFIG.DB_NAME,
+                    MetadataDB.CONFIG.DB_VERSION
+                );
+
+                request.onerror = () => {
+                    console.error("[MetadataDB] DB Open Error", request.error);
+                    reject(request.error);
+                };
+
+                request.onsuccess = (event) => {
+                    this.db = event.target.result;
+                    resolve();
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (
+                        !db.objectStoreNames.contains(
+                            MetadataDB.CONFIG.STORE_NAME
+                        )
+                    ) {
+                        db.createObjectStore(MetadataDB.CONFIG.STORE_NAME, {
+                            keyPath: "id",
+                        });
+                    }
+                };
+            });
+        }
+
+        async get(id) {
+            await this.initPromise;
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(
+                    [MetadataDB.CONFIG.STORE_NAME],
+                    "readonly"
+                );
+                const store = transaction.objectStore(
+                    MetadataDB.CONFIG.STORE_NAME
+                );
+                const request = store.get(id);
+
+                request.onsuccess = () => {
+                    const record = request.result;
+                    if (!record) {
+                        resolve(null);
+                        return;
+                    }
+
+                    // Check TTL based on content type and age
+                    // Old movies (>1 year): never expire (cached forever)
+                    // New movies (≤1 year): expire after 30 days to update ratings
+                    // Series: expire after 30 days to catch new seasons
+                    let shouldExpire = false;
+
+                    if (record.type === "series") {
+                        // Series always expire after TTL
+                        shouldExpire =
+                            Date.now() - record.timestamp >
+                            MetadataDB.CONFIG.CACHE_TTL_SERIES;
+                    } else if (record.type === "movie") {
+                        // Check if movie is new (released within last year)
+                        const currentYear = new Date().getFullYear();
+                        const releaseYear =
+                            record.data?.year || record.data?.releaseInfo;
+                        const movieAge = currentYear - parseInt(releaseYear);
+
+                        // Only apply expiration to movies released in the last year
+                        if (movieAge <= 1) {
+                            shouldExpire =
+                                Date.now() - record.timestamp >
+                                MetadataDB.CONFIG.CACHE_TTL_SERIES;
+                        }
+                        // Old movies never expire (shouldExpire remains false)
+                    }
+
+                    if (shouldExpire) {
+                        this.delete(id); // Fire and forget delete
+                        resolve(null);
+                    } else {
+                        resolve(record.data);
+                    }
+                };
+
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async put(id, data, type) {
+            await this.initPromise;
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(
+                    [MetadataDB.CONFIG.STORE_NAME],
+                    "readwrite"
+                );
+                const store = transaction.objectStore(
+                    MetadataDB.CONFIG.STORE_NAME
+                );
+                const request = store.put({
+                    id,
+                    data,
+                    type, // Store type to determine expiration logic
+                    timestamp: Date.now(),
+                });
+
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async delete(id) {
+            await this.initPromise;
+            const transaction = this.db.transaction(
+                [MetadataDB.CONFIG.STORE_NAME],
+                "readwrite"
+            );
+            const store = transaction.objectStore(MetadataDB.CONFIG.STORE_NAME);
+            store.delete(id);
+        }
+    }
     class UpcomingReleasesPlugin {
         static CONFIG = {
             FETCH_TIMEOUT: 5000,
             CACHE_TTL: 1000 * 60 * 60 * 12, // 12 hours for the main catalog list
             CACHE_PREFIX: "upcoming_cache_",
-            VIDEO_CACHE_EXPIRY_MS: 14 * 24 * 60 * 60 * 1000, // 14 days for individual series videos
-            VIDEO_CACHE_PREFIX: "videos_cache_", // Prefix for long-term video cache
             CACHE_DEBOUNCE_MS: 500, // Debounce cache updates
             DAY_BUFFER: 86400000 * 4, // Include 4 days of future videos
             BATCH_SIZE: 50, // Number of concurrent promises to process at once
-            MAX_CACHE_ENTRIES: 200, // Maximum number of items to keep in video cache (LRU eviction)
             URLS: {
                 CINEMETA_CATALOG:
                     "https://cinemeta-catalogs.strem.io/top/catalog",
@@ -32,9 +163,7 @@
 
         constructor() {
             this.memoryCache = new Map();
-            this.videoMemoryCache = null;
-            this.libraryRecentCache = null; // New cache for library data
-            this.videoCacheTimeoutId = null;
+            this.libraryRecentCache = null;
             this.updateState = false;
             this.renderTimeout = null;
             this.intlDateTimeFormat = new Intl.DateTimeFormat("en-GB", {
@@ -44,6 +173,7 @@
             this.observer = null;
             this.currentMode = null;
             this.currentDataSignature = null;
+            this.metadataDB = new MetadataDB();
 
             this.init();
         }
@@ -56,7 +186,6 @@
             window.addEventListener("hashchange", (event) => {
                 if (event.oldURL.includes("player")) {
                     this.updateState = true;
-                    this.libraryRecentCache = null; // Invalidate cache on player exit
                 }
                 // Debounce render
                 if (this.renderTimeout) clearTimeout(this.renderTimeout);
@@ -127,10 +256,6 @@
             return (key) => UpcomingReleasesPlugin.CONFIG.CACHE_PREFIX + key;
         }
 
-        get videoCacheKey() {
-            return UpcomingReleasesPlugin.CONFIG.VIDEO_CACHE_PREFIX + "all";
-        }
-
         cacheSet(key, value) {
             const entry = { value, timestamp: Date.now() };
             this.memoryCache.set(key, entry);
@@ -175,119 +300,29 @@
             }
         }
 
-        async loadVideoCache() {
-            if (this.videoMemoryCache) return this.videoMemoryCache;
+        // --- IndexedDB Metadata Methods ---
 
-            // Yield to main thread to avoid blocking
-            await new Promise((resolve) => setTimeout(resolve, 0));
-
+        async metadataGet(id) {
             try {
-                const raw = localStorage.getItem(this.videoCacheKey);
-                let cache = {};
-
-                if (raw) {
-                    try {
-                        // Use Response.json() for non-blocking JSON parsing if possible
-                        cache = await new Response(raw).json();
-                    } catch {
-                        cache = JSON.parse(raw);
-                    }
-                } else {
-                    cache = {};
-                }
-
-                const now = Date.now();
-                let dirty = false;
-
-                // Clean up expired entries
-                for (const k in cache) {
-                    if (
-                        now - cache[k].timestamp >
-                        UpcomingReleasesPlugin.CONFIG.VIDEO_CACHE_EXPIRY_MS
-                    ) {
-                        delete cache[k];
-                        dirty = true;
-                    }
-                }
-
-                // LRU eviction if cache is too large
-                const entries = Object.entries(cache);
-                if (
-                    entries.length >
-                    UpcomingReleasesPlugin.CONFIG.MAX_CACHE_ENTRIES
-                ) {
-                    // Sort by timestamp (oldest first)
-                    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-
-                    // Keep only the newest MAX_CACHE_ENTRIES items
-                    const toKeep = entries.slice(
-                        -UpcomingReleasesPlugin.CONFIG.MAX_CACHE_ENTRIES
-                    );
-                    const newCache = {};
-                    for (const [key, value] of toKeep) {
-                        newCache[key] = value;
-                    }
-
-                    console.log(
-                        `[UpcomingReleases] Cache size limit reached. Evicted ${
-                            entries.length - toKeep.length
-                        } oldest entries`
-                    );
-
-                    this.videoMemoryCache = newCache;
-                    this.saveVideoCache(newCache);
-                    return newCache;
-                }
-
-                if (dirty) this.saveVideoCache(cache);
-
-                this.videoMemoryCache = cache;
-                return cache;
-            } catch (err) {
-                console.log(
-                    "[UpcomingReleases] Failed to load video cache",
-                    err
-                );
-                this.videoMemoryCache = {};
-                return {};
-            }
-        }
-
-        saveVideoCache(cache) {
-            if (!cache) return;
-            try {
-                requestIdleCallback(() => {
-                    localStorage.setItem(
-                        this.videoCacheKey,
-                        JSON.stringify(cache)
-                    );
-                });
-                this.videoMemoryCache = cache;
+                return await this.metadataDB.get(id);
             } catch (err) {
                 console.warn(
-                    "[UpcomingReleases] Failed to save video cache",
+                    `[UpcomingReleases] Failed to get metadata for ${id}:`,
+                    err
+                );
+                return null;
+            }
+        }
+
+        async metadataPut(id, data, type) {
+            try {
+                await this.metadataDB.put(id, data, type);
+            } catch (err) {
+                console.warn(
+                    `[UpcomingReleases] Failed to save metadata for ${id}:`,
                     err
                 );
             }
-        }
-
-        async videoCacheSet(key, value) {
-            const cache = await this.loadVideoCache();
-            cache[key] = { value, timestamp: Date.now() };
-
-            if (this.videoCacheTimeoutId) {
-                clearTimeout(this.videoCacheTimeoutId);
-            }
-            this.videoCacheTimeoutId = setTimeout(() => {
-                this.saveVideoCache(cache);
-                this.videoCacheTimeoutId = null;
-            }, UpcomingReleasesPlugin.CONFIG.CACHE_DEBOUNCE_MS);
-        }
-
-        async videoCacheGet(key) {
-            const cache = await this.loadVideoCache();
-            const entry = cache[key];
-            return entry ? entry.value : null;
         }
 
         // --- Helper Methods ---
@@ -427,43 +462,66 @@
                 if (item.type !== "series") continue;
 
                 const lib = recentItems[item.id];
+                // If not in library, we might need to unwatch everything?
+                // For now, let's assume if it's not in library_recent, we don't touch it
+                // (or it might be a new item).
+                // Ideally, if it was removed from library, we should probably unwatch it,
+                // but library_recent might not have everything.
                 if (!lib) continue;
 
                 const watchedState = lib.state && lib.state.watched;
-                if (!watchedState) continue;
+                // watchedState format: "s:1:e:1" or null
 
-                const parts = watchedState.split(":", 3);
-                if (parts.length < 3) continue;
+                let currentSeason = 0;
+                let currentEpisode = 0;
 
-                const season = +parts[1];
-                const episode = +parts[2];
+                if (watchedState) {
+                    const parts = watchedState.split(":");
+                    if (parts.length >= 3) {
+                        currentSeason = +parts[1];
+                        currentEpisode = +parts[2];
+                    }
+                }
 
                 item.watched = watchedState;
 
                 const videos = item.videos;
                 if (!videos) continue;
 
-                const seasonVideos = videos.filter((v) => v.season === season);
-                if (!seasonVideos.length) continue;
+                // Check ALL videos for this series
+                for (const v of videos) {
+                    // Determine if this episode SHOULD be watched based on library state
+                    let shouldBeWatched = false;
 
-                for (const v of seasonVideos) {
-                    if (v.episode <= episode && !v.watched) {
-                        v.watched = true;
+                    if (currentSeason > 0) {
+                        if (v.season < currentSeason && v.season > 0) {
+                            // Previous seasons are watched
+                            shouldBeWatched = true;
+                        } else if (v.season === currentSeason) {
+                            // Current season, up to current episode
+                            if (v.episode <= currentEpisode) {
+                                shouldBeWatched = true;
+                            }
+                        }
+                    }
+
+                    // Sync state: If mismatch, update and mark for DB save
+                    // We check for strict inequality to catch undefined/null vs true/false
+                    if (!!v.watched !== shouldBeWatched) {
+                        v.watched = shouldBeWatched;
                         updatedEpisodes.push({
                             id: item.id,
                             season: v.season,
                             episode: v.episode,
+                            watched: shouldBeWatched,
                         });
                     }
                 }
             }
 
-            // Persist watched state changes back to videos_cache_all
+            // Persist watched state changes back to MetadataDB (IndexedDB)
             if (updatedEpisodes.length > 0) {
-                const cache = await this.loadVideoCache();
-                let modifiedCache = false;
-
-                // Group episodes by series ID to minimize cache lookups
+                // Group episodes by series ID to minimize DB lookups
                 const episodesBySeries = new Map();
                 for (const ep of updatedEpisodes) {
                     if (!episodesBySeries.has(ep.id)) {
@@ -474,27 +532,45 @@
 
                 // Process each series once
                 for (const [seriesId, episodes] of episodesBySeries) {
-                    const cacheKey = `fullmeta:${seriesId}`;
-                    const cachedVideos = cache[cacheKey]?.value?.videos;
-                    if (!cachedVideos) continue;
+                    try {
+                        // 1. Get current metadata from DB
+                        const meta = await this.metadataGet(seriesId);
+                        if (!meta || !meta.videos) continue;
 
-                    // Build lookup map for this series
-                    const videoMap = new Map();
-                    for (const v of cachedVideos) {
-                        videoMap.set(`${v.season}-${v.episode}`, v);
-                    }
+                        let modified = false;
 
-                    // Update all episodes for this series
-                    for (const { season, episode } of episodes) {
-                        const match = videoMap.get(`${season}-${episode}`);
-                        if (match && !match.watched) {
-                            match.watched = true;
-                            modifiedCache = true;
+                        // 2. Build lookup map for this series
+                        const videoMap = new Map();
+                        for (const v of meta.videos) {
+                            videoMap.set(`${v.season}-${v.episode}`, v);
                         }
+
+                        // 3. Update all episodes for this series
+                        for (const { season, episode, watched } of episodes) {
+                            const match = videoMap.get(`${season}-${episode}`);
+                            if (match) {
+                                // Only update if different to avoid unnecessary writes
+                                if (!!match.watched !== watched) {
+                                    match.watched = watched;
+                                    modified = true;
+                                }
+                            }
+                        }
+
+                        // 4. Save back to DB if changed
+                        if (modified) {
+                            await this.metadataPut(seriesId, meta, "series");
+                            console.log(
+                                `[UpcomingReleases] Updated watched state for ${seriesId} (${episodes.length} updates)`
+                            );
+                        }
+                    } catch (err) {
+                        console.warn(
+                            `[UpcomingReleases] Failed to update watched state for ${seriesId}`,
+                            err
+                        );
                     }
                 }
-
-                if (modifiedCache) this.saveVideoCache(cache);
             }
 
             return list;
@@ -614,8 +690,7 @@
             // Use batched processing for large libraries (300+ items)
             const promiseFns = seriesIds.map((meta) => async () => {
                 const id = meta._id;
-                const metaCacheKey = `fullmeta:${id}`;
-                let cachedMeta = await this.videoCacheGet(metaCacheKey);
+                let cachedMeta = await this.metadataGet(id);
 
                 if (!cachedMeta) {
                     try {
@@ -625,9 +700,10 @@
                         const fetchedMeta = data?.meta;
 
                         if (fetchedMeta) {
-                            await this.videoCacheSet(
-                                metaCacheKey,
-                                this.mapToListItem(fetchedMeta, "series")
+                            await this.metadataPut(id, fetchedMeta, "series");
+                            console.log(
+                                "[UpcomingReleases] Fetched meta for",
+                                id
                             );
                             cachedMeta = fetchedMeta;
                         }
@@ -641,7 +717,10 @@
                     }
                 }
                 if (cachedMeta) {
-                    Object.assign(meta, cachedMeta);
+                    Object.assign(
+                        meta,
+                        this.mapToListItem(cachedMeta, "series")
+                    );
                 }
                 return meta;
             });
@@ -670,7 +749,7 @@
                 console.log("[UpcomingReleases] Fetched cached", key);
                 if (this.updateState) {
                     this.updateState = false;
-                    const updated = this.refreshWatchedState(cached);
+                    const updated = await this.refreshWatchedState(cached);
                     this.cacheSet(key, updated);
                     return updated;
                 }
@@ -736,20 +815,25 @@
                 );
 
                 const promiseFns = activeSeries.map((m) => async () => {
-                    const metaCacheKey = `fullmeta:${m.id}`;
-                    let cachedMeta = await this.videoCacheGet(metaCacheKey);
+                    let cachedMeta = await this.metadataGet(m.id);
 
                     if (!cachedMeta) {
                         try {
                             const data = await this.safeFetch(
                                 `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/${m.type}/${m.id}.json`
                             );
-                            cachedMeta = data?.meta || [];
-                            if (cachedMeta) {
-                                await this.videoCacheSet(
-                                    metaCacheKey,
-                                    this.mapToListItem(cachedMeta)
+                            const fetchedMeta = data?.meta;
+                            if (fetchedMeta) {
+                                await this.metadataPut(
+                                    m.id,
+                                    fetchedMeta,
+                                    m.type
                                 );
+                                console.log(
+                                    "[UpcomingReleases] Fetched meta for",
+                                    m.id
+                                );
+                                cachedMeta = fetchedMeta;
                             }
                         } catch (err) {
                             console.warn(
@@ -760,7 +844,10 @@
                         }
                     }
                     if (cachedMeta) {
-                        Object.assign(m, cachedMeta);
+                        Object.assign(
+                            m,
+                            this.mapToListItem(cachedMeta, m.type)
+                        );
                     }
                     return m;
                 });
