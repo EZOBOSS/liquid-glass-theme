@@ -1977,7 +1977,7 @@ body.ghost-clicking #heroLoadingScreen {
 /* scroll snapping */
 .meta-row-container-xtlB1 {
     display: flex;
-    transform: opacity 0.5s ease-in-out;
+
     will-change: opacity, transform;
     position: relative;
     z-index: 11;
@@ -1999,7 +1999,7 @@ body.ghost-clicking #heroLoadingScreen {
 
 .meta-row-container-xtlB1.active {
     opacity: 0;
-    transition: opacity ease-in-out, transform 0.5s ease-in-out;
+    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
     will-change: opacity, transform;
     pointer-events: auto;
     display: flex !important;

@@ -13,7 +13,8 @@
                 ROW: ".meta-row-container-xtlB1",
                 TITLE: ".header-container-tR3Ev .title-container-Mkwnq",
                 NAV_CONTAINER: "row-navigator-container",
-                IGNORE_CONTAINER: ".meta-items-container-qcuUA",
+                IGNORE_CONTAINER:
+                    ".meta-items-container-qcuUA, .upcoming-groups-container",
             },
             OBSERVER_OPTIONS: {
                 root: null,
@@ -150,7 +151,16 @@
             item.addEventListener("click", (e) => {
                 e.stopPropagation();
                 if (row.isConnected) {
-                    row.scrollIntoView({ behavior: "smooth", block: "center" });
+                    // Set flag to prevent IntersectionObserver interference
+                    this.isProgrammaticScroll = true;
+                    this.setActiveRow(row);
+
+                    row.scrollIntoView({ behavior: "smooth", block: "end" });
+
+                    // Reset flag after animation
+                    setTimeout(() => {
+                        this.isProgrammaticScroll = false;
+                    }, 1000);
                 } else {
                     this.scanRows();
                 }

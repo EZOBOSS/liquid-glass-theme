@@ -2,19 +2,20 @@
 
 .upcoming-wrapper {
     position: fixed;
-    right: -98%;
+    left: -98%;
     top: 20%;
     height: 25vh;
     width: 100vw;
     z-index: 100;
     display: flex;
+    flex-direction: row-reverse;
     align-items: stretch;
     pointer-events: auto;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .upcoming-wrapper:hover {
-    transform: translateX(-98%);
+    transform: translateX(98%);
 }
 
 .upcoming-wrapper:hover .upcoming-container {
@@ -26,11 +27,11 @@
 .upcoming-vertical-tab {
     writing-mode: vertical-rl;
     text-orientation: mixed;
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(45deg, #0000005e, #00000038);
+    backdrop-filter: blur(20px) saturate(2);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-right: none;
-    border-radius: 1rem 0 0 1rem;
+    border-left: none;
+    border-radius: 0 1rem 1rem 0;
     padding: 1.5rem 0.8rem;
     cursor: pointer;
     color: white;
@@ -50,7 +51,7 @@
 .upcoming-vertical-tab:hover {
     background: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.4);
-    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 5px 0 20px rgba(0, 0, 0, 0.5);
 }
 
 .upcoming-vertical-tab span {
@@ -66,16 +67,16 @@
     box-sizing: border-box;
     z-index: 10;
     background-image: linear-gradient(
-        to right,
-        #4343439e 0%,
-        rgba(0, 0, 0, 0.752) 100%
+        to left,
+        rgba(0, 0, 0, 0.752) 1%,
+        #4343439e 100%
     );
     backdrop-filter: blur(20px) saturate(1.5);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-right: none;
     border-radius: 0;
-    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
-    transform: translateX(100%);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+    transform: translateX(-100%);
     opacity: 0;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -91,7 +92,7 @@
     position: absolute;
     overflow: visible;
     top: 0.5rem;
-    right: 2rem;
+    left: 2rem;
     display: flex;
     gap: 1rem;
     z-index: 20;
@@ -427,8 +428,8 @@
 
 .upcoming-card:hover .upcoming-background-container,
 .upcoming-card:hover .upcoming-info {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 
 .upcoming-episodes-container {
@@ -447,8 +448,8 @@
     opacity: 0;
     padding: 0;
     z-index: 11;
-    border-radius: 0 1rem 1rem 0;
-    border-left: none;
+    border-radius: 1rem 0 0 1rem;
+    border-right: none;
     transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
