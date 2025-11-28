@@ -1094,17 +1094,75 @@
                 indicator.innerText = Object.keys(groupedByDate)[0];
             }
 
-            const groupsHtml = Object.entries(groupedByDate)
-                .map(
-                    ([dateKey, items]) => `
-                <div class="upcoming-date-group" data-date-key="${dateKey}">
+            const now = Date.now();
+            const groupsHtmlArray = Object.entries(groupedByDate).map(
+                ([dateKey, items]) => {
+                    const hue1 = Math.floor(Math.random() * 360);
+                    const hue2 = (hue1 + 60) % 360; // Complementary color
+                    const bgGradient = `linear-gradient(135deg, hsl(${hue1}, 70%, 50%, 0.05), hsl(${hue2}, 70%, 40%, 0.05))`;
+
+                    // Check if this group is in the past or future
+                    const firstItemDate = items[0]?.releaseDate;
+                    const isPast =
+                        firstItemDate &&
+                        new Date(firstItemDate).getTime() < now;
+
+                    return {
+                        html: `
+                <div class="upcoming-date-group" data-date-key="${dateKey}" style="background: ${bgGradient}">
                     <h3 class="date-group-title">${dateKey}</h3>
                     <div class="upcoming-grid">
                         ${this.buildGridHtml(items)}
                     </div>
-                </div>`
-                )
-                .join("");
+                </div>`,
+                        isPast,
+                        dateKey,
+                    };
+                }
+            );
+
+            // Find the transition point between past and future
+            let insertIndex = -1;
+            for (let i = 0; i < groupsHtmlArray.length; i++) {
+                if (!groupsHtmlArray[i].isPast) {
+                    insertIndex = i;
+                    break;
+                }
+            }
+
+            // Insert the "now" indicator between past and future groups
+            const nowIndicator = `
+                <div class="current-time-indicator">
+                    <div class="time-marker">
+                        <div class="time-label">NOW</div>
+                        <div class="time-line"></div>
+                    </div>
+                </div>`;
+
+            if (insertIndex > 0 && insertIndex < groupsHtmlArray.length) {
+                // Insert between past and future
+                groupsHtmlArray.splice(insertIndex, 0, {
+                    html: nowIndicator,
+                    isPast: false,
+                    dateKey: "now",
+                });
+            } else if (insertIndex === 0) {
+                // All items are in the future
+                groupsHtmlArray.unshift({
+                    html: nowIndicator,
+                    isPast: false,
+                    dateKey: "now",
+                });
+            } else if (insertIndex === -1 && groupsHtmlArray.length > 0) {
+                // All items are in the past
+                groupsHtmlArray.push({
+                    html: nowIndicator,
+                    isPast: false,
+                    dateKey: "now",
+                });
+            }
+
+            const groupsHtml = groupsHtmlArray.map((g) => g.html).join("");
 
             container.insertAdjacentHTML(
                 "beforeend",
@@ -1210,30 +1268,58 @@
         buildGridHtml(upcoming) {
             const thresholdMs =
                 Date.now() - UpcomingReleasesPlugin.CONFIG.DAY_BUFFER;
+            const now = Date.now();
             const gridItems = [];
 
             for (const m of upcoming) {
                 let episodesContainerHtml = "";
+                let unwatchedCount = 0;
+                let watchedCount = 0;
 
                 if (Array.isArray(m.videos) && m.videos.length) {
                     let nextUp = null;
+                    let nextUpReleaseDate = null;
                     const match = m.episodeText?.match(/^S(\d+)\sE(\d+)$/);
                     if (match) {
                         nextUp = { season: +match[1], episode: +match[2] };
+                        // Find the release date of the next episode
+                        const nextEpisode = m.videos.find(
+                            (v) =>
+                                v.season === nextUp.season &&
+                                v.episode === nextUp.episode
+                        );
+                        if (nextEpisode && nextEpisode.released) {
+                            nextUpReleaseDate = new Date(
+                                nextEpisode.released
+                            ).toDateString();
+                        }
                     }
 
                     const episodesHtmlParts = [];
                     for (const ep of m.videos) {
                         const released = Date.parse(ep.released) <= thresholdMs;
+                        const available = Date.parse(ep.released) <= now;
                         const isWatched = ep.watched;
                         const watchedClass = isWatched ? " watched" : "";
                         let stateClass = "released" + watchedClass;
 
+                        // Count unwatched released episodes
+                        if (available && !isWatched) {
+                            unwatchedCount++;
+                        }
+
+                        // Count watched episodes to check if user has started watching
+                        if (isWatched) {
+                            watchedCount++;
+                        }
+
                         if (!released && !isWatched) {
+                            // Mark all episodes on the same date as the next unwatched episode
                             if (
-                                nextUp &&
-                                ep.season === nextUp.season &&
-                                ep.episode === nextUp.episode
+                                nextUpReleaseDate &&
+                                ep.released &&
+                                new Date(ep.released).toDateString() ===
+                                    nextUpReleaseDate
                             ) {
                                 stateClass = "upcoming-next";
                             } else {
@@ -1280,6 +1366,12 @@
                     ? `<div class="upcoming-new-season">SEASON ${upcomingSeasonNumber} PREMIERE</div>`
                     : "";
 
+                // Create unwatched badge if there are unwatched episodes
+                const unwatchedBadge =
+                    unwatchedCount > 0 && watchedCount > 0
+                        ? `<div class="unwatched-badge">${unwatchedCount}</div>`
+                        : "";
+
                 gridItems.push(`
                 <a tabindex="0" class="upcoming-card${newSeasonClass}${futureClass}" href="${
                     m.href
@@ -1299,6 +1391,7 @@
                         <img src="${m.poster}" alt="${
                     m.title
                 }" loading="lazy" />
+                        ${unwatchedBadge}
                     </div>
                     <div class="upcoming-info">
                         <img class="upcoming-logo" src="${m.logo}" alt="${

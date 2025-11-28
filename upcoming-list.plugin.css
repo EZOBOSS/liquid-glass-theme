@@ -228,6 +228,8 @@
         rgba(255, 255, 255, 0.15) 0%,
         rgba(255, 255, 255, 0.08) 100%
     );
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.15),
+        0 4px 15px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .floating-date-indicator {
@@ -253,6 +255,70 @@
     pointer-events: none;
     transition: all 0.3s ease;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.current-time-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 60px;
+    height: 100%;
+    position: relative;
+    z-index: 5;
+}
+
+.current-time-indicator .time-marker {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 0.5rem;
+    border-radius: 10px;
+}
+
+.current-time-indicator .time-label {
+    background: linear-gradient(135deg, #00ff88, #00ffdd);
+    color: #000;
+    font-weight: 900;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    letter-spacing: 0.1em;
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.5), 0 4px 15px rgba(0, 0, 0, 0.3),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.current-time-indicator .time-line {
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 255, 136, 0.1),
+        rgba(0, 255, 136, 0.8),
+        rgba(0, 255, 136, 0.8),
+        rgba(0, 255, 136, 0.1)
+    );
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.5), 0 0 20px rgba(0, 255, 136, 0.3);
+    border-radius: 2px;
+}
+
+@keyframes pulse-glow {
+    0%,
+    100% {
+        box-shadow: 0 0 20px rgba(0, 255, 136, 0.5),
+            0 4px 15px rgba(0, 0, 0, 0.3),
+            inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(0, 255, 136, 0.8),
+            0 4px 20px rgba(0, 0, 0, 0.4),
+            inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    }
 }
 
 .date-group-title {
@@ -380,6 +446,48 @@
     height: 100%;
     object-fit: cover;
     transition: transform 0.5s ease;
+}
+
+.unwatched-badge {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: linear-gradient(135deg, #ff3b3b, #ff6b6b);
+    color: white;
+    font-weight: 900;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 50%;
+    min-width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    box-shadow: 0 0 15px rgba(255, 59, 59, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: badge-pulse 2s ease-in-out infinite;
+}
+
+.upcoming-card:hover .unwatched-badge {
+    transform: scale(1.1);
+    box-shadow: 0 0 25px rgba(255, 59, 59, 0.8), 0 6px 15px rgba(0, 0, 0, 0.5),
+        inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+@keyframes badge-pulse {
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(255, 59, 59, 0.6),
+            0 4px 10px rgba(0, 0, 0, 0.4),
+            inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(255, 59, 59, 0.9),
+            0 4px 15px rgba(0, 0, 0, 0.5),
+            inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    }
 }
 
 .upcoming-card .upcoming-info {
