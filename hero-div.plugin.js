@@ -537,61 +537,65 @@
 
             if (animate) this.dom.hero.classList.add("is-transitioning");
 
-            setTimeout(
-                () => {
-                    if (this.dom.heroImage && title.background)
-                        this.dom.heroImage.src = `https://images.metahub.space/background/large/${title.id}/img`;
-                    if (this.dom.heroLogo && title.logo)
-                        this.dom.heroLogo.src = `https://images.metahub.space/logo/medium/${title.id}/img`;
-                    if (this.dom.heroDescription)
-                        this.dom.heroDescription.textContent =
-                            title.description || "";
+            requestAnimationFrame(() => {
+                setTimeout(
+                    () => {
+                        if (this.dom.heroImage && title.background)
+                            this.dom.heroImage.src = `https://images.metahub.space/background/large/${title.id}/img`;
+                        if (this.dom.heroLogo && title.logo)
+                            this.dom.heroLogo.src = `https://images.metahub.space/logo/medium/${title.id}/img`;
+                        if (this.dom.heroDescription)
+                            this.dom.heroDescription.textContent =
+                                title.description || "";
 
-                    if (this.dom.heroInfo) {
-                        const info = [title.year].filter(Boolean);
-                        if (title.duration && title.duration !== "Unknown")
-                            info.push(title.duration);
-                        if (title.seasons && title.seasons !== "Unknown")
-                            info.push(title.seasons);
-                        if (title.releaseDate && title.releaseDate !== "")
-                            info.push(title.releaseDate);
+                        if (this.dom.heroInfo) {
+                            const info = [title.year].filter(Boolean);
+                            if (title.duration && title.duration !== "Unknown")
+                                info.push(title.duration);
+                            if (title.seasons && title.seasons !== "Unknown")
+                                info.push(title.seasons);
+                            if (title.releaseDate && title.releaseDate !== "")
+                                info.push(title.releaseDate);
 
-                        const ratingHTML =
-                            title.rating && title.rating !== "na"
-                                ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}</span></p>`
-                                : `<p class="rating-item"><span class="rating-text"></span></p>`;
+                            const ratingHTML =
+                                title.rating && title.rating !== "na"
+                                    ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}</span></p>`
+                                    : `<p class="rating-item"><span class="rating-text"></span></p>`;
 
-                        this.dom.heroInfo.innerHTML =
-                            info.map((i) => `<p>${i}</p>`).join("") +
-                            ratingHTML;
-                    }
+                            this.dom.heroInfo.innerHTML =
+                                info.map((i) => `<p>${i}</p>`).join("") +
+                                ratingHTML;
+                        }
 
-                    this.dom.heroButtonWatch?.setAttribute(
-                        "onclick",
-                        `event.stopPropagation(); window.playTitle('${title.id}')`
-                    );
-                    this.dom.heroButtonMoreInfo?.setAttribute(
-                        "onclick",
-                        `event.stopPropagation(); window.showMoreInfo('${title.id}')`
-                    );
+                        this.dom.heroButtonWatch?.setAttribute(
+                            "onclick",
+                            `event.stopPropagation(); window.playTitle('${title.id}')`
+                        );
+                        this.dom.heroButtonMoreInfo?.setAttribute(
+                            "onclick",
+                            `event.stopPropagation(); window.showMoreInfo('${title.id}')`
+                        );
 
-                    if (animate) {
-                        requestAnimationFrame(() => {
-                            this.dom.hero.classList.remove("is-transitioning");
-                        });
-                    }
-                },
-                animate ? 400 : 0
-            );
-
-            this.dom.indicators
-                ?.querySelectorAll(".hero-indicator")
-                ?.forEach((ind, i) =>
-                    ind.classList.toggle(
-                        "active",
-                        i === this.state.currentIndex
-                    )
+                        if (animate) {
+                            requestAnimationFrame(() => {
+                                this.dom.hero.classList.remove(
+                                    "is-transitioning"
+                                );
+                            });
+                        }
+                    },
+                    animate ? 400 : 0
                 );
+
+                this.dom.indicators
+                    ?.querySelectorAll(".hero-indicator")
+                    ?.forEach((ind, i) =>
+                        ind.classList.toggle(
+                            "active",
+                            i === this.state.currentIndex
+                        )
+                    );
+            });
         }
 
         // -------------------------
@@ -1070,85 +1074,90 @@
 
         updateHeroFromHover(card) {
             if (!card || !this.dom.hero) return;
-
-            const cardLogo =
-                card.querySelector(".enhanced-title img") ||
-                card.querySelector(".upcoming-logo");
-            const cardImg = card.querySelector("img");
-            const desc =
-                card.querySelector(".enhanced-description")?.dataset
-                    .description || card.dataset.description;
-            const rating =
-                card.querySelector(".enhanced-rating")?.textContent ||
-                card.dataset.rating ||
-                "";
-            const cardIMDB = card.id || card.dataset.id;
-            const cardYear = card.dataset.year;
-            const cardGenres = card.dataset.genres;
-            const cardReleaseDate = card.querySelector(
-                ".enhanced-release-date"
-            );
-            const cardRuntime =
-                card.querySelector(".enhanced-description")?.dataset.runtime ||
-                card.dataset.runtime;
-            const cardMetadata = [
-                ...card.querySelectorAll('[class="enhanced-metadata-item"]'),
-            ];
-
-            if (this.dom.heroLogo && cardLogo)
-                this.dom.heroLogo.src = cardLogo.src;
-            if (this.dom.heroImage && cardImg)
-                this.dom.heroImage.src = cardImg.src;
-            if (this.dom.heroDescription && desc)
-                this.dom.heroDescription.textContent = desc;
-
-            if (this.dom.heroInfo) {
-                const ratingElement =
-                    this.dom.heroInfo.querySelector(".rating-text");
-                if (ratingElement)
-                    ratingElement.textContent = rating ? `⭐ ${rating}` : "";
-            }
-
-            if (this.dom.heroButtonWatch && cardIMDB) {
-                this.dom.heroButtonWatch.setAttribute(
-                    "onclick",
-                    `event.stopPropagation(); window.playTitle('${cardIMDB}')`
+            requestAnimationFrame(() => {
+                const cardLogo =
+                    card.querySelector(".enhanced-title img") ||
+                    card.querySelector(".upcoming-logo");
+                const cardImg = card.querySelector("img");
+                const desc =
+                    card.querySelector(".enhanced-description")?.dataset
+                        .description || card.dataset.description;
+                const rating =
+                    card.querySelector(".enhanced-rating")?.textContent ||
+                    card.dataset.rating ||
+                    "";
+                const cardIMDB = card.id || card.dataset.id;
+                const cardYear = card.dataset.year;
+                const cardGenres = card.dataset.genres;
+                const cardReleaseDate = card.querySelector(
+                    ".enhanced-release-date"
                 );
-            }
-            if (this.dom.heroButtonMoreInfo && cardIMDB) {
-                this.dom.heroButtonMoreInfo.setAttribute(
-                    "onclick",
-                    `event.stopPropagation(); window.showMoreInfo('${cardIMDB}')`
-                );
-            }
+                const cardRuntime =
+                    card.querySelector(".enhanced-description")?.dataset
+                        .runtime || card.dataset.runtime;
+                const cardMetadata = [
+                    ...card.querySelectorAll(
+                        '[class="enhanced-metadata-item"]'
+                    ),
+                ];
 
-            const heroOverlayInfoTargets =
-                this.dom.heroInfo?.querySelectorAll("p:not([class])") || [];
+                if (this.dom.heroLogo && cardLogo)
+                    this.dom.heroLogo.src = cardLogo.src;
+                if (this.dom.heroImage && cardImg)
+                    this.dom.heroImage.src = cardImg.src;
+                if (this.dom.heroDescription && desc)
+                    this.dom.heroDescription.textContent = desc;
 
-            let optionalMetadata = [];
+                if (this.dom.heroInfo) {
+                    const ratingElement =
+                        this.dom.heroInfo.querySelector(".rating-text");
+                    if (ratingElement)
+                        ratingElement.textContent = rating
+                            ? `⭐ ${rating}`
+                            : "";
+                }
 
-            if (cardYear && cardYear !== "null")
-                optionalMetadata.push({ textContent: cardYear });
-            if (cardRuntime && cardRuntime !== "null")
-                optionalMetadata.push({ textContent: cardRuntime });
-            if (cardGenres && cardGenres.length > 0)
-                optionalMetadata.push({ textContent: cardGenres });
+                if (this.dom.heroButtonWatch && cardIMDB) {
+                    this.dom.heroButtonWatch.setAttribute(
+                        "onclick",
+                        `event.stopPropagation(); window.playTitle('${cardIMDB}')`
+                    );
+                }
+                if (this.dom.heroButtonMoreInfo && cardIMDB) {
+                    this.dom.heroButtonMoreInfo.setAttribute(
+                        "onclick",
+                        `event.stopPropagation(); window.showMoreInfo('${cardIMDB}')`
+                    );
+                }
 
-            const metadataWithDate = cardReleaseDate
-                ? [
-                      ...cardMetadata, // Original metadata items
-                      ...optionalMetadata, // New: Year and Runtime
-                      { textContent: cardReleaseDate.textContent || "" }, // Release Date is last
-                  ]
-                : [
-                      ...cardMetadata, // Original metadata items
-                      ...optionalMetadata, // Fallback list: Year and Runtime
-                  ];
+                const heroOverlayInfoTargets =
+                    this.dom.heroInfo?.querySelectorAll("p:not([class])") || [];
 
-            heroOverlayInfoTargets.forEach((item, index) => {
-                item.textContent = metadataWithDate[index]
-                    ? metadataWithDate[index].textContent
-                    : "";
+                let optionalMetadata = [];
+
+                if (cardYear && cardYear !== "null")
+                    optionalMetadata.push({ textContent: cardYear });
+                if (cardRuntime && cardRuntime !== "null")
+                    optionalMetadata.push({ textContent: cardRuntime });
+                if (cardGenres && cardGenres.length > 0)
+                    optionalMetadata.push({ textContent: cardGenres });
+
+                const metadataWithDate = cardReleaseDate
+                    ? [
+                          ...cardMetadata, // Original metadata items
+                          ...optionalMetadata, // New: Year and Runtime
+                          { textContent: cardReleaseDate.textContent || "" }, // Release Date is last
+                      ]
+                    : [
+                          ...cardMetadata, // Original metadata items
+                          ...optionalMetadata, // Fallback list: Year and Runtime
+                      ];
+
+                heroOverlayInfoTargets.forEach((item, index) => {
+                    item.textContent = metadataWithDate[index]
+                        ? metadataWithDate[index].textContent
+                        : "";
+                });
             });
         }
 

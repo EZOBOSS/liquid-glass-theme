@@ -511,11 +511,13 @@ async function enhanceTitleBar(titleBar) {
 
     if (metadata) {
         if (metadata.logo) {
-            const logoImg = Object.assign(document.createElement("img"), {
-                src: metadata.logo,
-                alt: metadata.title || originalTitle,
-                style: "max-width:75%;height:65px;object-fit:contain;",
-            });
+            const logoImg = document.createElement("img");
+            logoImg.setAttribute("data-src", metadata.logo);
+            logoImg.alt = metadata.title || originalTitle;
+            logoImg.style.cssText =
+                "max-width:75%;height:65px;object-fit:contain;";
+            logoImg.classList.add("etb-logo-lazy");
+            logoLazyObserver.observe(logoImg);
             titleContainer.appendChild(logoImg);
         } else {
             titleContainer.textContent = metadata.title || originalTitle;
@@ -539,6 +541,7 @@ const TITLE_BAR_SELECTOR =
     ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container']:not([class*='search-hints']),[class*='media-title']";
 
 // --- Intersection Observer ---
+/* */
 const containerObservers = new WeakMap();
 let globalObserver;
 
@@ -569,6 +572,28 @@ function getObserverFor(element) {
     }
     return containerObservers.get(container);
 }
+
+const logoLazyObserver = new IntersectionObserver(
+    (entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+
+            const img = entry.target;
+            const src = img.dataset.src;
+
+            if (src && !img.src) {
+                img.src = src;
+                img.removeAttribute("data-src");
+            }
+
+            logoLazyObserver.unobserve(img);
+        });
+    },
+    {
+        rootMargin: "1000px 0px", // preload early for smooth load
+        threshold: 0.01,
+    }
+);
 
 function handleIntersection(entries, observer) {
     entries.forEach((entry) => {
