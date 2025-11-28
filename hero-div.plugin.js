@@ -889,10 +889,13 @@
 
                 if (addedNewCards) {
                     this.setupHeroTrailerHover();
+
                     const boards = document.querySelectorAll(
                         ".meta-row-container-xtlB1"
                     );
-                    boards.forEach((card) => cardHideObserver.observe(card));
+                    boards.forEach((card) => {
+                        cardHideObserver.observe(card);
+                    });
                 }
             });
 
@@ -901,21 +904,26 @@
                 subtree: true,
             });
             this.state.observers.push(trailerHoverObserver);
-
+            /* */
             const cardHideObserver = new IntersectionObserver(
                 (cards) => {
                     cards.forEach((card) => {
-                        if (card.isIntersecting)
+                        if (card.isIntersecting) {
                             card.target.classList.add("show");
-                        else card.target.classList.remove("show");
+                        } else {
+                            card.target.classList.remove("show");
+                        }
                     });
                 },
-                { rootMargin: "-60% 0px 0px 0px", threshold: 0 }
+                { rootMargin: "-60% 0px 0px 0px", threshold: 0.3 }
             );
+
             const boards = document.querySelectorAll(
                 ".meta-row-container-xtlB1"
             );
-            boards.forEach((card) => cardHideObserver.observe(card));
+            boards.forEach((card) => {
+                cardHideObserver.observe(card);
+            });
             this.state.observers.push(cardHideObserver);
         }
 

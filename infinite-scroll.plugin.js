@@ -101,8 +101,6 @@
             }
         }
 
-        // --- Observer & Track Detection ---
-
         isHomepage() {
             // Stremio homepage is usually #/ or just #
             const hash = window.location.hash;
@@ -200,12 +198,9 @@
                     currentScroll,
                 } = state;
 
-                // Re-read scrollWidth/clientWidth if needed, or rely on ResizeObserver cache
-                // For strict separation, we rely on widthCache which is updated via ResizeObserver
                 const maxScroll =
                     widthCache.scrollWidth - widthCache.clientWidth;
 
-                // Use cached scroll position instead of reading from DOM
                 const currentLeft = currentScroll;
                 const diff = state.scrollTarget - currentLeft;
 
@@ -274,7 +269,6 @@
                         maxScroll - preloadOffset
                     ) {
                         if (!state.disableFetch) {
-                            // Debounce fetch? The original didn't really debounce other than the loading flag
                             this.fetchMoreItems(
                                 state.track,
                                 state.type,
@@ -320,7 +314,7 @@
             Object.assign(indicator.style, {
                 position: "absolute",
                 left: "50%",
-                bottom: "0",
+                bottom: "35%",
                 transform: "translateX(-50%)",
                 padding: "12px 20px",
                 display: "flex",
@@ -809,7 +803,12 @@
             };
         }
 
-        async fetchCatalogTitles(type, limit = 10, catalog = "top") {
+        async fetchCatalogTitles(
+            type,
+            limit = 10,
+            catalog = "top",
+            track = null
+        ) {
             if (!type)
                 throw new Error("fetchCatalogTitles: 'type' is required");
 
@@ -828,6 +827,14 @@
                 );
             }
             const seenIds = this.idLookupSets.get(cacheKey);
+
+            if (track && track.children && offset === 0) {
+                for (const child of track.children) {
+                    if (child.id) {
+                        seenIds.add(child.id);
+                    }
+                }
+            }
 
             const itemsRemainingInCache = allData.length - offset;
             const needsFetch =
@@ -891,7 +898,12 @@
             console.log("[InfiniteScrollPlugin] Fetching more items...");
 
             try {
-                const items = await this.fetchCatalogTitles(type, 15, catalog);
+                const items = await this.fetchCatalogTitles(
+                    type,
+                    15,
+                    catalog,
+                    track
+                );
                 if (!items?.length) {
                     console.log(
                         "[InfiniteScrollPlugin] No more items to load."

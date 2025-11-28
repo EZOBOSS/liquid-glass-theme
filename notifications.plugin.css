@@ -1,7 +1,7 @@
 .notifications-container {
     position: fixed;
     top: 20px;
-    right: 140px; /* Adjust based on other UI elements */
+    right: 9.3rem;
     z-index: 9999;
 
     /* Ensure container covers the gap for hover stability */
@@ -10,8 +10,8 @@
 }
 
 .notification-bell {
-    width: 42px;
-    height: 42px;
+    width: 2.8rem;
+    height: 2.8rem;
     border-radius: 50%;
     background: rgb(114 114 114 / 10%);
     backdrop-filter: blur(10px) saturate(2);
