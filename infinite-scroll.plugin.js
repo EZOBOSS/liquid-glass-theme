@@ -919,7 +919,7 @@
                         href="${meta.href}"
                         title="${meta.title}"
                         tabindex="0"
-                        class="meta-item-container-Tj0Ib meta-row-container-xtlB1 poster-shape-poster-MEhNx"
+                        class="meta-item-QFHCh meta-item-container-Tj0Ib poster-shape-poster-MEhNx button-container-zVLH6"
                     >
                         <div class="poster-container-qkw48">
                             <div class="poster-image-layer-KimPZ">

@@ -1,7 +1,7 @@
 /**
  * @name Row Navigator
  * @description Displays a side navigation for rows on the homescreen.
- * @version 1.0.0
+ * @version 1.0.3
  * @author EZOBOSS
  */
 
@@ -12,27 +12,27 @@
                 ROW: ".meta-row-container-xtlB1",
                 TITLE: ".header-container-tR3Ev .title-container-Mkwnq",
                 NAV_CONTAINER: "row-navigator-container",
+                IGNORE_CONTAINER: ".meta-items-container-qcuUA",
             },
             OBSERVER_OPTIONS: {
                 root: null,
-                rootMargin: "-55% 0px -55% 0px", // Trigger when row is in the middle 10% of screen
+                rootMargin: "-40% 0px -40% 0px",
                 threshold: 0,
             },
         };
 
         constructor() {
             this.navContainer = null;
-            this.rows = new Map(); // Map<Element, {id, title, navItem}>
+            this.rows = new Map();
             this.observer = null;
             this.mutationObserver = null;
             this.activeRow = null;
+            this.scanTimeout = null; // Store timeout reference
 
-            // Delay init to ensure DOM is ready (reduced to prevent infinite scroll issues)
-            setTimeout(() => this.init(), 500);
+            setTimeout(() => this.init(), 2000);
         }
 
         init() {
-            // Inject CSS if not present
             if (!document.querySelector("#row-navigator-css")) {
                 const link = document.createElement("link");
                 link.id = "row-navigator-css";
@@ -46,7 +46,6 @@
             this.scanRows();
             this.initSnapScrolling();
 
-            // Re-scan on hash change (navigation)
             window.addEventListener("hashchange", () => {
                 setTimeout(() => {
                     this.scanRows();
@@ -74,7 +73,7 @@
             const item = document.createElement("div");
             item.className = "row-navigator-item";
             item.dataset.targetId = id;
-            item.title = title; // Native tooltip as fallback
+            item.title = title;
 
             const dot = document.createElement("div");
             dot.className = "row-navigator-dot";
@@ -88,18 +87,21 @@
 
             item.addEventListener("click", (e) => {
                 e.stopPropagation();
-                row.scrollIntoView({ behavior: "smooth", block: "center" });
+                // Check connection before scrolling (fix for dead clicks)
+                if (row.isConnected) {
+                    row.scrollIntoView({ behavior: "smooth", block: "center" });
+                } else {
+                    // Fallback: If row was replaced, try to find by current index
+                    this.scanRows();
+                }
             });
 
             return item;
         }
 
         initObservers() {
-            // Intersection Observer for highlighting active row
             this.observer = new IntersectionObserver((entries) => {
-                // Don't update if we're in the middle of programmatic scrolling
                 if (this.isProgrammaticScroll) return;
-
                 entries.forEach((entry) => {
                     if (entry.isIntersecting) {
                         this.setActiveRow(entry.target);
@@ -107,66 +109,44 @@
                 });
             }, RowNavigatorPlugin.CONFIG.OBSERVER_OPTIONS);
 
-            // Mutation Observer for dynamic content
             this.mutationObserver = new MutationObserver((mutations) => {
-                let shouldScan = false;
+                let structureChanged = false;
                 const rowSelector = RowNavigatorPlugin.CONFIG.SELECTORS.ROW;
+                const ignoreSelector =
+                    RowNavigatorPlugin.CONFIG.SELECTORS.IGNORE_CONTAINER;
 
                 for (const m of mutations) {
-                    // Ignore changes to the nav container itself to prevent loops
-                    if (
-                        m.target.closest &&
-                        m.target.closest(".row-navigator-container")
-                    )
-                        continue;
-                    if (
-                        m.target.classList &&
-                        m.target.classList.contains("row-navigator-container")
-                    )
+                    // 1. Ignore if mutation happens strictly INSIDE the infinite scroll container
+                    if (m.target.closest && m.target.closest(ignoreSelector))
                         continue;
 
-                    // Check if added nodes are relevant
-                    if (m.addedNodes.length > 0) {
-                        for (const node of m.addedNodes) {
-                            if (node.nodeType !== 1) continue; // Skip non-element nodes
+                    // 2. Ignore if the mutation target IS the infinite scroll container
+                    if (m.target.matches && m.target.matches(ignoreSelector))
+                        continue;
 
-                            // Check if the node itself is a row (actual new row container)
-                            if (node.matches && node.matches(rowSelector)) {
-                                // Make sure it has a title to be considered a valid navigation row
-                                const titleEl = node.querySelector(
-                                    RowNavigatorPlugin.CONFIG.SELECTORS.TITLE
-                                );
-                                if (titleEl && titleEl.textContent.trim()) {
-                                    shouldScan = true;
-                                    break;
-                                }
-                            }
+                    for (const node of m.addedNodes) {
+                        if (node.nodeType !== 1) continue;
 
-                            // Check if the node contains a row (e.g., parent container)
-                            // But only if it's in the main board, not within existing rows
-                            if (
-                                node.querySelector &&
-                                node.querySelector(rowSelector)
-                            ) {
-                                // Only scan if this is a major DOM change (board reload)
-                                if (
-                                    node.matches(".board-content-nPWv1") ||
-                                    node.closest(".board-content-nPWv1") ===
-                                        null
-                                ) {
-                                    shouldScan = true;
-                                    break;
-                                }
-                            }
+                        // 3. Ignore if the added node is part of the infinite scroll list
+                        if (node.closest(ignoreSelector)) continue;
+
+                        // 4. Only trigger if a ROW or a major container is added
+                        if (
+                            node.matches(rowSelector) ||
+                            node.querySelector?.(rowSelector)
+                        ) {
+                            structureChanged = true;
+                            break;
                         }
                     }
-                    if (shouldScan) break;
+                    if (structureChanged) break;
                 }
 
-                if (shouldScan) {
-                    // Debounce scan
+                if (structureChanged) {
+                    // Debounce is CRITICAL here to prevent layout thrashing
+                    // and broken ordering during rapid infinite scroll updates.
                     if (this.scanTimeout) clearTimeout(this.scanTimeout);
-                    this.scanTimeout = setTimeout(() => this.scanRows(), 500);
+                    this.scanTimeout = setTimeout(() => this.scanRows(), 200);
                 }
             });
 
@@ -184,68 +164,70 @@
                     RowNavigatorPlugin.CONFIG.SELECTORS.ROW
                 )
             );
+            console.log("rowElements", rowElements, rowElements.length);
 
-            // If no rows found (e.g. not on home), hide container
             if (rowElements.length === 0) {
                 this.navContainer.style.display = "none";
-                this.navContainer.style.pointerEvents = "none";
                 return;
             } else {
                 this.navContainer.style.display = "flex";
-                this.navContainer.style.pointerEvents = "auto";
             }
 
-            // 1. Identify new rows and create items
+            // 1. Update Map (Create New + Update Existing)
             rowElements.forEach((row, index) => {
-                if (this.rows.has(row)) return; // Already tracked
-
                 const titleEl = row.querySelector(
                     RowNavigatorPlugin.CONFIG.SELECTORS.TITLE
                 );
-                // Fallback title if not found
-                const title = titleEl
+                const currentTitle = titleEl
                     ? titleEl.textContent.trim()
                     : `Row ${index + 1}`;
 
-                const id = `row-${index}-${Date.now()}`; // Unique ID
-                row.dataset.rowNavId = id;
-
-                const navItem = this.createNavItem(row, title, id);
-                // Don't append yet, we'll re-order later
-
-                this.rows.set(row, { id, title, navItem });
-                this.observer.observe(row);
+                if (this.rows.has(row)) {
+                    // UPDATE EXISTING: Fixes "Order bug" when frameworks recycle rows
+                    const data = this.rows.get(row);
+                    if (data.title !== currentTitle) {
+                        data.title = currentTitle;
+                        data.navItem.title = currentTitle;
+                        const label = data.navItem.querySelector(
+                            ".row-navigator-label"
+                        );
+                        if (label) label.textContent = currentTitle;
+                    }
+                } else {
+                    // CREATE NEW
+                    const id = `row-${index}-${Date.now()}`;
+                    row.dataset.rowNavId = id;
+                    const navItem = this.createNavItem(row, currentTitle, id);
+                    this.rows.set(row, { id, title: currentTitle, navItem });
+                    this.observer.observe(row);
+                }
             });
 
-            // 2. Re-order nav items to match DOM order
-            // We clear the container and re-append in the correct order
-            // This ensures the dots always match the visual row order
-            // Using a DocumentFragment for performance
-            const fragment = document.createDocumentFragment();
+            // 2. Clean up removed rows
+            for (const [row, data] of this.rows.entries()) {
+                if (!document.body.contains(row)) {
+                    this.observer.unobserve(row);
+                    this.rows.delete(row);
+                }
+            }
 
+            // 3. Sync Visual Order
+            this.syncNavOrder(rowElements);
+
+            if (rowElements.length > 0 && !this.activeRow) {
+                this.setFirstRowActive();
+            }
+        }
+
+        syncNavOrder(rowElements) {
+            const fragment = document.createDocumentFragment();
             rowElements.forEach((row) => {
                 const data = this.rows.get(row);
                 if (data && data.navItem) {
                     fragment.appendChild(data.navItem);
                 }
             });
-
-            this.navContainer.innerHTML = ""; // Clear existing
-            this.navContainer.appendChild(fragment);
-
-            // 3. Cleanup removed rows
-            for (const [row, data] of this.rows.entries()) {
-                if (!document.body.contains(row)) {
-                    this.observer.unobserve(row);
-                    // navItem is already removed from DOM by innerHTML clear, just need to drop reference
-                    this.rows.delete(row);
-                }
-            }
-
-            // Set first row active after initial scan
-            if (rowElements.length > 0 && !this.activeRow) {
-                this.setFirstRowActive();
-            }
+            this.navContainer.replaceChildren(fragment);
         }
 
         setFirstRowActive() {
@@ -255,28 +237,13 @@
                 )
             );
             if (rowElements.length > 0) {
-                const firstRow = rowElements[0];
+                const visibleRow =
+                    rowElements.find((r) => {
+                        const rect = r.getBoundingClientRect();
+                        return rect.top >= 0 && rect.top < window.innerHeight;
+                    }) || rowElements[0];
 
-                // Add classes immediately without delay to prevent infinite scroll issues
-                firstRow.classList.add("active", "show");
-                this.activeRow = firstRow;
-
-                // Update UI for nav items
-                this.navContainer
-                    ?.querySelectorAll(".row-navigator-item")
-                    .forEach((item) => {
-                        item.classList.remove("active");
-                    });
-
-                const data = this.rows.get(firstRow);
-                if (data && data.navItem) {
-                    data.navItem.classList.add("active");
-                }
-
-                firstRow.scrollIntoView({
-                    behavior: "auto", // Use auto instead of smooth for immediate positioning
-                    block: "center",
-                });
+                this.setActiveRow(visibleRow);
             }
         }
 
@@ -286,22 +253,13 @@
             this.scrollTimeout = null;
             this.labelHideTimeout = null;
 
-            // Intercept wheel events for snap scrolling
             window.addEventListener(
                 "wheel",
                 (e) => {
-                    // Check if scrolling over a horizontal scroll container
                     const target = e.target;
-                    const isOverHorizontalScroll = target.closest(
-                        ".meta-items-container-qcuUA"
-                    );
+                    // Ignore horizontal scroll areas
+                    if (target.closest(".meta-items-container-qcuUA")) return;
 
-                    // If over horizontal scroll, let it handle naturally
-                    if (isOverHorizontalScroll) {
-                        return;
-                    }
-
-                    // Only intercept if we have rows
                     const rowElements = Array.from(
                         document.querySelectorAll(
                             RowNavigatorPlugin.CONFIG.SELECTORS.ROW
@@ -309,67 +267,42 @@
                     );
                     if (rowElements.length === 0) return;
 
-                    // Prevent default scroll behavior
                     e.preventDefault();
-
-                    // Show labels when scrolling
                     this.showLabels();
 
-                    // Debounce scroll events
                     if (this.isScrolling) return;
 
-                    const direction = e.deltaY > 0 ? 1 : -1; // 1 for down, -1 for up
-                    this.scrollToAdjacentRow(direction);
+                    const direction = e.deltaY > 0 ? 1 : -1;
+                    this.scrollToAdjacentRow(direction, rowElements);
 
-                    // Set scrolling flag
                     this.isScrolling = true;
                     clearTimeout(this.scrollTimeout);
                     this.scrollTimeout = setTimeout(() => {
                         this.isScrolling = false;
-                    }, 800); // Delay before next scroll
+                    }, 800);
                 },
                 { passive: false }
             );
         }
 
         showLabels() {
-            if (this.navContainer) {
+            if (this.navContainer)
                 this.navContainer.classList.add("show-labels");
-            }
-
-            // Clear existing timeout
-            if (this.labelHideTimeout) {
-                clearTimeout(this.labelHideTimeout);
-            }
-
-            // Hide labels after 2 seconds of inactivity
-            this.labelHideTimeout = setTimeout(() => {
-                this.hideLabels();
-            }, 5000);
+            if (this.labelHideTimeout) clearTimeout(this.labelHideTimeout);
+            this.labelHideTimeout = setTimeout(() => this.hideLabels(), 5000);
         }
 
         hideLabels() {
-            if (this.navContainer) {
+            if (this.navContainer)
                 this.navContainer.classList.remove("show-labels");
-            }
         }
 
-        scrollToAdjacentRow(direction) {
-            const rowElements = Array.from(
-                document.querySelectorAll(
-                    RowNavigatorPlugin.CONFIG.SELECTORS.ROW
-                )
-            );
-            if (rowElements.length === 0) return;
-
+        scrollToAdjacentRow(direction, rowElements) {
             const currentIndex = this.getCurrentRowIndex(rowElements);
             const nextIndex = currentIndex + direction;
 
-            // Clamp to valid range
             if (nextIndex >= 0 && nextIndex < rowElements.length) {
                 const targetRow = rowElements[nextIndex];
-
-                // Set flag to prevent IntersectionObserver interference
                 this.isProgrammaticScroll = true;
                 this.setActiveRow(targetRow);
 
@@ -378,47 +311,58 @@
                     block: "center",
                 });
 
-                // Clear flag after scroll animation completes
                 setTimeout(() => {
                     this.isProgrammaticScroll = false;
-                }, 1000); // Match scroll animation duration
+                }, 1000);
             }
         }
 
         getCurrentRowIndex(rowElements) {
-            if (!this.activeRow) return 0;
-            const index = rowElements.indexOf(this.activeRow);
-            return index >= 0 ? index : 0;
+            if (this.activeRow && this.activeRow.isConnected) {
+                const index = rowElements.indexOf(this.activeRow);
+                if (index !== -1) return index;
+            }
+
+            // Fallback: Find closest row to center
+            const center = window.innerHeight / 2;
+            let closestRow = null;
+            let minDistance = Infinity;
+
+            rowElements.forEach((row) => {
+                const rect = row.getBoundingClientRect();
+                const dist = Math.abs(rect.top + rect.height / 2 - center);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestRow = row;
+                }
+            });
+
+            if (closestRow) {
+                this.setActiveRow(closestRow);
+                return rowElements.indexOf(closestRow);
+            }
+            return 0;
         }
 
         setActiveRow(row) {
             if (this.activeRow === row) return;
             this.activeRow = row;
 
-            // Remove "show" class from all rows
             const allRows = document.querySelectorAll(
                 RowNavigatorPlugin.CONFIG.SELECTORS.ROW
             );
             allRows.forEach((r) => {
-                if (r !== row) {
-                    r.classList.remove("show", "active");
-                }
+                if (r !== row) r.classList.remove("show", "active");
             });
 
-            // Add "show" class to active row
             if (row) {
                 row.classList.add("active");
-                setTimeout(() => {
-                    row.classList.add("show");
-                }, 100);
+                setTimeout(() => row.classList.add("show"), 100);
             }
 
-            // Update UI
             this.navContainer
                 .querySelectorAll(".row-navigator-item")
-                .forEach((item) => {
-                    item.classList.remove("active");
-                });
+                .forEach((item) => item.classList.remove("active"));
 
             const data = this.rows.get(row);
             if (data && data.navItem) {
@@ -427,7 +371,6 @@
         }
     }
 
-    // Initialize
     requestIdleCallback(() => {
         new RowNavigatorPlugin();
     });

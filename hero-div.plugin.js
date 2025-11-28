@@ -880,7 +880,7 @@
                     mutation.addedNodes.forEach((node) => {
                         if (
                             node.nodeType === 1 &&
-                            node.matches(".meta-row-container-xtlB1")
+                            node.matches(".meta-item-container-Tj0Ib")
                         ) {
                             addedNewCards = true;
                         }
@@ -891,7 +891,7 @@
                     this.setupHeroTrailerHover();
 
                     const boards = document.querySelectorAll(
-                        ".meta-row-container-xtlB1"
+                        ".meta-item-container-Tj0Ib"
                     );
                     boards.forEach((card) => {
                         cardHideObserver.observe(card);
@@ -919,7 +919,7 @@
             );
 
             const boards = document.querySelectorAll(
-                ".meta-row-container-xtlB1"
+                ".meta-item-container-Tj0Ib"
             );
             boards.forEach((card) => {
                 cardHideObserver.observe(card);

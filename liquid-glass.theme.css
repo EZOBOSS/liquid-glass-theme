@@ -1690,6 +1690,7 @@ body.ghost-clicking #heroLoadingScreen {
 
 /* Base card container */
 .meta-item-container-Tj0Ib {
+    display: flex !important;
     position: relative !important;
     border-radius: 15px !important;
     overflow: hidden !important;
@@ -1702,6 +1703,13 @@ body.ghost-clicking #heroLoadingScreen {
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     content-visibility: auto !important;
     contain-intrinsic-size: 300px 200px !important;
+    opacity: 0 !important;
+    transform: translateY(1rem) !important;
+    will-change: transform, opacity !important;
+}
+.meta-item-container-Tj0Ib.show {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
 }
 
 /* Poster image */
