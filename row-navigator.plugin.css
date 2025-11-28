@@ -102,6 +102,7 @@
     .row-navigator-label {
     opacity: 1;
     font-size: 13px;
+    padding: 8px 14px;
 }
 
 /* Hover State */
