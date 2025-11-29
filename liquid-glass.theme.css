@@ -2086,7 +2086,7 @@ body.ghost-clicking #heroLoadingScreen {
 .hero-container #heroImage {
     transition: opacity 0.5s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
         filter 0.6s ease;
-    will-change: opacity, transform, filter;
+    will-change: opacity, transform;
 }
 
 /* Fade out and lift when changing slides */

@@ -884,9 +884,10 @@
                     mutation.addedNodes.forEach((node) => {
                         if (
                             node.nodeType === 1 &&
-                            node.matches(".meta-item-container-Tj0Ib")
+                            node.matches(".meta-row-container-xtlB1")
                         ) {
                             addedNewCards = true;
+                            console.log("new node", node);
                         }
                     });
                 });

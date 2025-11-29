@@ -332,25 +332,7 @@
                 if (index !== -1) return index;
             }
 
-            // Fallback: Find closest row to center
-            const center = window.innerHeight / 2;
-            let closestRow = null;
-            let minDistance = Infinity;
-
-            rowElements.forEach((row) => {
-                const rect = row.getBoundingClientRect();
-                const dist = Math.abs(rect.top + rect.height / 2 - center);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    closestRow = row;
-                }
-            });
-
-            if (closestRow) {
-                this.setActiveRow(closestRow);
-                return rowElements.indexOf(closestRow);
-            }
-            return 0;
+            return -1;
         }
 
         scanRows() {
