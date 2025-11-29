@@ -3,107 +3,10 @@
  * @description Shows notifications for unwatched episodes of watched series
  * @version 1.0.0
  * @author EZOBOSS
+ * @dependancies metadatadb.plugin.js
  */
 
 (function () {
-    class MetadataDB {
-        static CONFIG = {
-            DB_NAME: "ETB_MetadataDB",
-            DB_VERSION: 1,
-            STORE_NAME: "metadata",
-            CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series (new seasons)
-        };
-        constructor() {
-            this.db = null;
-            this.initPromise = this.init();
-        }
-
-        init() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(
-                    MetadataDB.CONFIG.DB_NAME,
-                    MetadataDB.CONFIG.DB_VERSION
-                );
-
-                request.onerror = () => {
-                    console.error("[MetadataDB] DB Open Error", request.error);
-                    reject(request.error);
-                };
-
-                request.onsuccess = (event) => {
-                    this.db = event.target.result;
-                    resolve();
-                };
-
-                request.onupgradeneeded = (event) => {
-                    const db = event.target.result;
-                    if (
-                        !db.objectStoreNames.contains(
-                            MetadataDB.CONFIG.STORE_NAME
-                        )
-                    ) {
-                        db.createObjectStore(MetadataDB.CONFIG.STORE_NAME, {
-                            keyPath: "id",
-                        });
-                    }
-                };
-            });
-        }
-
-        async getAll() {
-            await this.initPromise;
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction(
-                    [MetadataDB.CONFIG.STORE_NAME],
-                    "readonly"
-                );
-                const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
-                );
-                const request = store.getAll();
-
-                request.onsuccess = () => {
-                    const record = request.result;
-
-                    resolve(record);
-                };
-
-                request.onerror = () => reject(request.error);
-            });
-        }
-
-        async put(id, data, type) {
-            await this.initPromise;
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction(
-                    [MetadataDB.CONFIG.STORE_NAME],
-                    "readwrite"
-                );
-                const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
-                );
-                const request = store.put({
-                    id,
-                    data,
-                    type, // Store type to determine expiration logic
-                    timestamp: Date.now(),
-                });
-
-                request.onsuccess = () => resolve();
-                request.onerror = () => reject(request.error);
-            });
-        }
-
-        async delete(id) {
-            await this.initPromise;
-            const transaction = this.db.transaction(
-                [MetadataDB.CONFIG.STORE_NAME],
-                "readwrite"
-            );
-            const store = transaction.objectStore(MetadataDB.CONFIG.STORE_NAME);
-            store.delete(id);
-        }
-    }
     class NotificationsPlugin {
         static CONFIG = {
             SEEN_CACHE_KEY: "notifications_seen",
@@ -112,7 +15,7 @@
         constructor() {
             this.notifications = [];
             this.seenNotifications = this.loadSeenState();
-            this.metadataDB = new MetadataDB();
+            this.metadataDB = window.MetadataDB;
             this.init();
         }
 

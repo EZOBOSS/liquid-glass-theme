@@ -1707,11 +1707,11 @@ body.ghost-clicking #heroLoadingScreen {
     will-change: transform, opacity !important;
 }
 .meta-row-container-xtlB1 .meta-item-container-Tj0Ib {
-    opacity: 0 !important;
+    opacity: 0;
     transform: translateY(1rem) !important;
 }
 .meta-row-container-xtlB1 .meta-item-container-Tj0Ib.show {
-    opacity: 1 !important;
+    opacity: 1;
     transform: translateY(0) !important;
 }
 
@@ -2021,8 +2021,8 @@ body.ghost-clicking #heroLoadingScreen {
 */
 
 .meta-item-container-Tj0Ib.dim {
-    opacity: 0.2;
-    transform: scale(0.9);
+    opacity: 0.2 !important;
+    transform: scale(0.9) !important;
 }
 .meta-items-container-qcuUA:hover .meta-item-container-Tj0Ib:hover {
     opacity: 0.8 !important; /* restore normal opacity */
