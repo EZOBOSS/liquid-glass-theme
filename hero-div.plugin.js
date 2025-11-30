@@ -878,29 +878,69 @@
             });
             this.state.observers.push(mainObserver);
 
+            // Initialize cardVisibilityObserver early so it's available for both observers
+            this.cardVisibilityObserver = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting)
+                            this.state.visibleCards.add(entry.target);
+                        else this.state.visibleCards.delete(entry.target);
+                    });
+                },
+                {
+                    root: null,
+                    rootMargin: "-50% 0px -10% 0px",
+                    threshold: 0,
+                }
+            );
+
+            // WeakSet to track observed cards (faster than dataset)
+            const observedCards = new WeakSet();
+
             const trailerHoverObserver = new MutationObserver((mutations) => {
-                let addedNewCards = false;
-                mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach((node) => {
-                        if (
-                            node.nodeType === 1 &&
-                            node.matches(".meta-row-container-xtlB1")
-                        ) {
-                            addedNewCards = true;
-                            console.log("new node", node);
+                const newContainers = [];
+
+                for (const mutation of mutations) {
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType !== 1) continue;
+
+                        const className = node.className;
+                        if (typeof className !== "string") continue;
+
+                        if (className.includes("meta-row-container-xtlB1")) {
+                            // Find the container inside the new row
+                            const container = node.querySelector(
+                                ".meta-items-container-qcuUA"
+                            );
+                            if (container) {
+                                newContainers.push(container);
+                            }
+
+                            const cards = node.querySelectorAll(
+                                ".meta-item-container-Tj0Ib"
+                            );
+                            for (const card of cards) {
+                                if (!observedCards.has(card)) {
+                                    cardHideObserver.observe(card);
+                                    this.cardVisibilityObserver.observe(card);
+                                    observedCards.add(card);
+                                }
+                            }
+                            break;
                         }
-                    });
-                });
 
-                if (addedNewCards) {
-                    this.setupHeroTrailerHover();
+                        if (className.includes("meta-item-container-Tj0Ib")) {
+                            if (!observedCards.has(node)) {
+                                cardHideObserver.observe(node);
+                                this.cardVisibilityObserver.observe(node);
+                                observedCards.add(node);
+                            }
+                        }
+                    }
+                }
 
-                    const boards = document.querySelectorAll(
-                        ".meta-item-container-Tj0Ib"
-                    );
-                    boards.forEach((card) => {
-                        cardHideObserver.observe(card);
-                    });
+                if (newContainers.length > 0) {
+                    this.setupHeroTrailerHover(newContainers);
                 }
             });
 
@@ -928,34 +968,17 @@
             );
             boards.forEach((card) => {
                 cardHideObserver.observe(card);
+                observedCards.add(card);
             });
             this.state.observers.push(cardHideObserver);
         }
 
-        setupHeroTrailerHover() {
-            const containers = document.querySelectorAll(
-                ".meta-items-container-qcuUA"
-            );
+        setupHeroTrailerHover(specificContainers = null) {
+            const containers =
+                specificContainers ||
+                document.querySelectorAll(".meta-items-container-qcuUA");
             const hero = document.querySelector(".hero-container");
-            if (!containers.length || !hero) return;
-
-            // Intersection observer for visible cards
-            if (!this.cardVisibilityObserver) {
-                this.cardVisibilityObserver = new IntersectionObserver(
-                    (entries) => {
-                        entries.forEach((entry) => {
-                            if (entry.isIntersecting)
-                                this.state.visibleCards.add(entry.target);
-                            else this.state.visibleCards.delete(entry.target);
-                        });
-                    },
-                    {
-                        root: null,
-                        rootMargin: "-50% 0px -10% 0px",
-                        threshold: 0,
-                    }
-                );
-            }
+            if ((!containers.length && !specificContainers) || !hero) return;
 
             containers.forEach((container) => {
                 // Always check for new cards, even if listeners are attached
@@ -1105,7 +1128,9 @@
                 if (this.dom.heroLogo && cardLogo)
                     this.dom.heroLogo.src = cardLogo.src;
                 if (this.dom.heroImage && cardImg)
-                    this.dom.heroImage.src = cardImg.src;
+                    this.dom.heroImage.src = cardIMDB
+                        ? `https://images.metahub.space/background/large/${cardIMDB}/img`
+                        : cardImg.src;
                 if (this.dom.heroDescription && desc)
                     this.dom.heroDescription.textContent = desc;
 

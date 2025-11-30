@@ -1714,6 +1714,10 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 1;
     transform: translateY(0) !important;
 }
+.search-row-EQLaD .meta-item-container-Tj0Ib {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
 
 /* Poster image */
 .meta-item-container-Tj0Ib .poster-container-qkw48 {

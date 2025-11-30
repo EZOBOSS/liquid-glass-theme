@@ -392,6 +392,11 @@
 
             if (rowElements.length > 0 && !this.activeRow) {
                 this.setFirstRowActive();
+                // Fix: Prevent IntersectionObserver from immediately overriding the first row
+                this.isProgrammaticScroll = true;
+                setTimeout(() => {
+                    this.isProgrammaticScroll = false;
+                }, 500);
             }
         }
 
@@ -418,7 +423,6 @@
                         const rect = r.getBoundingClientRect();
                         return rect.top >= 0 && rect.top < window.innerHeight;
                     }) || rowElements[0];
-
                 this.setActiveRow(visibleRow);
             }
         }

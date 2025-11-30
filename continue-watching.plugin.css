@@ -1,0 +1,253 @@
+.continue-watching-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    font-family: "Inter", sans-serif;
+    border-radius: 20px;
+}
+
+.cw-island {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(20px) saturate(1.8);
+    border-radius: 32px;
+
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+    box-shadow: var(--box-shadow);
+    interpolate-size: allow-keywords;
+    width: min-content;
+    min-width: 0;
+}
+
+/* Hover State - Expand */
+.cw-island:hover {
+    width: auto !important;
+    min-width: 200px;
+    border-radius: 20px;
+    background: rgba(25, 25, 25, 0.3);
+}
+
+/* Single item state - no expansion */
+.cw-island.only-one:hover {
+    width: auto;
+    border-radius: 32px;
+}
+
+/* Current Item (Always Visible) */
+.cw-current-item {
+    display: flex;
+    align-items: center;
+    padding: 6px;
+    cursor: pointer;
+    height: 35px;
+    box-sizing: border-box;
+    transition: background 0.2s;
+    position: relative;
+}
+
+.cw-current-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.cw-poster-wrapper {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%; /* Circle for island look */
+    overflow: hidden;
+    margin-right: 10px;
+    margin-left: 3px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.cw-poster-mini {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cw-play-icon {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.cw-current-item:hover .cw-play-icon {
+    opacity: 1;
+}
+
+.cw-play-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: white;
+}
+
+.cw-info-mini {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: anchor-center;
+    padding-right: 10px;
+    width: max-content;
+    gap: 7px;
+}
+
+.cw-title-mini {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cw-last-watched-mini {
+    font-size: 8px;
+    color: rgba(255, 255, 255, 0.3);
+}
+.cw-logo-mini {
+    width: 50px;
+    object-fit: cover;
+}
+
+.cw-ep-mini {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cw-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 0;
+    margin-top: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.cw-island:hover .cw-progress-bar {
+    opacity: 1;
+}
+
+.cw-progress-fill {
+    height: 100%;
+    background: #fff;
+    border-radius: 0;
+}
+
+/* Expanded Content (Hidden by default) */
+.cw-expanded-content {
+    max-height: 0;
+    max-width: 0;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.cw-island:hover .cw-expanded-content {
+    max-height: 400px; /* Arbitrary large height */
+    max-width: 360px;
+    opacity: 1;
+    padding-bottom: 8px;
+}
+
+.cw-island.only-one:hover .cw-expanded-content {
+    display: none;
+}
+
+.cw-header {
+    padding: 12px 16px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: rgba(255, 255, 255, 0.4);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    margin-top: 4px;
+    justify-self: center;
+}
+
+.cw-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.cw-item {
+    display: flex;
+    padding: 8px;
+    cursor: pointer;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.cw-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+.cw-item:hover .cw-play-icon {
+    opacity: 1;
+}
+
+.cw-poster {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    margin-right: 12px;
+    background: #2a2a2a;
+    flex-shrink: 0;
+}
+
+.cw-info {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    flex: 1;
+    overflow: hidden;
+    align-items: anchor-center;
+}
+
+.cw-series-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #eee;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cw-episode-info {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    align-self: center;
+}
+
+.cw-series-logo {
+    width: 50px;
+    object-fit: cover;
+}
+
+.cw-last-watched {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.3);
+    align-self: center;
+}

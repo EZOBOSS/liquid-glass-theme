@@ -1,0 +1,459 @@
+/**
+ * @name Continue Watching Plugin
+ * @description Adds a quick continue watching button with a dropdown for recent series
+ * @version 1.2.0
+ * @author EZOBOSS
+ * @dependencies metadatadb.plugin.js
+ */
+
+(function () {
+    class ContinueWatchingPlugin {
+        static CONFIG = {
+            HISTORY_KEY: "continue_watching_history",
+            MAX_HISTORY: 10,
+        };
+
+        constructor() {
+            this.metadataDB = window.MetadataDB;
+            this.history = this.loadHistory();
+            this.init();
+        }
+
+        init() {
+            this.renderContainer();
+
+            // Check on navigation
+            window.addEventListener("hashchange", (e) => {
+                const oldHash = e.oldURL ? new URL(e.oldURL).hash : "";
+                const newHash = window.location.hash;
+
+                // If leaving player, check for updates
+                if (
+                    oldHash.includes("/player/") &&
+                    !newHash.includes("/player/")
+                ) {
+                    // Give a small delay for localStorage to be updated by the player
+                    setTimeout(() => {
+                        this.checkLastVideo();
+                    }, 1000);
+                }
+
+                this.checkVisibility();
+                this.updateList();
+            });
+
+            // Listen for storage changes (sync across tabs)
+            window.addEventListener("storage", (e) => {
+                if (e.key === ContinueWatchingPlugin.CONFIG.HISTORY_KEY) {
+                    this.history = this.loadHistory();
+                    this.updateList();
+                }
+                if (e.key === "library_recent") {
+                    this.updateList();
+                }
+            });
+
+            // Initial check
+            this.checkVisibility();
+            this.updateList();
+        }
+
+        loadHistory() {
+            try {
+                const raw = localStorage.getItem(
+                    ContinueWatchingPlugin.CONFIG.HISTORY_KEY
+                );
+                return raw ? JSON.parse(raw) : [];
+            } catch {
+                return [];
+            }
+        }
+
+        saveHistory() {
+            try {
+                localStorage.setItem(
+                    ContinueWatchingPlugin.CONFIG.HISTORY_KEY,
+                    JSON.stringify(this.history)
+                );
+            } catch (e) {
+                console.warn("Failed to save continue watching history", e);
+            }
+        }
+
+        getLibraryRecent() {
+            try {
+                const raw = localStorage.getItem("library_recent");
+                return raw ? JSON.parse(raw).items : [];
+            } catch {
+                return [];
+            }
+        }
+
+        formatLastWatched(isoString) {
+            if (!isoString) return "";
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffMins < 1) return "now";
+            if (diffMins < 60) return `${diffMins}m`;
+            if (diffHours < 24) return `${diffHours}h`;
+            if (diffDays < 7) return `${diffDays}d`;
+            return date.toLocaleDateString();
+        }
+
+        checkLastVideo() {
+            try {
+                const profileRaw = localStorage.getItem("localProfile");
+                if (!profileRaw) return;
+
+                const profile = JSON.parse(profileRaw);
+                if (!profile.lastVideo) return;
+
+                const lastId = profile.lastVideo;
+
+                // Add to history if not already at the top
+                if (this.history[0] !== lastId) {
+                    // Remove if exists elsewhere to avoid duplicates
+                    this.history = this.history.filter((id) => id !== lastId);
+
+                    // Add to front
+                    this.history.unshift(lastId);
+
+                    // Limit size
+                    if (
+                        this.history.length >
+                        ContinueWatchingPlugin.CONFIG.MAX_HISTORY
+                    ) {
+                        this.history.length =
+                            ContinueWatchingPlugin.CONFIG.MAX_HISTORY;
+                    }
+
+                    this.saveHistory();
+                    this.updateList();
+                }
+            } catch (e) {
+                // Ignore errors reading profile
+            }
+        }
+
+        async getNextEpisodeForSeries(seriesId, libItem) {
+            const series = await this.metadataDB.get(seriesId);
+            if (!series || series.type !== "series" || !series.videos)
+                return null;
+
+            // Sort videos
+            const sortedVideos = [...series.videos].sort((a, b) => {
+                if (a.season !== b.season) return a.season - b.season;
+                return a.episode - b.episode;
+            });
+
+            let latestWatched = null;
+            let lastWatchedTime = null;
+            let timeOffset = 0;
+            let duration = 0;
+
+            // Try to use library item state first
+            if (libItem && libItem.state) {
+                if (libItem.state.video_id) {
+                    // watched format: "tt123:1:2:..."
+                    const parts = libItem.state.video_id.split(":");
+                    const season = parseInt(parts[1]);
+                    const episode = parseInt(parts[2]);
+
+                    if (!isNaN(season) && !isNaN(episode)) {
+                        latestWatched = { season, episode };
+                        lastWatchedTime = libItem.state.lastWatched;
+                    }
+                }
+
+                timeOffset = libItem.state.timeOffset || 0;
+                duration = libItem.state.duration || 0;
+            }
+
+            // Fallback to MetadataDB watched status if library lookup failed
+            if (!latestWatched) {
+                for (let i = sortedVideos.length - 1; i >= 0; i--) {
+                    if (sortedVideos[i].watched === true) {
+                        latestWatched = sortedVideos[i];
+                        break;
+                    }
+                }
+            }
+
+            if (!latestWatched) return null;
+
+            // Determine if we should resume the current episode or play the next one
+            let targetVideo = null;
+
+            // If we have duration and we are less than 90% through, resume
+            if (duration > 0 && timeOffset / duration < 0.9) {
+                // Find the episode matching latestWatched
+                targetVideo = sortedVideos.find(
+                    (v) =>
+                        v.season === latestWatched.season &&
+                        v.episode === latestWatched.episode
+                );
+            }
+
+            // If not resuming (or target not found), find next episode
+            if (!targetVideo) {
+                targetVideo = sortedVideos.find((v) => {
+                    if (v.season > latestWatched.season) return true;
+                    if (
+                        v.season === latestWatched.season &&
+                        v.episode > latestWatched.episode
+                    )
+                        return true;
+                    return false;
+                });
+                // Reset progress for next episode
+                timeOffset = 0;
+                duration = 0;
+            }
+
+            if (targetVideo) {
+                // Check released date
+                if (
+                    targetVideo.released &&
+                    new Date(targetVideo.released).getTime() > Date.now()
+                ) {
+                    return null;
+                }
+
+                return {
+                    seriesId: series.id,
+                    seriesName: series.name || series.title,
+                    logo: series.logo,
+                    poster:
+                        series.poster ||
+                        `https://images.metahub.space/poster/small/${series.id}/img`,
+                    season: targetVideo.season,
+                    episode: targetVideo.episode,
+                    title: targetVideo.name || `Episode ${targetVideo.episode}`,
+                    videoId: `${series.id}:${targetVideo.season}:${targetVideo.episode}`,
+                    lastWatched: lastWatchedTime,
+                    timeOffset,
+                    duration,
+                };
+            }
+
+            return null;
+        }
+
+        async getContinueWatchingList() {
+            if (this.history.length === 0) return [];
+
+            await this.metadataDB.initPromise;
+            const library = this.getLibraryRecent();
+
+            const list = [];
+            // Process all history items
+            for (const seriesId of this.history) {
+                // Handle potential malformed IDs in history
+                const cleanId = seriesId.split(":")[0];
+                if (!cleanId) continue;
+
+                // Find in library_recent
+                const libItem = library[cleanId];
+
+                if (!libItem) continue;
+
+                const next = await this.getNextEpisodeForSeries(
+                    cleanId,
+                    libItem
+                );
+
+                if (next) {
+                    list.push(next);
+                }
+            }
+            return list;
+        }
+
+        renderContainer() {
+            if (document.querySelector(".continue-watching-container")) return;
+
+            const container = document.createElement("div");
+            container.className = "continue-watching-container";
+            container.style.display = "none";
+
+            container.innerHTML = `
+                <div class="cw-island">
+                    <div class="cw-current-item">
+                        <!-- Populated by updateList -->
+                    </div>
+                    <div class="cw-expanded-content">
+                        <div class="cw-header">Continue Watching</div>
+                        <ul class="cw-list"></ul>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(container);
+
+            // Main click - play the most recent item
+            const currentItem = container.querySelector(".cw-current-item");
+            currentItem.addEventListener("click", async () => {
+                const list = await this.getContinueWatchingList();
+                if (list.length > 0) {
+                    const next = list[0];
+                    window.location.hash = `#/detail/series/${
+                        next.seriesId
+                    }/${encodeURIComponent(next.videoId)}`;
+                }
+            });
+        }
+
+        checkVisibility() {
+            const container = document.querySelector(
+                ".continue-watching-container"
+            );
+            if (!container) return;
+
+            const hash = window.location.hash;
+            const isInPlayer = hash.includes("/player/");
+
+            if (isInPlayer) {
+                container.style.display = "none";
+            } else {
+                // We show it if we have items, which updateList handles
+            }
+        }
+
+        async updateList() {
+            const container = document.querySelector(
+                ".continue-watching-container"
+            );
+            if (!container) return;
+
+            const hash = window.location.hash;
+            if (hash.includes("/player/")) {
+                container.style.display = "none";
+                return;
+            }
+
+            const listItems = await this.getContinueWatchingList();
+
+            if (listItems.length === 0) {
+                container.style.display = "none";
+                return;
+            }
+
+            container.style.display = "block";
+
+            const currentItemEl = container.querySelector(".cw-current-item");
+            const listEl = container.querySelector(".cw-list");
+            const islandEl = container.querySelector(".cw-island");
+
+            // Update Current Item (First one)
+            const first = listItems[0];
+            const LogoOrTitle = first.logo
+                ? `<img src="${first.logo}" class="cw-logo-mini" />`
+                : `<div class="cw-title-mini">${first.seriesName}</div>`;
+
+            let progressBarHtml = "";
+            if (first.duration > 0 && first.timeOffset > 0) {
+                const percentage = Math.min(
+                    100,
+                    Math.max(0, (first.timeOffset / first.duration) * 100)
+                );
+                progressBarHtml = `
+                    <div class="cw-progress-bar">
+                        <div class="cw-progress-fill" style="width: ${percentage}%"></div>
+                    </div>
+                `;
+            }
+
+            currentItemEl.innerHTML = `
+                <div class="cw-poster-wrapper">
+                    <img src="${
+                        first.poster
+                    }" class="cw-poster-mini" onerror="this.style.display='none'">
+                    <div class="cw-play-icon">
+                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                </div>
+                <div class="cw-info-mini">
+                    ${LogoOrTitle}
+                    <div class="cw-ep-mini">S${first.season} E${
+                first.episode
+            }</div>
+                    ${
+                        first.lastWatched
+                            ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
+                                  first.lastWatched
+                              )}</div>`
+                            : ""
+                    }
+
+                </div>
+                ${progressBarHtml}
+            `;
+
+            // Update List (Rest)
+            const rest = listItems.slice(1);
+            listEl.innerHTML = "";
+
+            if (rest.length === 0) {
+                islandEl.classList.add("only-one");
+            } else {
+                islandEl.classList.remove("only-one");
+                rest.forEach((item) => {
+                    const logoOrTitleRest = item.logo
+                        ? `<img src="${item.logo}" class="cw-series-logo" />`
+                        : `<div class="cw-series-title">${item.seriesName}</div>`;
+                    const li = document.createElement("li");
+                    li.className = "cw-item";
+                    li.innerHTML = `
+                        <div class="cw-poster-wrapper">
+                        <img src="${
+                            item.poster
+                        }" class="cw-poster" onerror="this.style.display='none'">
+                        <div class="cw-play-icon">
+                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                        </div>
+                        <div class="cw-info">
+                            ${logoOrTitleRest}
+                            <div class="cw-episode-info">S${item.season} E${
+                        item.episode
+                    } - ${item.title}</div>
+                            ${
+                                item.lastWatched
+                                    ? `<div class="cw-last-watched">${this.formatLastWatched(
+                                          item.lastWatched
+                                      )}</div>`
+                                    : ""
+                            }
+                        </div>
+                    `;
+
+                    li.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        window.location.hash = `#/detail/series/${
+                            item.seriesId
+                        }/${encodeURIComponent(item.videoId)}`;
+                    });
+
+                    listEl.appendChild(li);
+                });
+            }
+        }
+    }
+
+    // Initialize
+    if (window.MetadataDB) {
+        new ContinueWatchingPlugin();
+    } else {
+        const checkInterval = setInterval(() => {
+            if (window.MetadataDB) {
+                clearInterval(checkInterval);
+                new ContinueWatchingPlugin();
+            }
+        }, 100);
+    }
+})();

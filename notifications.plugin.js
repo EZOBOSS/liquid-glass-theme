@@ -151,6 +151,20 @@
             }
         }
 
+        getGenreColor(genre) {
+            // Generate a consistent color for each genre using a hash function
+            let hash = 0;
+            for (let i = 0; i < genre.length; i++) {
+                hash = genre.charCodeAt(i) + ((hash << 5) - hash);
+            }
+
+            // Use the hash to generate a hue value (0-360)
+            const hue = Math.abs(hash % 360);
+
+            // Return HSL color with moderate saturation and lightness for better readability
+            return `hsla(${hue}, 65%, 45%, 0.3)`;
+        }
+
         async updateNotifications() {
             await this.metadataDB.initPromise;
             const cache = await this.metadataDB.getAll();
@@ -158,9 +172,47 @@
             const now = Date.now();
 
             Object.values(cache).forEach((entry) => {
-                const series = entry.data;
-                if (!series || series.type !== "series" || !series.videos)
+                const item = entry.data;
+                if (!item) return;
+
+                // Handle Movies
+                if (item.type === "movie") {
+                    if (!item.released) return;
+                    const releaseDate = new Date(item.released).getTime();
+
+                    // Check if released
+                    if (releaseDate > now) return;
+
+                    // Check if too old (30 days for movies)
+                    const filterMs = 30 * 24 * 60 * 60 * 1000;
+                    if (now - releaseDate > filterMs) return;
+
+                    const notifId = item.id;
+                    const isSeen = this.seenNotifications.has(notifId);
+
+                    notifications.push({
+                        id: notifId,
+                        seriesId: item.id,
+                        seriesName: item.name || item.title,
+                        genre: item.genre,
+                        season: 0,
+                        episode: 0,
+                        title: item.name || item.title,
+                        logo: `https://images.metahub.space/logo/small/${item.id}/img`,
+                        thumbnail:
+                            item.background ||
+                            item.poster ||
+                            `https://images.metahub.space/poster/small/${item.id}/img`,
+                        released: item.released,
+                        isSeen: isSeen,
+                        type: "movie",
+                    });
                     return;
+                }
+
+                // Handle Series
+                const series = item;
+                if (series.type !== "series" || !series.videos) return;
 
                 // 1. Find the latest season where user watched Ep 1
                 const watchedSeasons = new Set();
@@ -208,8 +260,8 @@
                     if (releaseDate > now) return; // Not released yet
 
                     // Check if too old (more than 3 months)
-                    const oneYearMs = 90 * 24 * 60 * 60 * 1000;
-                    if (now - releaseDate > oneYearMs) return;
+                    const threeMonthsMs = 90 * 24 * 60 * 60 * 1000;
+                    if (now - releaseDate > threeMonthsMs) return;
 
                     // Check if watched (individual video property)
                     if (video.watched === true) return;
@@ -225,7 +277,7 @@
                         seriesName: series.name || series.title,
                         season: video.season,
                         episode: video.episode,
-                        title: video.title || `Episode ${video.episode}`,
+                        title: video.name || `Episode ${video.episode}`,
                         logo: `https://images.metahub.space/logo/small/${series.id}/img`,
                         thumbnail:
                             video.thumbnail ||
@@ -233,6 +285,7 @@
                             `https://images.metahub.space/poster/small/${series.id}/img`,
                         released: video.released,
                         isSeen: isSeen,
+                        type: "series",
                     });
                 });
             });
@@ -298,9 +351,18 @@
                 list.addEventListener("click", (e) => {
                     const item = e.target.closest(".notification-item");
                     if (item) {
-                        const { seriesId, season, episode } = item.dataset;
-                        if (seriesId && season && episode) {
+                        const { seriesId, season, episode, type } =
+                            item.dataset;
+                        if (
+                            seriesId &&
+                            season &&
+                            episode &&
+                            type === "series"
+                        ) {
                             window.location.hash = `#/detail/series/${seriesId}/${seriesId}%3A${season}%3A${episode}`;
+                        }
+                        if (type === "movie") {
+                            window.location.hash = `#/detail/movie/${seriesId}`;
                         }
                     }
                 });
@@ -356,29 +418,47 @@
                 li.dataset.seriesId = notif.seriesId;
                 li.dataset.season = notif.season;
                 li.dataset.episode = notif.episode;
+                li.dataset.type = notif.type;
+                const isSeries = notif.type === "series";
+                const genre =
+                    notif.genre && notif.genre[0] ? notif.genre[0] : "Unknown";
+                const genreColor = this.getGenreColor(genre);
 
                 li.innerHTML = `
-                    <img src="${
-                        notif.thumbnail
-                    }" class="notif-thumb" onerror="this.onerror=null; this.src='https://images.metahub.space/poster/small/${
+                    <div class="notif-thumb-container">
+                        <img src="${
+                            notif.thumbnail
+                        }" class="notif-thumb" onerror="this.onerror=null; this.src='https://images.metahub.space/poster/small/${
                     notif.seriesId
                 }/img';">
+                        ${
+                            !isSeries
+                                ? `<span class="genre-badge" style="background-color: ${genreColor}">${genre}</span>`
+                                : ""
+                        }
+                    </div>
                     <img src="${
                         notif.logo
-                    }" class="notif-logo" onerror="this.onerror=null";
-                }/img';">
+                    }" class="notif-logo" onerror="this.style.display='none';">
                     <div class="notif-content">
+                    <div class="notif-time-container">
                         <div class="notif-time-since">${this.getTimeSinceRelease(
                             notif.released
                         )}</div>
-                        <div class="notif-series">${notif.seriesName}</div>
-                        <div class="notif-episode">S${notif.season} E${
-                    notif.episode
-                } - ${notif.title}</div>
+                        <div class="notif-time-dot">·</div>
                         <div class="notif-time">${new Date(
                             notif.released
                         ).toLocaleDateString()}</div>
-                    </div>
+                        </div>
+
+                        <div class="notif-series">${notif.seriesName}</div>
+                        <div class="notif-episode">${
+                            isSeries
+                                ? `S${notif.season} E${notif.episode} - ${notif.title}`
+                                : `Movie`
+                        }</div>
+                        
+                        
                 `;
 
                 fragment.appendChild(li);
