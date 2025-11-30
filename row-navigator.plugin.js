@@ -76,6 +76,16 @@
             setTimeout(() => {
                 if (!this.isHomepage()) return;
 
+                // Reset scroll position to top
+                const rowContainer = document.querySelector(
+                    RowNavigatorPlugin.CONFIG.SELECTORS.ROW_CONTAINER
+                );
+                if (rowContainer) {
+                    rowContainer.scrollTop = 0;
+                } else {
+                    window.scrollTo({ top: 0, behavior: "instant" });
+                }
+
                 this.createNavContainer();
                 this.navContainer.style.display = "flex";
 
@@ -84,7 +94,7 @@
                 this.scanRows();
 
                 this.enabled = true;
-            }, 500);
+            }, 100);
         }
 
         disable() {

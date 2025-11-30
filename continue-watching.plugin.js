@@ -229,8 +229,8 @@
                     seriesName: series.name || series.title,
                     logo: series.logo,
                     poster:
-                        series.poster ||
-                        `https://images.metahub.space/poster/small/${series.id}/img`,
+                        series.background ||
+                        `https://images.metahub.space/background/medium/${series.id}/img`,
                     season: targetVideo.season,
                     episode: targetVideo.episode,
                     title: targetVideo.name || `Episode ${targetVideo.episode}`,
@@ -274,6 +274,14 @@
             return list;
         }
 
+        removeItem(seriesId) {
+            this.history = this.history.filter(
+                (id) => id !== seriesId && !id.startsWith(seriesId + ":")
+            );
+            this.saveHistory();
+            this.updateList();
+        }
+
         renderContainer() {
             if (document.querySelector(".continue-watching-container")) return;
 
@@ -297,7 +305,10 @@
 
             // Main click - play the most recent item
             const currentItem = container.querySelector(".cw-current-item");
-            currentItem.addEventListener("click", async () => {
+            currentItem.addEventListener("click", async (e) => {
+                // Ignore if clicked on remove button
+                if (e.target.closest(".cw-remove-btn")) return;
+
                 const list = await this.getContinueWatchingList();
                 if (list.length > 0) {
                     const next = list[0];
@@ -382,6 +393,7 @@
                     <div class="cw-ep-mini">S${first.season} E${
                 first.episode
             }</div>
+                    <div class="cw-ep-title-mini"> - ${first.title}</div>
                     ${
                         first.lastWatched
                             ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
@@ -391,8 +403,17 @@
                     }
 
                 </div>
+                <div class="cw-remove-btn" title="Remove from history">
+                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </div>
                 ${progressBarHtml}
             `;
+
+            const removeBtn = currentItemEl.querySelector(".cw-remove-btn");
+            removeBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                this.removeItem(first.seriesId);
+            });
 
             // Update List (Rest)
             const rest = listItems.slice(1);
@@ -430,13 +451,25 @@
                                     : ""
                             }
                         </div>
+                        <div class="cw-remove-btn" title="Remove from history">
+                            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                        </div>
                     `;
 
                     li.addEventListener("click", (e) => {
+                        // Ignore if clicked on remove button
+                        if (e.target.closest(".cw-remove-btn")) return;
+
                         e.stopPropagation();
                         window.location.hash = `#/detail/series/${
                             item.seriesId
                         }/${encodeURIComponent(item.videoId)}`;
+                    });
+
+                    const itemRemoveBtn = li.querySelector(".cw-remove-btn");
+                    itemRemoveBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        this.removeItem(item.seriesId);
                     });
 
                     listEl.appendChild(li);

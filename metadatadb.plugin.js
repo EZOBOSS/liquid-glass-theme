@@ -188,9 +188,62 @@ class MetadataDB {
         return false; // Old movies never expire
     }
 
-    /**
-     * Get a single record by ID with memory cache
-     */
+    _hasDataChanged(existing, incoming) {
+        if (!existing || !incoming) return true;
+
+        // Quick checks on key fields that would indicate changes
+        if (existing.name !== incoming.name) return true;
+        if (existing.type !== incoming.type) return true;
+        if (existing.year !== incoming.year) return true;
+        if (existing.releaseInfo !== incoming.releaseInfo) return true;
+        if (existing.imdbRating !== incoming.imdbRating) return true;
+
+        // Check videos array length
+        const existingVideos = existing.videos;
+        const incomingVideos = incoming.videos;
+        if (Array.isArray(existingVideos) && Array.isArray(incomingVideos)) {
+            if (existingVideos.length !== incomingVideos.length) return true;
+        } else if (existingVideos !== incomingVideos) {
+            return true;
+        }
+
+        // If we got here, data is likely identical
+        return false;
+    }
+
+    _mergeVideosArray(existingVideos, incomingVideos) {
+        if (!Array.isArray(existingVideos) || !Array.isArray(incomingVideos)) {
+            return incomingVideos;
+        }
+
+        const existingMap = new Map();
+        for (const video of existingVideos) {
+            const key = video.id || `${video.season}:${video.episode}`;
+            existingMap.set(key, video);
+        }
+
+        const userFields = ["watched"];
+
+        return incomingVideos.map((newVideo) => {
+            const key = newVideo.id || `${newVideo.season}:${newVideo.episode}`;
+            const existingVideo = existingMap.get(key);
+
+            if (!existingVideo) return newVideo;
+
+            const preserve = {};
+            let hasUserData = false;
+
+            for (const field of userFields) {
+                if (existingVideo[field] !== undefined) {
+                    preserve[field] = existingVideo[field];
+                    hasUserData = true;
+                }
+            }
+
+            return hasUserData ? { ...newVideo, ...preserve } : newVideo;
+        });
+    }
+
     async get(id) {
         try {
             // Check memory cache first
@@ -231,13 +284,9 @@ class MetadataDB {
 
                     // Check expiration
                     if (this._shouldExpire(record)) {
-                        this.delete(id).catch((err) =>
-                            console.error(
-                                "[MetadataDB] Failed to delete expired record:",
-                                err
-                            )
-                        );
-                        this._updateCache(id, null);
+                        // Don't delete expired records to preserve user data (like watch state)
+                        // Just remove from memory cache so we don't serve stale data
+                        this._removeFromCache(id);
                         resolve(null);
                     } else {
                         this._updateCache(id, record.data);
@@ -396,9 +445,6 @@ class MetadataDB {
         }
     }
 
-    /**
-     * Flush batched writes to IndexedDB
-     */
     async _flushWrites() {
         if (this.writeQueue.size === 0) {
             this.writeTimer = null;
@@ -432,7 +478,44 @@ class MetadataDB {
                 );
 
                 for (const record of writes) {
-                    store.put(record);
+                    // Read-modify-write to preserve existing fields
+                    const getReq = store.get(record.id);
+                    getReq.onsuccess = () => {
+                        const existing = getReq.result;
+
+                        if (existing && existing.data) {
+                            // Fast path: Data is identical, keep existing data (timestamp still updates)
+                            if (
+                                !this._hasDataChanged(
+                                    existing.data,
+                                    record.data
+                                )
+                            ) {
+                                record.data = existing.data;
+                            } else {
+                                // Slow path: Data has changed, merge carefully
+                                const mergedData = {
+                                    ...existing.data,
+                                    ...record.data,
+                                };
+
+                                // Special handling for videos array to preserve user fields
+                                if (
+                                    Array.isArray(existing.data.videos) &&
+                                    Array.isArray(record.data.videos)
+                                ) {
+                                    mergedData.videos = this._mergeVideosArray(
+                                        existing.data.videos,
+                                        record.data.videos
+                                    );
+                                }
+
+                                record.data = mergedData;
+                            }
+                        }
+
+                        store.put(record);
+                    };
                 }
             });
         } catch (error) {
@@ -476,14 +559,53 @@ class MetadataDB {
                 const store = transaction.objectStore(
                     MetadataDB.CONFIG.STORE_NAME
                 );
-                const request = store.put(record);
 
-                request.onerror = () => {
-                    console.error(
-                        "[MetadataDB] Put request error:",
-                        request.error
-                    );
-                    reject(request.error);
+                // Read-modify-write
+                const getReq = store.get(id);
+
+                getReq.onsuccess = () => {
+                    const existing = getReq.result;
+
+                    if (existing && existing.data) {
+                        // Fast path: Data is identical, keep existing data (timestamp still updates)
+                        if (!this._hasDataChanged(existing.data, record.data)) {
+                            record.data = existing.data;
+                        } else {
+                            // Slow path: Data has changed, merge carefully
+                            const mergedData = {
+                                ...existing.data,
+                                ...record.data,
+                            };
+
+                            // Special handling for videos array to preserve user fields
+                            if (
+                                Array.isArray(existing.data.videos) &&
+                                Array.isArray(record.data.videos)
+                            ) {
+                                mergedData.videos = this._mergeVideosArray(
+                                    existing.data.videos,
+                                    record.data.videos
+                                );
+                            }
+
+                            record.data = mergedData;
+                        }
+                    }
+
+                    const putReq = store.put(record);
+                    putReq.onerror = () => {
+                        console.error(
+                            "[MetadataDB] Put request error:",
+                            putReq.error
+                        );
+                        reject(putReq.error);
+                    };
+                };
+
+                getReq.onerror = () => {
+                    // Fallback to direct put if get fails
+                    const putReq = store.put(record);
+                    putReq.onerror = () => reject(putReq.error);
                 };
             });
         } catch (error) {
