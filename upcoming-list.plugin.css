@@ -2,10 +2,10 @@
 
 .upcoming-wrapper {
     position: fixed;
-    left: -98%;
-    top: 20%;
-    height: 25vh;
-    width: 100vw;
+    left: 0;
+    top: 7%;
+    height: 50vh;
+    width: 40vw;
     z-index: 100;
     display: flex;
     flex-direction: row-reverse;
@@ -14,9 +14,9 @@
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.upcoming-wrapper:hover {
+/* .upcoming-wrapper:hover {
     transform: translateX(98%);
-}
+} */
 
 .upcoming-wrapper:hover .upcoming-container {
     transform: translateX(0);
@@ -76,8 +76,8 @@
     border-right: none;
     border-radius: 0;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
-    transform: translateX(-100%);
-    opacity: 0;
+    /*  transform: translateX(-100%); */
+    opacity: 1;
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: hidden;
@@ -91,8 +91,8 @@
 .upcoming-toggle-bar {
     position: absolute;
     overflow: visible;
-    top: 0.5rem;
-    left: 2rem;
+    bottom: 0.5rem;
+    left: 25px;
     display: flex;
     gap: 1rem;
     z-index: 20;
@@ -112,6 +112,7 @@
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2),
         inset 0 1px 1px rgba(255, 255, 255, 0.1);
     font-weight: 500;
+    opacity: 0.5;
 }
 
 .upcoming-toggle-bar .toggle-btn:hover {
@@ -121,6 +122,7 @@
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3),
         inset 0 1px 1px rgba(255, 255, 255, 0.15);
     padding: 0.75rem 1.5rem;
+    opacity: 1;
 }
 
 .upcoming-toggle-bar .toggle-btn:hover .btn-label {
@@ -134,6 +136,7 @@
     border-color: rgba(255, 255, 255, 0.4);
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.15),
         0 4px 15px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    opacity: 1;
 }
 
 .upcoming-toggle-bar .toggle-btn .btn-icon {
@@ -173,21 +176,26 @@
 }
 
 .upcoming-groups-container {
-    width: 100%;
+    width: 76%;
     height: 100%;
-    align-items: anchor-center;
+    align-items: stretch;
     display: flex;
-    flex-direction: row;
-    gap: 5px;
-    overflow-x: auto;
-    overflow-y: hidden;
+    flex-direction: column;
+    gap: 0.5rem;
+    overflow-y: auto;
+    overflow-x: hidden;
     pointer-events: auto;
     scrollbar-color: #ffffff17 transparent !important;
     scrollbar-width: thin !important;
+    padding: 0.5rem;
+    margin-left: 130px;
+    scroll-snap-type: y proximity;
+    scroll-behavior: smooth;
+    transition: all 0.3s ease;
 }
 
 .upcoming-groups-container::-webkit-scrollbar {
-    height: 8px;
+    width: 8px;
 }
 
 .upcoming-groups-container::-webkit-scrollbar-track {
@@ -205,12 +213,20 @@
 }
 
 .upcoming-date-group {
-    min-width: fit-content;
+    min-height: fit-content;
+    width: 100%;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1.5rem;
+    border-radius: 1rem;
     flex-shrink: 0;
-    padding: 1rem;
+    padding: 3px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    align-items: center;
+    padding: 5px;
+    scroll-snap-align: start;
+    scroll-margin-top: 7px;
 }
 
 .upcoming-date-group:hover {
@@ -225,15 +241,24 @@
 .upcoming-date-group.active {
     background: linear-gradient(
         135deg,
-        rgba(255, 255, 255, 0.15) 0%,
-        rgba(255, 255, 255, 0.08) 100%
+        rgba(255, 255, 255, 0.2) 0%,
+        rgba(255, 255, 255, 0.12) 100%
     );
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.15),
-        0 4px 15px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    opacity: 1 !important;
+}
+
+.upcoming-date-group.future {
+    opacity: 0.5;
+}
+
+.upcoming-date-group.future:hover {
+    opacity: 1;
 }
 
 .floating-date-indicator {
-    position: absolute;
+    display: none;
+    /* position: absolute;
     top: 1rem;
     left: 50%;
     transform: translateX(-50%);
@@ -254,7 +279,129 @@
         inset 0 1px 1px rgba(255, 255, 255, 0.2);
     pointer-events: none;
     transition: all 0.3s ease;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); */
+}
+
+.upcoming-date-list {
+    position: absolute;
+    left: 12px;
+    top: 21px;
+    width: auto;
+    max-width: 200px;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 8px;
+    overflow: visible;
+    scrollbar-width: none;
+    background: linear-gradient(45deg, #0000005e, #00000038);
+    backdrop-filter: blur(20px) saturate(2);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.upcoming-date-list::-webkit-scrollbar {
+    display: none;
+}
+
+.date-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    overflow: visible;
+    position: relative;
+    padding: 12px 10px 12px 0px;
+    padding-left: 10px;
+    height: 16px;
+    border-radius: 20px;
+    transform: scale(0.97);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.date-list-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    transform: scale(1.02);
+}
+
+.date-list-item.active {
+    background: linear-gradient(45deg, #ffffff5e, #f7f7f738);
+    border-radius: 20px;
+    box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
+    transform: scale(1.02);
+}
+
+.date-list-item.active::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.8),
+        0 0 4px rgba(255, 255, 255, 1);
+    z-index: 2;
+}
+
+.date-list-item::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 2;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+}
+
+.date-list-item:hover::before {
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateY(-50%) scale(1.4);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+.date-list-text {
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    padding: 5px;
+    opacity: 0.5;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.upcoming-date-list:hover .date-list-text {
+    opacity: 0.7;
+    padding: 6px 12px;
+    max-width: 200px;
+}
+
+.date-list-item:hover .date-list-text {
+    transform: translateX(-5px) scale(1);
+}
+
+.date-list-item.active .date-list-text {
+    opacity: 1;
+    font-size: 13px;
+    padding: 8px 14px;
+    max-width: 200px;
 }
 
 .current-time-indicator {
@@ -263,7 +410,9 @@
     justify-content: center;
     flex-shrink: 0;
     min-width: 60px;
-    height: 100%;
+    overflow: visible;
+    height: 5px;
+
     position: relative;
     z-index: 5;
 }
@@ -271,10 +420,10 @@
 .current-time-indicator .time-marker {
     position: relative;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    width: 100%;
     gap: 0.5rem;
     border-radius: 10px;
 }
@@ -284,6 +433,7 @@
     color: #000;
     font-weight: 900;
     font-size: 0.75rem;
+    width: 65px;
     padding: 0.4rem 0.8rem;
     border-radius: 20px;
     letter-spacing: 0.1em;
@@ -294,8 +444,8 @@
 }
 
 .current-time-indicator .time-line {
-    width: 3px;
-    height: 100%;
+    width: 100%;
+    height: 3px;
     background: linear-gradient(
         to bottom,
         rgba(0, 255, 136, 0.1),
@@ -322,10 +472,12 @@
 }
 
 .date-group-title {
-    display: none;
-    font-size: 1.8rem;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 1.2rem;
     font-weight: 700;
-    margin: 0 0 1.5rem 0;
+    margin: 0;
     background: linear-gradient(
         135deg,
         #ffffff 0%,
@@ -337,22 +489,49 @@
     text-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
     letter-spacing: 0.05em;
     position: relative;
-    padding-bottom: 0.75rem;
+    padding: 0;
+    min-width: 150px;
+    flex-shrink: 0;
+    text-align: left;
+    align-self: self-start;
+    padding: 10px;
+    min-width: 185px;
+}
+
+.date-group-title .date-number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+    color: white;
+    -webkit-text-fill-color: white;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.date-group-title .date-text-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.date-group-title .date-day {
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1.1;
+    color: white;
+    -webkit-text-fill-color: white;
+}
+
+.date-group-title .date-relative {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.8);
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.8);
 }
 
 .date-group-title::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(
-        90deg,
-        rgba(255, 255, 255, 0.3) 0%,
-        rgba(255, 255, 255, 0.05) 100%
-    );
-    border-radius: 2px;
+    display: none;
 }
 
 .loading-spinner {
@@ -372,9 +551,10 @@
 
 .upcoming-grid {
     display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 5px;
+    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 3px;
+    flex: 1;
 }
 
 .upcoming-card {
@@ -385,17 +565,24 @@
     border-radius: 1rem;
     text-decoration: none;
     color: white;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: height 0.4s ease;
     border: 1px solid rgba(255, 255, 255, 0.05);
     z-index: 1;
     width: 200px;
-    height: 150px;
+    max-height: 50px;
+    interpolate-size: allow-keywords;
     flex-shrink: 0;
     box-shadow: var(--box-shadow);
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0),
+        rgba(0, 0, 0, 0.8)
+    );
+    padding: 5px;
+    gap: 10px;
 }
 
 .upcoming-card.future {
-    opacity: 0.5;
     transition: opacity 0.3s ease;
     filter: grayscale(100%);
 }
@@ -406,52 +593,55 @@
 }
 
 .upcoming-card:hover {
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     border-color: rgba(255, 255, 255, 0.2);
     z-index: 10;
-    width: 400px;
+    max-height: 250px;
+    padding: 0px;
+}
+.upcoming-card:hover .upcoming-logo,
+.upcoming-card:hover .upcoming-episode {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    opacity: 0;
 }
 
 .upcoming-card:hover .upcoming-background-container img {
     transform: scale(1.05);
 }
 
-.upcoming-card:hover .upcoming-episodes-container {
-    width: 60%;
-    height: 100%;
-    opacity: 1;
-    padding: 1rem;
-}
-
 .upcoming-card .upcoming-info {
     width: 40%;
-    justify-content: flex-end;
+    justify-content: space-between;
 }
 
 .upcoming-card .upcoming-background-container {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    z-index: 0;
-    border-radius: 1rem;
-    transition: border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.upcoming-card .upcoming-background-container img {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
+    z-index: 0;
+    transition: border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.upcoming-card .upcoming-background-container img {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     transition: transform 0.5s ease;
+    opacity: 0.7;
+    mask-image: linear-gradient(to top, transparent, black 45%),
+        linear-gradient(to right, transparent, black 75%);
+    mask-repeat: no-repeat;
+    mask-size: cover;
+    mask-composite: intersect;
 }
 
 .unwatched-badge {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
+    top: 3px;
+    right: 3.75rem;
     background: linear-gradient(135deg, #ff3b3b, #ff6b6b);
     color: white;
     font-weight: 900;
@@ -491,36 +681,32 @@
 }
 
 .upcoming-card .upcoming-info {
-    padding: 1rem;
+    padding: 5px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.3rem;
-    background: linear-gradient(
-        to bottom,
-        rgba(0, 0, 0, 0),
-        rgba(0, 0, 0, 0.8)
-    );
-    position: absolute;
     z-index: 1;
     height: 100%;
     width: 100%;
-    border-radius: 1rem;
-    transition: border-radius 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .upcoming-card .upcoming-info .upcoming-logo {
-    max-width: 150px;
+    max-width: 125px;
     max-height: 60px;
     object-fit: contain;
-    margin-bottom: 0.5rem;
+    height: 27px;
 }
 
 .upcoming-card .upcoming-info .upcoming-new-season {
+    position: absolute;
+    top: 0;
+    left: 28px;
     font-size: 0.8rem;
     font-weight: bold;
     color: #ffd700;
     text-transform: uppercase;
     letter-spacing: 1px;
+    padding: 5px;
 }
 
 .upcoming-card .upcoming-info .upcoming-release-date {
@@ -532,35 +718,41 @@
 .upcoming-card .upcoming-info .upcoming-episode {
     font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.7);
-}
-
-.upcoming-card:hover .upcoming-background-container,
-.upcoming-card:hover .upcoming-info {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+    align-content: center;
+    font-weight: bold;
 }
 
 .upcoming-episodes-container {
     position: absolute;
+    padding: 7px;
+    backdrop-filter: blur(20px);
+    background: rgba(0, 0, 0, 0.5);
     right: 0;
-    top: 0;
     bottom: 0;
     display: flex;
+
     flex-direction: row;
     flex-wrap: wrap;
     align-content: flex-start;
-    gap: 0.5rem;
+    gap: 0.3rem;
     overflow: hidden;
-    width: 0%;
-    height: 100%;
+    width: 100%;
+    height: 50px;
     opacity: 0;
-    padding: 0;
     z-index: 11;
-    border-radius: 1rem 0 0 1rem;
-    border-right: none;
+    border-radius: 1rem;
     transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition-delay: 0.2s;
+    interpolate-size: allow-keywords;
+}
+
+.upcoming-card:hover .upcoming-episodes-container {
+    position: relative;
+    height: fit-content;
+    opacity: 1;
 }
 
 .upcoming-episodes-container::-webkit-scrollbar {
@@ -577,12 +769,15 @@
 }
 
 .upcoming-episode-card {
-    flex: 1 0 20%;
     box-sizing: border-box;
     backdrop-filter: blur(10px) saturate(2);
     border-radius: 0.5rem;
-    padding: 0.5rem;
+    padding: 10px;
     display: flex;
+    flex: 1;
+    min-width: 30px;
+    max-width: 56px;
+    max-height: 42px;
     flex-direction: column;
     justify-content: space-between;
     position: relative;
@@ -590,7 +785,7 @@
     overflow: hidden;
     background-size: cover;
     background-position: center;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 0.7;
 }
 
@@ -634,7 +829,6 @@
     );
 }
 
-.upcoming-episode-card.upcoming-next .upcoming-episode-number,
 .upcoming-episode-card.upcoming-next .upcoming-episode-thumbnail,
 .upcoming-episode-card.upcoming-next .upcoming-episode-date {
     opacity: 1 !important;
@@ -670,7 +864,7 @@
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
     z-index: 1;
     position: relative;
-    opacity: 0.3;
+    opacity: 0;
 }
 
 .upcoming-episode-card .upcoming-episode-title {
@@ -683,9 +877,12 @@
     font-weight: 600;
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
     z-index: 1;
-    position: absolute;
-    right: 20%;
+    text-align: center;
     opacity: 0.6;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 .upcoming-episode-card .upcoming-episode-watched-tag {

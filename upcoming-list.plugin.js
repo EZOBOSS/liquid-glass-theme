@@ -807,6 +807,7 @@
                     </div>
                     <div class="upcoming-container">
                         <div class="floating-date-indicator"></div>
+                        <div class="upcoming-date-list"></div>
                     </div>
                 `;
                 heroContainer.appendChild(wrapper);
@@ -964,20 +965,33 @@
             const now = Date.now();
             const groupsHtmlArray = Object.entries(groupedByDate).map(
                 ([dateKey, items]) => {
-                    const hue1 = Math.floor(Math.random() * 360);
-                    const hue2 = (hue1 + 60) % 360; // Complementary color
-                    const bgGradient = `linear-gradient(135deg, hsl(${hue1}, 70%, 50%, 0.05), hsl(${hue2}, 70%, 40%, 0.05))`;
-
                     // Check if this group is in the past or future
                     const firstItemDate = items[0]?.releaseDate;
                     const isPast =
                         firstItemDate &&
                         new Date(firstItemDate).getTime() < now;
 
+                    const dateObj = new Date(firstItemDate);
+                    const dayNum = dateObj
+                        .getDate()
+                        .toString()
+                        .padStart(2, "0");
+                    const dayName = dateObj.toLocaleDateString("en-US", {
+                        weekday: "long",
+                    });
+
                     return {
                         html: `
-                <div class="upcoming-date-group" data-date-key="${dateKey}" style="background: ${bgGradient}">
-                    <h3 class="date-group-title">${dateKey}</h3>
+                <div class="upcoming-date-group ${
+                    !isPast ? "future" : ""
+                }" data-date-key="${dateKey}">
+                    <h3 class="date-group-title">
+                        <span class="date-number">${dayNum}</span>
+                        <div class="date-text-col">
+                            <span class="date-day">${dayName}</span>
+                            <span class="date-relative">${dateKey}</span>
+                        </div>
+                    </h3>
                     <div class="upcoming-grid">
                         ${this.buildGridHtml(items)}
                     </div>
@@ -1044,7 +1058,7 @@
             this.initIntersectionObserver(container);
 
             // Initialize smooth scroll if plugin is available
-            if (window.InfiniteScrollPluginInstance) {
+            /* if (window.InfiniteScrollPluginInstance) {
                 const scrollContainer = container.querySelector(
                     ".upcoming-groups-container"
                 );
@@ -1059,7 +1073,7 @@
                         }
                     );
                 }
-            }
+            } */
         }
 
         initIntersectionObserver(container) {
@@ -1069,9 +1083,13 @@
             const indicator = container.querySelector(
                 ".floating-date-indicator"
             );
+            const dateList = container.querySelector(".upcoming-date-list");
             const groups = container.querySelectorAll(".upcoming-date-group");
 
             if (!scrollContainer || !indicator || !groups.length) return;
+
+            // Build the date list navigation
+            this.buildDateList(groups, dateList, scrollContainer);
 
             // Set initial active class
             groups[0].classList.add("active");
@@ -1079,7 +1097,7 @@
 
             const observerOptions = {
                 root: scrollContainer,
-                rootMargin: "0px -50% 0px -50%",
+                rootMargin: "-10% 0px -90% 0px", // Detects items at the top 10% of the container
                 threshold: 0,
             };
 
@@ -1099,6 +1117,8 @@
                     requestAnimationFrame(() => {
                         if (dateKey) {
                             indicator.innerText = dateKey;
+                            // Update date list active state
+                            this.updateDateListActive(dateList, dateKey);
                         }
                         if (activeGroup) {
                             activeGroup.classList.remove("active");
@@ -1114,6 +1134,56 @@
                 observerOptions
             );
             groups.forEach((el) => this.observer.observe(el));
+        }
+
+        buildDateList(groups, dateList, scrollContainer) {
+            if (!dateList) return;
+
+            const dateItems = [];
+            groups.forEach((group, index) => {
+                const dateKey = group.dataset.dateKey;
+                if (!dateKey) return;
+
+                const isActive = index === 0 ? "active" : "";
+                dateItems.push(`
+                    <div class="date-list-item ${isActive}" data-date-key="${dateKey}">
+                        <span class="date-list-text">${dateKey}</span>
+                    </div>
+                `);
+            });
+
+            dateList.innerHTML = dateItems.join("");
+
+            // Add click handlers to navigate to date groups
+            dateList.addEventListener("click", (e) => {
+                const item = e.target.closest(".date-list-item");
+                if (!item) return;
+
+                const dateKey = item.dataset.dateKey;
+                const targetGroup = Array.from(groups).find(
+                    (g) => g.dataset.dateKey === dateKey
+                );
+
+                if (targetGroup) {
+                    targetGroup.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                    });
+                }
+            });
+        }
+
+        updateDateListActive(dateList, activeDateKey) {
+            if (!dateList) return;
+
+            const items = dateList.querySelectorAll(".date-list-item");
+            items.forEach((item) => {
+                if (item.dataset.dateKey === activeDateKey) {
+                    item.classList.add("active");
+                } else {
+                    item.classList.remove("active");
+                }
+            });
         }
 
         showLoading(container) {
@@ -1265,9 +1335,7 @@
                     m.title
                 }" loading="lazy" />
                         ${newSeasonIndicator}
-                        <div class="upcoming-release-date">${
-                            m.releaseText
-                        }</div>
+                       
                         <div class="upcoming-episode">${m.episodeText}</div>
                         ${episodesContainerHtml}
                     </div>
