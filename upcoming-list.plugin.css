@@ -2,7 +2,7 @@
 
 .upcoming-wrapper {
     position: fixed;
-    left: 0;
+    left: -38%;
     top: 7%;
     height: 50vh;
     width: 40vw;
@@ -11,15 +11,16 @@
     flex-direction: row-reverse;
     align-items: stretch;
     pointer-events: auto;
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
 }
 
-/* .upcoming-wrapper:hover {
-    transform: translateX(98%);
-} */
+.upcoming-wrapper:hover {
+    transform: translateX(94%);
+}
 
 .upcoming-wrapper:hover .upcoming-container {
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
     opacity: 1;
     pointer-events: auto;
 }
@@ -38,8 +39,9 @@
     font-weight: 700;
     font-size: 1.1rem;
     letter-spacing: 0.3em;
-    transition: all 0.3s ease;
-
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    height: 50%;
+    transform: translateY(50%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -76,10 +78,9 @@
     border-right: none;
     border-radius: 0;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
-    /*  transform: translateX(-100%); */
-    opacity: 1;
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-10%) scale(0.95);
+    opacity: 0;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
     overflow-y: hidden;
 }
 
@@ -565,11 +566,13 @@
     border-radius: 1rem;
     text-decoration: none;
     color: white;
-    transition: height 0.4s ease;
+    transition: height 0.4s ease, max-height 0.4s ease, opacity 0.4s ease,
+        transform 0.4s ease, padding 0.4s ease;
     border: 1px solid rgba(255, 255, 255, 0.05);
     z-index: 1;
     width: 200px;
-    max-height: 50px;
+    height: 46px;
+    max-height: 46px;
     interpolate-size: allow-keywords;
     flex-shrink: 0;
     box-shadow: var(--box-shadow);
@@ -596,6 +599,7 @@
     border-color: rgba(255, 255, 255, 0.2);
     z-index: 10;
     max-height: 250px;
+    height: max-content;
     padding: 0px;
 }
 .upcoming-card:hover .upcoming-logo,

@@ -217,12 +217,9 @@
 
             if (targetVideo) {
                 // Check released date
-                if (
+                const isLocked =
                     targetVideo.released &&
-                    new Date(targetVideo.released).getTime() > Date.now()
-                ) {
-                    return null;
-                }
+                    new Date(targetVideo.released).getTime() > Date.now();
 
                 return {
                     seriesId: series.id,
@@ -233,11 +230,16 @@
                         `https://images.metahub.space/background/medium/${series.id}/img`,
                     season: targetVideo.season,
                     episode: targetVideo.episode,
-                    title: targetVideo.name || `Episode ${targetVideo.episode}`,
+                    title:
+                        targetVideo.name ||
+                        targetVideo.title ||
+                        `Episode ${targetVideo.episode}`,
                     videoId: `${series.id}:${targetVideo.season}:${targetVideo.episode}`,
                     lastWatched: lastWatchedTime,
                     timeOffset,
                     duration,
+                    isLocked,
+                    releaseDate: targetVideo.released,
                 };
             }
 
@@ -367,7 +369,7 @@
                 : `<div class="cw-title-mini">${first.seriesName}</div>`;
 
             let progressBarHtml = "";
-            if (first.duration > 0 && first.timeOffset > 0) {
+            if (first.duration > 0 && first.timeOffset > 0 && !first.isLocked) {
                 const percentage = Math.min(
                     100,
                     Math.max(0, (first.timeOffset / first.duration) * 100)
@@ -379,14 +381,33 @@
                 `;
             }
 
+            let lockedOverlayHtml = "";
+            if (first.isLocked) {
+                lockedOverlayHtml = `
+                    <div class="cw-locked-overlay">
+                        <div class="cw-lock-icon">
+                            <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3 3.1-3 1.71 0 3.1 1.29 3.1 3v2z"/></svg>
+                        </div>
+                        <div class="cw-timer">${this.formatCountdown(
+                            first.releaseDate
+                        )}</div>
+                    </div>
+                `;
+            }
+
             currentItemEl.innerHTML = `
                 <div class="cw-poster-wrapper">
                     <img src="${
                         first.poster
                     }" class="cw-poster-mini" onerror="this.style.display='none'">
-                    <div class="cw-play-icon">
+                    ${
+                        !first.isLocked
+                            ? `<div class="cw-play-icon">
                         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </div>
+                    </div>`
+                            : ""
+                    }
+                    ${lockedOverlayHtml}
                 </div>
                 <div class="cw-info-mini">
                     ${LogoOrTitle}
@@ -395,7 +416,7 @@
             }</div>
                     <div class="cw-ep-title-mini"> - ${first.title}</div>
                     ${
-                        first.lastWatched
+                        first.lastWatched && !first.isLocked
                             ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
                                   first.lastWatched
                               )}</div>`
@@ -408,6 +429,13 @@
                 </div>
                 ${progressBarHtml}
             `;
+
+            // Add locked class if needed
+            if (first.isLocked) {
+                currentItemEl.classList.add("cw-locked");
+            } else {
+                currentItemEl.classList.remove("cw-locked");
+            }
 
             const removeBtn = currentItemEl.querySelector(".cw-remove-btn");
             removeBtn.addEventListener("click", (e) => {
@@ -427,29 +455,52 @@
                     const logoOrTitleRest = item.logo
                         ? `<img src="${item.logo}" class="cw-series-logo" />`
                         : `<div class="cw-series-title">${item.seriesName}</div>`;
+
+                    let itemLockedHtml = "";
+                    if (item.isLocked) {
+                        itemLockedHtml = `
+                            <div class="cw-locked-overlay small">
+                                <div class="cw-lock-icon">
+                                    <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3 3.1-3 1.71 0 3.1 1.29 3.1 3v2z"/></svg>
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     const li = document.createElement("li");
                     li.className = "cw-item";
+                    if (item.isLocked) li.classList.add("cw-locked");
+
                     li.innerHTML = `
                         <div class="cw-poster-wrapper">
                         <img src="${
                             item.poster
                         }" class="cw-poster" onerror="this.style.display='none'">
-                        <div class="cw-play-icon">
+                        ${
+                            !item.isLocked
+                                ? `<div class="cw-play-icon">
                         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </div>
+                    </div>`
+                                : ""
+                        }
+                        ${itemLockedHtml}
                         </div>
                         <div class="cw-info">
                             ${logoOrTitleRest}
                             <div class="cw-episode-info">S${item.season} E${
                         item.episode
                     } - ${item.title}</div>
-                            ${
-                                item.lastWatched
-                                    ? `<div class="cw-last-watched">${this.formatLastWatched(
-                                          item.lastWatched
-                                      )}</div>`
-                                    : ""
-                            }
+                             ${
+                                 item.isLocked
+                                     ? `<div class="cw-timer-small">${this.formatCountdown(
+                                           item.releaseDate
+                                       )}</div>`
+                                     : item.lastWatched
+                                     ? `<div class="cw-last-watched">${this.formatLastWatched(
+                                           item.lastWatched
+                                       )}</div>`
+                                     : ""
+                             }
                         </div>
                         <div class="cw-remove-btn" title="Remove from history">
                             <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -459,6 +510,9 @@
                     li.addEventListener("click", (e) => {
                         // Ignore if clicked on remove button
                         if (e.target.closest(".cw-remove-btn")) return;
+
+                        // Prevent click if locked
+                        if (item.isLocked) return;
 
                         e.stopPropagation();
                         window.location.hash = `#/detail/series/${
@@ -475,6 +529,23 @@
                     listEl.appendChild(li);
                 });
             }
+        }
+
+        formatCountdown(dateStr) {
+            if (!dateStr) return "";
+            const target = new Date(dateStr).getTime();
+            const now = Date.now();
+            const diff = target - now;
+
+            if (diff <= 0) return "Available";
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor(
+                (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+            );
+
+            if (days > 0) return `${days}d ${hours}h`;
+            return `${hours}h`;
         }
     }
 

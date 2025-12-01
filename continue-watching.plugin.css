@@ -13,7 +13,7 @@
     backdrop-filter: blur(20px) saturate(1.8);
     border-radius: 32px;
 
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.4s ease;
     overflow: hidden;
     box-shadow: var(--box-shadow);
     interpolate-size: allow-keywords;
@@ -212,12 +212,51 @@
     padding: 8px;
     cursor: pointer;
     align-items: center;
-    transition: background 0.2s, transform 0.2s;
+    transition: background 0.2s, transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    transform: translateX(-20px);
 }
 
-.cw-item:hover {
+.cw-island:hover .cw-item {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.cw-island:hover .cw-item:nth-child(1) {
+    transition-delay: 0.05s;
+}
+.cw-island:hover .cw-item:nth-child(2) {
+    transition-delay: 0.1s;
+}
+.cw-island:hover .cw-item:nth-child(3) {
+    transition-delay: 0.15s;
+}
+.cw-island:hover .cw-item:nth-child(4) {
+    transition-delay: 0.2s;
+}
+.cw-island:hover .cw-item:nth-child(5) {
+    transition-delay: 0.25s;
+}
+.cw-island:hover .cw-item:nth-child(6) {
+    transition-delay: 0.3s;
+}
+.cw-island:hover .cw-item:nth-child(7) {
+    transition-delay: 0.35s;
+}
+.cw-island:hover .cw-item:nth-child(8) {
+    transition-delay: 0.4s;
+}
+.cw-island:hover .cw-item:nth-child(9) {
+    transition-delay: 0.45s;
+}
+.cw-island:hover .cw-item:nth-child(10) {
+    transition-delay: 0.5s;
+}
+
+.cw-island:hover .cw-item:hover {
     background: rgba(255, 255, 255, 0.08);
     transform: scale(1.02);
+    transition-delay: 0s;
 }
 .cw-item:hover .cw-play-icon {
     opacity: 1;
@@ -307,4 +346,64 @@
 .cw-current-item:hover .cw-remove-btn {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Locked State Styles */
+.cw-locked {
+    cursor: default;
+    opacity: 0.4 !important;
+}
+
+.cw-locked img {
+    filter: grayscale(100%);
+}
+
+.cw-locked:hover {
+    transform: none;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.cw-locked-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    backdrop-filter: grayscale(100%) blur(2px);
+}
+
+.cw-locked-overlay.small {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.cw-lock-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: rgba(255, 255, 255, 0.8);
+}
+
+.cw-locked-overlay.small .cw-lock-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.cw-timer {
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffd700;
+    margin-top: 2px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.cw-timer-small {
+    font-size: 9px;
+    color: #ffd700;
+    font-weight: 600;
+    margin-left: auto;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 6px;
+    border-radius: 4px;
 }

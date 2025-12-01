@@ -418,16 +418,19 @@ class MetadataDB {
         }
     }
 
-    /**
-     * Put a single record with batching for performance
-     */
     async put(id, data, type) {
         try {
             // Update memory cache immediately
             this._updateCache(id, data);
 
             // Add to batch queue
-            this.writeQueue.set(id, { id, data, type, timestamp: Date.now() });
+            this.writeQueue.set(id, {
+                id,
+                data,
+                type,
+                timestamp: Date.now(),
+            });
+            console.log("writequeue", this.writeQueue);
 
             // Schedule flush
             if (!this.writeTimer) {
@@ -454,7 +457,7 @@ class MetadataDB {
         const writes = Array.from(this.writeQueue.values());
         this.writeQueue.clear();
         this.writeTimer = null;
-
+        console.log("Flushing writes:", writes);
         try {
             await this.ensureReady();
 
@@ -484,13 +487,25 @@ class MetadataDB {
                         const existing = getReq.result;
 
                         if (existing && existing.data) {
-                            // Fast path: Data is identical, keep existing data (timestamp still updates)
+                            // Preserve existing timestamp if requested (e.g., for watch state updates)
                             if (
+                                record.preserveTimestamp &&
+                                existing.timestamp
+                            ) {
+                                record.timestamp = existing.timestamp;
+                            }
+
+                            // Check if we should bypass change detection
+                            if (record.bypassChangeCheck) {
+                                // Force save: use incoming data as-is
+                                // No merging needed since caller explicitly modified the data
+                            } else if (
                                 !this._hasDataChanged(
                                     existing.data,
                                     record.data
                                 )
                             ) {
+                                // Fast path: Data is identical, keep existing data (timestamp still updates)
                                 record.data = existing.data;
                             } else {
                                 // Slow path: Data has changed, merge carefully
@@ -530,13 +545,21 @@ class MetadataDB {
 
     /**
      * Force immediate write (bypass batching)
+     * @param {boolean} bypassChangeCheck - Skip the _hasDataChanged check and force save
+     * @param {boolean} preserveTimestamp - Keep existing timestamp instead of updating it
      */
-    async putImmediate(id, data, type) {
+    async putImmediate(
+        id,
+        data,
+        type,
+        bypassChangeCheck = false,
+        preserveTimestamp = false
+    ) {
         try {
             await this.ensureReady();
 
             const record = { id, data, type, timestamp: Date.now() };
-
+            console.log("putImmediate", record);
             await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
@@ -567,8 +590,19 @@ class MetadataDB {
                     const existing = getReq.result;
 
                     if (existing && existing.data) {
-                        // Fast path: Data is identical, keep existing data (timestamp still updates)
-                        if (!this._hasDataChanged(existing.data, record.data)) {
+                        // Preserve existing timestamp if requested (e.g., for watch state updates)
+                        if (preserveTimestamp && existing.timestamp) {
+                            record.timestamp = existing.timestamp;
+                        }
+
+                        // Check if we should bypass change detection
+                        if (bypassChangeCheck) {
+                            // Force save: use incoming data as-is
+                            // No merging needed since caller explicitly modified the data
+                        } else if (
+                            !this._hasDataChanged(existing.data, record.data)
+                        ) {
+                            // Fast path: Data is identical, keep existing data (timestamp still updates)
                             record.data = existing.data;
                         } else {
                             // Slow path: Data has changed, merge carefully

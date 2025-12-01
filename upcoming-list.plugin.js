@@ -283,141 +283,124 @@
             }
         }
 
-        async getUserData(list) {
-            const recentStr = localStorage.getItem(
-                UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
-            );
-            if (!recentStr) return list;
+        _parseWatchState(watchedState) {
+            if (!watchedState) return { season: 0, episode: 0 };
+            const parts = watchedState.split(":");
+            return parts.length >= 3
+                ? { season: +parts[1], episode: +parts[2] }
+                : { season: 0, episode: 0 };
+        }
 
-            let recent;
-            try {
-                recent = JSON.parse(recentStr);
-            } catch {
-                return list;
-            }
+        _shouldBeWatched(video, currentSeason, currentEpisode) {
+            if (currentSeason === 0) return false;
+            if (video.season < currentSeason && video.season > 0) return true;
+            if (
+                video.season === currentSeason &&
+                video.episode <= currentEpisode
+            )
+                return true;
+            return false;
+        }
 
-            const recentItems = recent.items;
-            if (!recentItems) return list;
+        async _syncWatchStateToDB(episodesBySeries) {
+            for (const [seriesId, episodes] of episodesBySeries) {
+                try {
+                    const rawMeta = await this.metadataDB.get(seriesId);
+                    if (!rawMeta?.videos) continue;
 
-            // Track which series have been updated so we can save them back to cache
-            const updatedEpisodes = [];
+                    const meta = structuredClone(rawMeta);
+                    const videoMap = new Map(
+                        meta.videos.map((v) => [`${v.season}-${v.episode}`, v])
+                    );
 
-            for (const item of list) {
-                if (item.type !== "series") continue;
-
-                const lib = recentItems[item.id];
-                // If not in library, we might need to unwatch everything?
-                // For now, let's assume if it's not in library_recent, we don't touch it
-                // (or it might be a new item).
-                // Ideally, if it was removed from library, we should probably unwatch it,
-                // but library_recent might not have everything.
-                if (!lib) continue;
-
-                const watchedState = lib.state && lib.state.watched;
-                // watchedState format: "s:1:e:1" or null
-
-                let currentSeason = 0;
-                let currentEpisode = 0;
-
-                if (watchedState) {
-                    const parts = watchedState.split(":");
-                    if (parts.length >= 3) {
-                        currentSeason = +parts[1];
-                        currentEpisode = +parts[2];
-                    }
-                }
-
-                item.watched = watchedState;
-
-                const videos = item.videos;
-                if (!videos) continue;
-
-                // Check ALL videos for this series
-                for (const v of videos) {
-                    // Determine if this episode SHOULD be watched based on library state
-                    let shouldBeWatched = false;
-
-                    if (currentSeason > 0) {
-                        if (v.season < currentSeason && v.season > 0) {
-                            // Previous seasons are watched
-                            shouldBeWatched = true;
-                        } else if (v.season === currentSeason) {
-                            // Current season, up to current episode
-                            if (v.episode <= currentEpisode) {
-                                shouldBeWatched = true;
-                            }
+                    let modified = false;
+                    for (const { season, episode, watched } of episodes) {
+                        const match = videoMap.get(`${season}-${episode}`);
+                        if (match && !!match.watched !== watched) {
+                            match.watched = watched;
+                            modified = true;
                         }
                     }
 
-                    // Sync state: If mismatch, update and mark for DB save
-                    // We check for strict inequality to catch undefined/null vs true/false
-                    if (!!v.watched !== shouldBeWatched) {
-                        v.watched = shouldBeWatched;
-                        updatedEpisodes.push({
+                    if (modified) {
+                        await this.metadataDB.putImmediate(
+                            seriesId,
+                            meta,
+                            "series",
+                            true,
+                            true
+                        );
+                        console.log(
+                            `[UpcomingReleases] Updated ${episodes.length} episodes for ${seriesId}`
+                        );
+                    }
+                } catch (err) {
+                    console.warn(
+                        `[UpcomingReleases] Failed to update ${seriesId}:`,
+                        err
+                    );
+                }
+            }
+        }
+
+        async getUserData(list) {
+            const recentItems = this._getLibraryItems();
+            if (!recentItems) return list;
+
+            const updates = [];
+
+            for (const item of list) {
+                if (item.type !== "series" || !item.videos) continue;
+
+                const lib = recentItems[item.id];
+                if (!lib) continue;
+
+                const watchedState = lib.state?.watched;
+                const { season: currentSeason, episode: currentEpisode } =
+                    this._parseWatchState(watchedState);
+
+                item.watched = watchedState;
+
+                for (const video of item.videos) {
+                    const shouldBeWatched = this._shouldBeWatched(
+                        video,
+                        currentSeason,
+                        currentEpisode
+                    );
+                    if (!!video.watched !== shouldBeWatched) {
+                        video.watched = shouldBeWatched;
+                        updates.push({
                             id: item.id,
-                            season: v.season,
-                            episode: v.episode,
+                            season: video.season,
+                            episode: video.episode,
                             watched: shouldBeWatched,
                         });
                     }
                 }
             }
 
-            // Persist watched state changes back to MetadataDB (IndexedDB)
-            if (updatedEpisodes.length > 0) {
-                // Group episodes by series ID to minimize DB lookups
-                const episodesBySeries = new Map();
-                for (const ep of updatedEpisodes) {
-                    if (!episodesBySeries.has(ep.id)) {
-                        episodesBySeries.set(ep.id, []);
-                    }
-                    episodesBySeries.get(ep.id).push(ep);
-                }
+            if (updates.length > 0) {
+                const episodesBySeries = updates.reduce((map, ep) => {
+                    if (!map.has(ep.id)) map.set(ep.id, []);
+                    map.get(ep.id).push(ep);
+                    return map;
+                }, new Map());
 
-                // Process each series once
-                for (const [seriesId, episodes] of episodesBySeries) {
-                    try {
-                        // 1. Get current metadata from DB
-                        const meta = await this.metadataDB.get(seriesId);
-                        if (!meta || !meta.videos) continue;
-
-                        let modified = false;
-
-                        // 2. Build lookup map for this series
-                        const videoMap = new Map();
-                        for (const v of meta.videos) {
-                            videoMap.set(`${v.season}-${v.episode}`, v);
-                        }
-
-                        // 3. Update all episodes for this series
-                        for (const { season, episode, watched } of episodes) {
-                            const match = videoMap.get(`${season}-${episode}`);
-                            if (match) {
-                                // Only update if different to avoid unnecessary writes
-                                if (!!match.watched !== watched) {
-                                    match.watched = watched;
-                                    modified = true;
-                                }
-                            }
-                        }
-
-                        // 4. Save back to DB if changed
-                        if (modified) {
-                            await this.metadataDB.put(seriesId, meta, "series");
-                            console.log(
-                                `[UpcomingReleases] Updated watched state for ${seriesId} (${episodes.length} updates)`
-                            );
-                        }
-                    } catch (err) {
-                        console.warn(
-                            `[UpcomingReleases] Failed to update watched state for ${seriesId}`,
-                            err
-                        );
-                    }
-                }
+                await this._syncWatchStateToDB(episodesBySeries);
             }
 
             return list;
+        }
+
+        _getLibraryItems() {
+            try {
+                const raw = localStorage.getItem(
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
+                );
+                return raw ? JSON.parse(raw).items : null;
+            } catch {
+                return null;
+            }
         }
 
         getClosestFutureVideo(meta) {
