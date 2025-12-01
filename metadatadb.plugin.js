@@ -54,7 +54,6 @@ class MetadataDB {
                     this.db = event.target.result;
                     this.isReady = true;
 
-                    // Handle database errors and connection loss
                     this.db.onerror = (event) => {
                         console.error(
                             "[MetadataDB] Database error:",
@@ -76,7 +75,6 @@ class MetadataDB {
                 request.onupgradeneeded = (event) => {
                     const db = event.target.result;
 
-                    // Create object store with index for efficient queries
                     if (
                         !db.objectStoreNames.contains(
                             MetadataDB.CONFIG.STORE_NAME
@@ -89,7 +87,6 @@ class MetadataDB {
                             }
                         );
 
-                        // Add indices for common queries
                         store.createIndex("type", "type", { unique: false });
                         store.createIndex("timestamp", "timestamp", {
                             unique: false,
@@ -109,9 +106,6 @@ class MetadataDB {
         }
     }
 
-    /**
-     * Check if database is ready for operations
-     */
     async ensureReady() {
         if (!this.isReady) {
             await this.initPromise;
@@ -121,21 +115,15 @@ class MetadataDB {
         }
     }
 
-    /**
-     * Manage in-memory LRU cache
-     */
     _updateCache(id, data) {
-        // Remove old entry if exists
         const existingIndex = this.cacheAccessOrder.indexOf(id);
         if (existingIndex > -1) {
             this.cacheAccessOrder.splice(existingIndex, 1);
         }
 
-        // Add to front (most recently used)
         this.cacheAccessOrder.unshift(id);
         this.memoryCache.set(id, data);
 
-        // Evict oldest if cache is full
         if (
             this.cacheAccessOrder.length > MetadataDB.CONFIG.MEMORY_CACHE_SIZE
         ) {
@@ -146,7 +134,6 @@ class MetadataDB {
 
     _getFromCache(id) {
         if (this.memoryCache.has(id)) {
-            // Move to front (most recently used)
             const existingIndex = this.cacheAccessOrder.indexOf(id);
             if (existingIndex > -1) {
                 this.cacheAccessOrder.splice(existingIndex, 1);
@@ -165,9 +152,6 @@ class MetadataDB {
         this.memoryCache.delete(id);
     }
 
-    /**
-     * Check if a record should expire based on type and age
-     */
     _shouldExpire(record) {
         const age = Date.now() - record.timestamp;
 
@@ -185,7 +169,7 @@ class MetadataDB {
             }
         }
 
-        return false; // Old movies never expire
+        return false;
     }
 
     _hasDataChanged(existing, incoming) {
@@ -308,9 +292,6 @@ class MetadataDB {
         }
     }
 
-    /**
-     * Get all records (with optional filtering)
-     */
     async getAll(filter = null) {
         try {
             await this.ensureReady();
@@ -355,13 +336,10 @@ class MetadataDB {
             });
         } catch (error) {
             console.error("[MetadataDB] Failed to get all records:", error);
-            return []; // Graceful degradation
+            return [];
         }
     }
 
-    /**
-     * Get multiple records by IDs (batch operation)
-     */
     async getMany(ids) {
         try {
             await this.ensureReady();
@@ -369,7 +347,6 @@ class MetadataDB {
             const results = new Map();
             const uncachedIds = [];
 
-            // Check memory cache first
             for (const id of ids) {
                 const cached = this._getFromCache(id);
                 if (cached !== undefined) {
@@ -379,7 +356,6 @@ class MetadataDB {
                 }
             }
 
-            // Fetch uncached items in a single transaction
             if (uncachedIds.length > 0) {
                 await new Promise((resolve, reject) => {
                     const transaction = this.db.transaction(
@@ -420,19 +396,15 @@ class MetadataDB {
 
     async put(id, data, type) {
         try {
-            // Update memory cache immediately
             this._updateCache(id, data);
 
-            // Add to batch queue
             this.writeQueue.set(id, {
                 id,
                 data,
                 type,
                 timestamp: Date.now(),
             });
-            console.log("writequeue", this.writeQueue);
 
-            // Schedule flush
             if (!this.writeTimer) {
                 this.writeTimer = setTimeout(() => {
                     this._flushWrites().catch((err) =>
@@ -457,7 +429,7 @@ class MetadataDB {
         const writes = Array.from(this.writeQueue.values());
         this.writeQueue.clear();
         this.writeTimer = null;
-        console.log("Flushing writes:", writes);
+
         try {
             await this.ensureReady();
 
@@ -487,19 +459,7 @@ class MetadataDB {
                         const existing = getReq.result;
 
                         if (existing && existing.data) {
-                            // Preserve existing timestamp if requested (e.g., for watch state updates)
                             if (
-                                record.preserveTimestamp &&
-                                existing.timestamp
-                            ) {
-                                record.timestamp = existing.timestamp;
-                            }
-
-                            // Check if we should bypass change detection
-                            if (record.bypassChangeCheck) {
-                                // Force save: use incoming data as-is
-                                // No merging needed since caller explicitly modified the data
-                            } else if (
                                 !this._hasDataChanged(
                                     existing.data,
                                     record.data
@@ -559,7 +519,7 @@ class MetadataDB {
             await this.ensureReady();
 
             const record = { id, data, type, timestamp: Date.now() };
-            console.log("putImmediate", record);
+
             await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
@@ -681,41 +641,6 @@ class MetadataDB {
         }
     }
 
-    /**
-     * Clear all records
-     */
-    async clear() {
-        try {
-            // Clear memory cache
-            this.memoryCache.clear();
-            this.cacheAccessOrder = [];
-            this.writeQueue.clear();
-
-            await this.ensureReady();
-
-            await new Promise((resolve, reject) => {
-                const transaction = this.db.transaction(
-                    [MetadataDB.CONFIG.STORE_NAME],
-                    "readwrite"
-                );
-
-                transaction.oncomplete = () => resolve();
-                transaction.onerror = () => reject(transaction.error);
-
-                const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
-                );
-                store.clear();
-            });
-        } catch (error) {
-            console.error("[MetadataDB] Failed to clear database:", error);
-            throw error;
-        }
-    }
-
-    /**
-     * Cleanup expired records (maintenance operation)
-     */
     async cleanupExpired() {
         try {
             await this.ensureReady();
@@ -757,31 +682,6 @@ class MetadataDB {
             console.error("[MetadataDB] Cleanup failed:", error);
         }
     }
-
-    /**
-     * Get database statistics
-     */
-    async getStats() {
-        try {
-            const allRecords = await this.getAll();
-            const stats = {
-                total: allRecords.length,
-                byType: {},
-                memoryCacheSize: this.memoryCache.size,
-                pendingWrites: this.writeQueue.size,
-            };
-
-            for (const record of allRecords) {
-                stats.byType[record.type] =
-                    (stats.byType[record.type] || 0) + 1;
-            }
-
-            return stats;
-        } catch (error) {
-            console.error("[MetadataDB] Failed to get stats:", error);
-            return null;
-        }
-    }
 }
 
 // Create and expose global singleton instance
@@ -801,4 +701,7 @@ window.addEventListener("beforeunload", () => {
             console.error("[MetadataDB] Failed to flush on unload:", err)
         );
     }
+    window.MetadataDB.cleanupExpired().catch((err) =>
+        console.error("[MetadataDB] Failed to cleanup on unload:", err)
+    );
 });
