@@ -49,6 +49,7 @@
     pointer-events: auto;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     min-width: 3rem;
+    order: -1;
 }
 
 .upcoming-vertical-tab:hover {
@@ -85,6 +86,7 @@
     opacity: 0;
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.6s ease;
     overflow-y: hidden;
+    gap: 5px;
 }
 
 .upcoming-container:hover {
@@ -162,6 +164,8 @@
     width: 100%;
     height: 100%;
     min-height: 200px;
+    min-width: max-content;
+    order: 2;
 }
 
 .upcoming-list.empty {
@@ -180,7 +184,7 @@
 }
 
 .upcoming-groups-container {
-    width: 75%;
+    width: 100%;
     height: 100%;
     align-items: stretch;
     display: flex;
@@ -192,7 +196,7 @@
     scrollbar-color: #ffffff17 transparent !important;
     scrollbar-width: thin !important;
     padding: 0.5rem;
-    margin-left: 140px;
+
     scroll-snap-type: y proximity;
     scroll-behavior: smooth;
     transition: all 0.3s ease;
@@ -264,47 +268,20 @@
     opacity: 1;
 }
 
-.floating-date-indicator {
-    display: none;
-    /* position: absolute;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 20;
-    background: linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.25) 0%,
-        rgba(255, 255, 255, 0.15) 100%
-    );
-    backdrop-filter: blur(20px) saturate(1.8);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 20px;
-    padding: 0.5rem 1.5rem;
-    color: white;
-    font-weight: bold;
-    font-size: 1rem;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.1),
-        inset 0 1px 1px rgba(255, 255, 255, 0.2);
-    pointer-events: none;
-    transition: all 0.3s ease;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); */
-}
-
 .upcoming-date-list {
-    position: absolute;
-    left: 12px;
-    top: 14px;
+    order: 3;
     width: auto;
     max-width: 200px;
     z-index: 15;
     display: flex;
+    min-width: 150px;
+    width: max-content;
     flex-direction: column;
     gap: 2px;
     padding: 12px 8px;
     overflow: visible;
     scrollbar-width: none;
-    background: linear-gradient(45deg, #0000005e, #000000b5);
-    backdrop-filter: blur(20px) saturate(2);
+    background: linear-gradient(45deg, #00000091, #000000b5);
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
@@ -415,7 +392,7 @@
 .date-group-title {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 10px;
     font-size: 1.2rem;
     font-weight: 700;
     margin: 0;
@@ -903,10 +880,10 @@
 /* Calendar Styles */
 
 .calendar-container {
-    width: 45%;
+    order: 1;
+    width: 62%;
     z-index: 16;
-    background: linear-gradient(45deg, #0000005e, #00000038);
-    backdrop-filter: blur(20px) saturate(2);
+    background: linear-gradient(45deg, #000000b5, #00000082);
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
@@ -1159,6 +1136,25 @@
     .upcoming-grid {
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     }
+}
+
+.calendar-day.active-scroll::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background-color: #ffd700;
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.8);
+    z-index: 5;
+}
+
+.calendar-day.active-scroll {
+    border-color: rgba(255, 215, 0, 0.3);
+    background: rgba(255, 217, 0, 0.475);
 }
 
 @media only screen and (max-width: 768px) {

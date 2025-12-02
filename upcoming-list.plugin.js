@@ -789,9 +789,9 @@
                         <span>UPCOMING</span>
                     </div>
                     <div class="upcoming-container">
-                        <div class="calendar-container"></div>
-                        <div class="floating-date-indicator"></div>
                         <div class="upcoming-date-list"></div>
+                        <div class="calendar-container"></div>
+
                     </div>
                 `;
                 heroContainer.appendChild(wrapper);
@@ -938,14 +938,6 @@
                 groupedByDate[dateKey].push(item);
             });
 
-            // Set initial indicator text
-            const indicator = container.querySelector(
-                ".floating-date-indicator"
-            );
-            if (indicator && Object.keys(groupedByDate).length > 0) {
-                indicator.innerText = Object.keys(groupedByDate)[0];
-            }
-
             const now = Date.now();
             const groupsHtmlArray = Object.entries(groupedByDate).map(
                 ([dateKey, items]) => {
@@ -964,11 +956,18 @@
                         weekday: "long",
                     });
 
+                    const isoDate = `${dateObj.getFullYear()}-${String(
+                        dateObj.getMonth() + 1
+                    ).padStart(2, "0")}-${String(dateObj.getDate()).padStart(
+                        2,
+                        "0"
+                    )}`;
+
                     return {
                         html: `
                 <div class="upcoming-date-group ${
                     !isPast ? "future" : ""
-                }" data-date-key="${dateKey}">
+                }" data-date-key="${dateKey}" data-iso-date="${isoDate}">
                     <h3 class="date-group-title">
                         <span class="date-number">${dayNum}</span>
                         <div class="date-text-col">
@@ -1014,13 +1013,10 @@
             const scrollContainer = container.querySelector(
                 ".upcoming-groups-container"
             );
-            const indicator = container.querySelector(
-                ".floating-date-indicator"
-            );
             const dateList = container.querySelector(".upcoming-date-list");
             const groups = container.querySelectorAll(".upcoming-date-group");
 
-            if (!scrollContainer || !indicator || !groups.length) return;
+            if (!scrollContainer || !groups.length) return;
 
             // Build the date list navigation
             this.buildDateList(groups, dateList, scrollContainer);
@@ -1046,13 +1042,16 @@
                     intersectingEntries[intersectingEntries.length - 1];
                 const targetElement = targetEntry.target;
                 const dateKey = targetElement.dataset.dateKey;
+                const isoDate = targetElement.dataset.isoDate;
 
                 if (activeGroup !== targetElement) {
                     requestAnimationFrame(() => {
                         if (dateKey) {
-                            indicator.innerText = dateKey;
                             // Update date list active state
                             this.updateDateListActive(dateList, dateKey);
+                        }
+                        if (isoDate) {
+                            this.updateCalendarActiveState(container, isoDate);
                         }
                         if (activeGroup) {
                             activeGroup.classList.remove("active");
@@ -1068,6 +1067,29 @@
                 observerOptions
             );
             groups.forEach((el) => this.observer.observe(el));
+        }
+
+        updateCalendarActiveState(container, isoDate) {
+            const calendarContainer = container.querySelector(
+                ".calendar-container"
+            );
+            if (!calendarContainer) return;
+
+            // Remove previous active state
+            const previousActive = calendarContainer.querySelector(
+                ".calendar-day.active-scroll"
+            );
+            if (previousActive) {
+                previousActive.classList.remove("active-scroll");
+            }
+
+            // Add new active state
+            const newActive = calendarContainer.querySelector(
+                `.calendar-day[data-date="${isoDate}"]`
+            );
+            if (newActive) {
+                newActive.classList.add("active-scroll");
+            }
         }
 
         buildDateList(groups, dateList, scrollContainer) {
