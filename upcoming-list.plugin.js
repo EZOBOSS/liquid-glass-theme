@@ -198,8 +198,15 @@
         }
 
         formatDaysUntil(dateMs, now = Date.now()) {
-            const dayMs = 86400000;
-            const diff = Math.ceil((dateMs - now) / dayMs);
+            const target = new Date(dateMs);
+            const current = new Date(now);
+
+            // Reset to midnight for calendar day comparison
+            target.setHours(0, 0, 0, 0);
+            current.setHours(0, 0, 0, 0);
+
+            const diffMs = target.getTime() - current.getTime();
+            const diff = Math.round(diffMs / 86400000);
 
             if (diff < 0) {
                 const absoluteDaysDiff = Math.abs(diff);

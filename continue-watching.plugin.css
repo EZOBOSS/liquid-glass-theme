@@ -139,6 +139,7 @@
     opacity: 0;
     content-visibility: hidden;
     transition: all 0.2s ease;
+    max-width: 100px;
 }
 .cw-island:hover .cw-ep-title-mini {
     width: max-content;
