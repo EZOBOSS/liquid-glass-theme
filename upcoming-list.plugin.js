@@ -1244,8 +1244,15 @@
                 calendarHtml += `
                     <div class="calendar-day${todayClass}${releasesClass}" data-date="${dateKey}" data-series-ids="${seriesIds}">
                         <div class="day-number">${day}</div>                       
-                        ${releaseBadge}
                         ${posterBadge}
+                        <div class="calendar-posters-grid">
+                            ${releases
+                                .map(
+                                    (r) =>
+                                        `<img src="${r.poster}" alt="${r.title}" loading="lazy" class="calendar-poster-mini" />`
+                                )
+                                .join("")}
+                        </div>
                     </div>
                 `;
             }
