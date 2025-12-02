@@ -762,17 +762,6 @@
                     poster: `${posterBase}/${id}/img`,
                     logo: `${logoBase}/${id}/img`,
                     href,
-                    trailer:
-                        m?.trailer ||
-                        m?.trailers?.[0]?.source ||
-                        m?.trailers?.[0]?.url ||
-                        m?.videos?.[0]?.url ||
-                        null,
-                    description: m.description,
-                    rating: m.imdbRating || "",
-                    year: m.year || m.releaseInfo || "",
-                    runtime: m.runtime,
-                    genres: m.genre || m.genres || [],
                     videos: latestSeasonVideos,
                     isNewSeason,
                 });
@@ -796,6 +785,7 @@
                         <span>UPCOMING</span>
                     </div>
                     <div class="upcoming-container">
+                        <div class="calendar-container"></div>
                         <div class="floating-date-indicator"></div>
                         <div class="upcoming-date-list"></div>
                     </div>
@@ -992,47 +982,6 @@
                 }
             );
 
-            // Find the transition point between past and future
-            let insertIndex = -1;
-            for (let i = 0; i < groupsHtmlArray.length; i++) {
-                if (!groupsHtmlArray[i].isPast) {
-                    insertIndex = i;
-                    break;
-                }
-            }
-
-            // Insert the "now" indicator between past and future groups
-            const nowIndicator = `
-                <div class="current-time-indicator">
-                    <div class="time-marker">
-                        <div class="time-label">NOW</div>
-                        <div class="time-line"></div>
-                    </div>
-                </div>`;
-
-            if (insertIndex > 0 && insertIndex < groupsHtmlArray.length) {
-                // Insert between past and future
-                groupsHtmlArray.splice(insertIndex, 0, {
-                    html: nowIndicator,
-                    isPast: false,
-                    dateKey: "now",
-                });
-            } else if (insertIndex === 0) {
-                // All items are in the future
-                groupsHtmlArray.unshift({
-                    html: nowIndicator,
-                    isPast: false,
-                    dateKey: "now",
-                });
-            } else if (insertIndex === -1 && groupsHtmlArray.length > 0) {
-                // All items are in the past
-                groupsHtmlArray.push({
-                    html: nowIndicator,
-                    isPast: false,
-                    dateKey: "now",
-                });
-            }
-
             const groupsHtml = groupsHtmlArray.map((g) => g.html).join("");
 
             container.insertAdjacentHTML(
@@ -1044,26 +993,17 @@
                 </div>`
             );
 
+            // Render calendar
+            const calendarContainer = container.querySelector(
+                ".calendar-container"
+            );
+            if (calendarContainer) {
+                calendarContainer.innerHTML = this.buildCalendar(upcoming);
+                this.initCalendarNavigation(container, upcoming);
+            }
+
             // Initialize intersection observer
             this.initIntersectionObserver(container);
-
-            // Initialize smooth scroll if plugin is available
-            /* if (window.InfiniteScrollPluginInstance) {
-                const scrollContainer = container.querySelector(
-                    ".upcoming-groups-container"
-                );
-                if (scrollContainer) {
-                    window.InfiniteScrollPluginInstance.initWheelScroll(
-                        scrollContainer,
-                        "upcoming",
-                        {
-                            disableFetch: true,
-                            type: "upcoming",
-                            disableScrollIndicator: true,
-                        }
-                    );
-                }
-            } */
         }
 
         initIntersectionObserver(container) {
@@ -1173,6 +1113,235 @@
                 } else {
                     item.classList.remove("active");
                 }
+            });
+        }
+
+        getReleasesPerDay(upcoming) {
+            const releasesByDate = new Map();
+
+            upcoming.forEach((item) => {
+                // Process all episodes from the videos array (latestSeasonVideos)
+                if (Array.isArray(item.videos) && item.videos.length > 0) {
+                    item.videos.forEach((video) => {
+                        if (!video.released) return;
+
+                        const date = new Date(video.released);
+                        const dateKey = `${date.getFullYear()}-${String(
+                            date.getMonth() + 1
+                        ).padStart(2, "0")}-${String(date.getDate()).padStart(
+                            2,
+                            "0"
+                        )}`;
+
+                        if (!releasesByDate.has(dateKey)) {
+                            releasesByDate.set(dateKey, []);
+                        }
+
+                        // Add the series item for this episode date
+                        // Check if this series is already in the array for this date
+                        const existing = releasesByDate
+                            .get(dateKey)
+                            .find((r) => r.id === item.id);
+                        if (!existing) {
+                            releasesByDate.get(dateKey).push(item);
+                        }
+                    });
+                } else if (item.releaseDate) {
+                    // Fallback for items without videos array (movies)
+                    const date = new Date(item.releaseDate);
+                    const dateKey = `${date.getFullYear()}-${String(
+                        date.getMonth() + 1
+                    ).padStart(2, "0")}-${String(date.getDate()).padStart(
+                        2,
+                        "0"
+                    )}`;
+
+                    if (!releasesByDate.has(dateKey)) {
+                        releasesByDate.set(dateKey, []);
+                    }
+                    releasesByDate.get(dateKey).push(item);
+                }
+            });
+
+            return releasesByDate;
+        }
+
+        buildCalendar(upcoming) {
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth();
+            const currentDay = now.getDate();
+
+            const releasesByDate = this.getReleasesPerDay(upcoming);
+
+            // Get first day of month and total days
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startingDayOfWeek = (firstDay.getDay() + 6) % 7; // Monday-first
+
+            const monthNames = [
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            ];
+
+            let calendarHtml = `
+                <div class="calendar-header">
+                    <div class="calendar-month">${monthNames[currentMonth]} ${currentYear}</div>
+                </div>
+                <div class="calendar-weekdays">
+                    <div class="calendar-weekday">M</div>
+                    <div class="calendar-weekday">T</div>
+                    <div class="calendar-weekday">W</div>
+                    <div class="calendar-weekday">T</div>
+                    <div class="calendar-weekday">F</div>
+                    <div class="calendar-weekday">S</div>
+                    <div class="calendar-weekday">S</div>
+                </div>
+                <div class="calendar-grid">
+            `;
+
+            // Add empty cells for days before month starts
+            for (let i = 0; i < startingDayOfWeek; i++) {
+                calendarHtml += '<div class="calendar-day empty"></div>';
+            }
+
+            // Add days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateKey = `${currentYear}-${String(
+                    currentMonth + 1
+                ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const releases = releasesByDate.get(dateKey) || [];
+                const releaseCount = releases.length;
+
+                const isToday = day === currentDay;
+                const hasReleases = releaseCount > 0;
+
+                const todayClass = isToday ? " today" : "";
+                const releasesClass = hasReleases ? " has-releases" : "";
+
+                // Collect series IDs for this date
+                const seriesIds = releases.map((r) => r.id).join(",");
+                //is is the first release of the season
+                const isNewSeason = releases.some((r) => r.isNewSeason);
+                console.log(releases);
+
+                const releaseBadge = isNewSeason
+                    ? `<div class="release-count-badge">${releaseCount}</div>`
+                    : "";
+                const posterBadge = `<img src="" alt="" loading="lazy" class="calendar-poster" />`;
+
+                calendarHtml += `
+                    <div class="calendar-day${todayClass}${releasesClass}" data-date="${dateKey}" data-series-ids="${seriesIds}">
+                        <div class="day-number">${day}</div>                       
+                        ${releaseBadge}
+                        ${posterBadge}
+                    </div>
+                `;
+            }
+
+            calendarHtml += "</div>";
+
+            return calendarHtml;
+        }
+
+        initCalendarNavigation(container, upcoming) {
+            const calendarContainer = container.querySelector(
+                ".calendar-container"
+            );
+            if (!calendarContainer) return;
+
+            const scrollContainer = container.querySelector(
+                ".upcoming-groups-container"
+            );
+            const groups = container.querySelectorAll(".upcoming-date-group");
+
+            // Click to navigate
+            calendarContainer.addEventListener("click", (e) => {
+                const dayCell = e.target.closest(".calendar-day.has-releases");
+                if (!dayCell) return;
+
+                const dateKey = dayCell.dataset.date;
+                if (!dateKey) return;
+
+                // Convert YYYY-MM-DD to release text format to find matching group
+                const clickedDate = new Date(dateKey + "T00:00:00");
+                const now = Date.now();
+                const releaseText = this.formatDaysUntil(
+                    clickedDate.getTime(),
+                    now
+                );
+
+                // Find the group with matching release text
+                const targetGroup = Array.from(groups).find(
+                    (g) => g.dataset.dateKey === releaseText
+                );
+
+                if (targetGroup) {
+                    targetGroup.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start",
+                    });
+                }
+            });
+
+            // Hover to highlight calendar dates for series
+            this.initSeriesHoverHighlight(container);
+        }
+
+        initSeriesHoverHighlight(container) {
+            const calendarContainer = container.querySelector(
+                ".calendar-container"
+            );
+            if (!calendarContainer) return;
+
+            const upcomingCards = container.querySelectorAll(".upcoming-card");
+
+            upcomingCards.forEach((card) => {
+                card.addEventListener("mouseenter", (e) => {
+                    const seriesId = card.id;
+                    if (!seriesId) return;
+                    console.log(UpcomingReleasesPlugin.CONFIG.URLS.POSTER);
+
+                    // Find all calendar days with this series
+                    const calendarDays =
+                        calendarContainer.querySelectorAll(".calendar-day");
+                    calendarDays.forEach((day) => {
+                        const seriesIds = day.dataset.seriesIds || "";
+                        if (seriesIds.split(",").includes(seriesId)) {
+                            day.classList.add("highlight-series");
+
+                            day.querySelector(".calendar-poster").src =
+                                UpcomingReleasesPlugin.CONFIG.URLS.POSTER +
+                                "/" +
+                                seriesId +
+                                "/img";
+                        }
+                    });
+                });
+
+                card.addEventListener("mouseleave", (e) => {
+                    // Remove all highlights
+                    const highlightedDays = calendarContainer.querySelectorAll(
+                        ".calendar-day.highlight-series"
+                    );
+                    highlightedDays.forEach((day) => {
+                        day.classList.remove("highlight-series");
+                        day.querySelector(".calendar-poster").classList.remove(
+                            "highlight-series"
+                        );
+                    });
+                });
             });
         }
 
@@ -1300,30 +1469,18 @@
                         : "";
 
                 gridItems.push(`
-                <a tabindex="0" class="upcoming-card${newSeasonClass}${futureClass}" href="${
-                    m.href
-                }"
-                    data-trailer-url="${m.trailer || ""}"
-                    data-description="${(m.description || "").replace(
-                        /"/g,
-                        "&quot;"
-                    )}"
+                <a tabindex="0" class="upcoming-card${newSeasonClass}${futureClass}" href="${m.href}"
+                   
                     id="${m.id}"
-                    data-rating="${m.rating || ""}"
-                    data-year="${m.year || ""}"
-                    data-runtime="${m.runtime || ""}"
-                    data-genres="${m.genres || ""}"
+                    
+                    
                 >
                     <div class="upcoming-background-container">
-                        <img src="${m.poster}" alt="${
-                    m.title
-                }" loading="lazy" />
+                        <img src="${m.poster}" alt="${m.title}" loading="lazy" />
                         ${unwatchedBadge}
                     </div>
                     <div class="upcoming-info">
-                        <img class="upcoming-logo" src="${m.logo}" alt="${
-                    m.title
-                }" loading="lazy" />
+                        <img class="upcoming-logo" src="${m.logo}" alt="${m.title}" loading="lazy" />
                         ${newSeasonIndicator}
                        
                         <div class="upcoming-episode">${m.episodeText}</div>
