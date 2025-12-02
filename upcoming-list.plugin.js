@@ -55,6 +55,7 @@
             window.addEventListener("hashchange", (event) => {
                 if (event.oldURL.includes("player")) {
                     this.updateState = true;
+                    this.libraryItemsCache = null;
                 }
                 // Debounce render
                 if (this.renderTimeout) clearTimeout(this.renderTimeout);
@@ -400,11 +401,14 @@
         }
 
         _getLibraryItems() {
+            if (this.libraryItemsCache) return this.libraryItemsCache;
             try {
                 const raw = localStorage.getItem(
                     UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
                 );
-                return raw ? JSON.parse(raw).items : null;
+                const items = raw ? JSON.parse(raw).items : null;
+                this.libraryItemsCache = items;
+                return items;
             } catch {
                 return null;
             }
@@ -1139,11 +1143,22 @@
 
                         // Add the series item for this episode date
                         // Check if this series is already in the array for this date
-                        const existing = releasesByDate
+                        let existing = releasesByDate
                             .get(dateKey)
                             .find((r) => r.id === item.id);
+
+                        const isPremiere = video.episode === 1;
+
                         if (!existing) {
-                            releasesByDate.get(dateKey).push(item);
+                            // Create a shallow copy to avoid mutating the original item shared across dates
+                            const entry = { ...item };
+                            entry.isNewSeason = isPremiere;
+                            releasesByDate.get(dateKey).push(entry);
+                        } else {
+                            // If already exists (e.g. E1 and E2 on same day), update isNewSeason if this one is premiere
+                            if (isPremiere) {
+                                existing.isNewSeason = true;
+                            }
                         }
                     });
                 } else if (item.releaseDate) {
@@ -1159,7 +1174,7 @@
                     if (!releasesByDate.has(dateKey)) {
                         releasesByDate.set(dateKey, []);
                     }
-                    releasesByDate.get(dateKey).push(item);
+                    releasesByDate.get(dateKey).push({ ...item });
                 }
             });
 
@@ -1173,12 +1188,6 @@
             const currentDay = now.getDate();
 
             const releasesByDate = this.getReleasesPerDay(upcoming);
-
-            // Get first day of month and total days
-            const firstDay = new Date(currentYear, currentMonth, 1);
-            const lastDay = new Date(currentYear, currentMonth + 1, 0);
-            const daysInMonth = lastDay.getDate();
-            const startingDayOfWeek = (firstDay.getDay() + 6) % 7; // Monday-first
 
             const monthNames = [
                 "January",
@@ -1195,71 +1204,83 @@
                 "December",
             ];
 
-            let calendarHtml = `
-                <div class="calendar-header">
-                    <div class="calendar-month">${monthNames[currentMonth]} ${currentYear}</div>
-                </div>
-                <div class="calendar-weekdays">
-                    <div class="calendar-weekday">M</div>
-                    <div class="calendar-weekday">T</div>
-                    <div class="calendar-weekday">W</div>
-                    <div class="calendar-weekday">T</div>
-                    <div class="calendar-weekday">F</div>
-                    <div class="calendar-weekday">S</div>
-                    <div class="calendar-weekday">S</div>
-                </div>
-                <div class="calendar-grid">
-            `;
+            const renderMonth = (year, month) => {
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                const daysInMonth = lastDay.getDate();
+                const startingDayOfWeek = (firstDay.getDay() + 6) % 7; // Monday-first
 
-            // Add empty cells for days before month starts
-            for (let i = 0; i < startingDayOfWeek; i++) {
-                calendarHtml += '<div class="calendar-day empty"></div>';
-            }
+                let html = `
+            <div class="calendar-header">
+                <div class="calendar-month">${monthNames[month]} ${year}</div>
+            </div>
+            <div class="calendar-weekdays">
+                <div class="calendar-weekday">M</div>
+                <div class="calendar-weekday">T</div>
+                <div class="calendar-weekday">W</div>
+                <div class="calendar-weekday">T</div>
+                <div class="calendar-weekday">F</div>
+                <div class="calendar-weekday">S</div>
+                <div class="calendar-weekday">S</div>
+            </div>
+            <div class="calendar-grid">
+        `;
 
-            // Add days of the month
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dateKey = `${currentYear}-${String(
-                    currentMonth + 1
-                ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const releases = releasesByDate.get(dateKey) || [];
-                const releaseCount = releases.length;
+                for (let i = 0; i < startingDayOfWeek; i++) {
+                    html += `<div class="calendar-day empty"></div>`;
+                }
 
-                const isToday = day === currentDay;
-                const hasReleases = releaseCount > 0;
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const dateKey = `${year}-${String(month + 1).padStart(
+                        2,
+                        "0"
+                    )}-${String(day).padStart(2, "0")}`;
+                    const releases = releasesByDate.get(dateKey) || [];
+                    const isToday =
+                        month === currentMonth && day === currentDay;
+                    const seriesIds = releases.map((r) => r.id).join(",");
+                    const posterBadge = `
+                            <img src="" alt="" loading="lazy" class="calendar-poster" />
+                        `;
 
-                const todayClass = isToday ? " today" : "";
-                const releasesClass = hasReleases ? " has-releases" : "";
+                    const premiereRelease = releases.find((r) => r.isNewSeason);
+                    const premiereBadge = premiereRelease
+                        ? `<img src="${premiereRelease.poster}" alt="Premiere" loading="lazy" class="premiere-badge" title="Season Premiere" />`
+                        : "";
 
-                // Collect series IDs for this date
-                const seriesIds = releases.map((r) => r.id).join(",");
-                //is is the first release of the season
-                const isNewSeason = releases.some((r) => r.isNewSeason);
-                console.log(releases);
-
-                const releaseBadge = isNewSeason
-                    ? `<div class="release-count-badge">${releaseCount}</div>`
-                    : "";
-                const posterBadge = `<img src="" alt="" loading="lazy" class="calendar-poster" />`;
-
-                calendarHtml += `
-                    <div class="calendar-day${todayClass}${releasesClass}" data-date="${dateKey}" data-series-ids="${seriesIds}">
-                        <div class="day-number">${day}</div>                       
-                        ${posterBadge}
-                        <div class="calendar-posters-grid">
-                            ${releases
-                                .map(
-                                    (r) =>
-                                        `<img src="${r.poster}" alt="${r.title}" loading="lazy" class="calendar-poster-mini" />`
-                                )
-                                .join("")}
+                    html += `
+                        <div class="calendar-day${isToday ? " today" : ""}${
+                        releases.length ? " has-releases" : ""
+                    }"
+                            data-date="${dateKey}" data-series-ids="${seriesIds}">
+                            <div class="day-number">${day}</div>
+                            ${premiereBadge}
+                            ${posterBadge}
+                            <div class="calendar-posters-grid">
+                                ${releases
+                                    .map(
+                                        (r) =>
+                                            `<img src="${r.poster}" alt="${r.title}" loading="lazy" class="calendar-poster-mini" />`
+                                    )
+                                    .join("")}
+                            </div>
                         </div>
-                    </div>
-                `;
-            }
+                    `;
+                }
 
-            calendarHtml += "</div>";
+                html += `</div>`;
+                return html;
+            };
 
-            return calendarHtml;
+            // Build both current + next month
+            const nextMonthDate = new Date(currentYear, currentMonth + 1);
+            const nextMonthYear = nextMonthDate.getFullYear();
+            const nextMonth = nextMonthDate.getMonth();
+
+            return (
+                renderMonth(currentYear, currentMonth) +
+                renderMonth(nextMonthYear, nextMonth)
+            );
         }
 
         initCalendarNavigation(container, upcoming) {
@@ -1312,43 +1333,109 @@
             );
             if (!calendarContainer) return;
 
-            const upcomingCards = container.querySelectorAll(".upcoming-card");
+            // 1. Pre-calculate map of SeriesID -> Array<CalendarDayElements>
+            const seriesDayMap = new Map();
+            const calendarDays =
+                calendarContainer.querySelectorAll(".calendar-day");
 
-            upcomingCards.forEach((card) => {
-                card.addEventListener("mouseenter", (e) => {
-                    const seriesId = card.id;
-                    if (!seriesId) return;
-                    console.log(UpcomingReleasesPlugin.CONFIG.URLS.POSTER);
+            calendarDays.forEach((day) => {
+                const seriesIds = day.dataset.seriesIds;
+                if (!seriesIds) return;
 
-                    // Find all calendar days with this series
-                    const calendarDays =
-                        calendarContainer.querySelectorAll(".calendar-day");
-                    calendarDays.forEach((day) => {
-                        const seriesIds = day.dataset.seriesIds || "";
-                        if (seriesIds.split(",").includes(seriesId)) {
-                            day.classList.add("highlight-series");
+                seriesIds.split(",").forEach((id) => {
+                    if (!seriesDayMap.has(id)) {
+                        seriesDayMap.set(id, []);
+                    }
+                    seriesDayMap.get(id).push(day);
+                });
+            });
 
-                            day.querySelector(".calendar-poster").src =
+            // 2. Event Delegation
+            // We'll track currently highlighted elements to remove classes efficiently
+            let activeHighlights = [];
+
+            const clearHighlights = () => {
+                if (activeHighlights.length === 0) return;
+
+                activeHighlights.forEach(({ day, poster }) => {
+                    day.classList.remove("highlight-series");
+                    if (poster) poster.style.opacity = "";
+
+                    // Reset grid opacity
+                    const grid = day.querySelector(".calendar-posters-grid");
+                    if (grid) grid.style.opacity = "";
+                });
+                activeHighlights = [];
+            };
+
+            container.addEventListener("mouseover", (e) => {
+                const card = e.target.closest(".upcoming-card");
+                if (!card) {
+                    return;
+                }
+
+                const seriesId = card.id;
+                if (!seriesId) return;
+
+                // If we are already highlighting this series, do nothing
+                // (Optimization to avoid DOM thrashing)
+                if (
+                    activeHighlights.length > 0 &&
+                    activeHighlights[0].seriesId === seriesId
+                )
+                    return;
+
+                clearHighlights();
+
+                const days = seriesDayMap.get(seriesId);
+                if (days) {
+                    days.forEach((day) => {
+                        day.classList.add("highlight-series");
+
+                        const posters = day.querySelectorAll(
+                            ".calendar-poster-mini"
+                        );
+                        let targetPoster = null;
+
+                        posters.forEach((img) => {
+                            if (img.src.includes(seriesId)) {
+                                targetPoster = img;
+                            }
+                        });
+
+                        const mainPoster =
+                            day.querySelector(".calendar-poster");
+                        if (mainPoster) {
+                            mainPoster.src =
                                 UpcomingReleasesPlugin.CONFIG.URLS.POSTER +
                                 "/" +
                                 seriesId +
                                 "/img";
+                            mainPoster.style.opacity = "1";
                         }
-                    });
-                });
 
-                card.addEventListener("mouseleave", (e) => {
-                    // Remove all highlights
-                    const highlightedDays = calendarContainer.querySelectorAll(
-                        ".calendar-day.highlight-series"
-                    );
-                    highlightedDays.forEach((day) => {
-                        day.classList.remove("highlight-series");
-                        day.querySelector(".calendar-poster").classList.remove(
-                            "highlight-series"
+                        const grid = day.querySelector(
+                            ".calendar-posters-grid"
                         );
+                        if (grid) grid.style.opacity = "0";
+
+                        activeHighlights.push({
+                            day,
+                            poster: mainPoster,
+                            seriesId,
+                        });
                     });
-                });
+                }
+            });
+
+            container.addEventListener("mouseout", (e) => {
+                const card = e.target.closest(".upcoming-card");
+                if (!card) return;
+
+                // Check if we moved to a child element
+                if (card.contains(e.relatedTarget)) return;
+
+                clearHighlights();
             });
         }
 
@@ -1453,9 +1540,9 @@
                             <div class="upcoming-episode-thumbnail">${thumbnailHtml}</div>
                         </div>`);
                     }
-                    episodesContainerHtml = `<div class="upcoming-episodes-container">${episodesHtmlParts.join(
-                        ""
-                    )}</div>`;
+                    episodesContainerHtml = `<div class="upcoming-episodes-container" data-count="${
+                        episodesHtmlParts.length
+                    }">${episodesHtmlParts.join("")}</div>`;
                 }
 
                 const upcomingSeasonNumber = m.isNewSeason

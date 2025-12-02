@@ -79,7 +79,7 @@
     backdrop-filter: blur(20px) saturate(1.5);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-right: none;
-    border-radius: 0;
+    border-radius: 1rem;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
     transform: translateX(-10%) scale(0.95);
     opacity: 0;
@@ -257,7 +257,7 @@
 }
 
 .upcoming-date-group.future {
-    opacity: 0.5;
+    opacity: 0.3;
 }
 
 .upcoming-date-group.future:hover {
@@ -525,14 +525,8 @@
     gap: 10px;
 }
 
-.upcoming-card.future {
-    transition: opacity 0.3s ease;
-    filter: grayscale(100%);
-}
-
 .upcoming-card.future:hover {
     opacity: 1;
-    filter: grayscale(0%);
 }
 
 .upcoming-card:hover {
@@ -585,7 +579,7 @@
 
 .unwatched-badge {
     position: absolute;
-    top: 3px;
+    top: 7px;
     right: 3.75rem;
     background: linear-gradient(135deg, #ff3b3b, #ff6b6b);
     color: white;
@@ -644,9 +638,9 @@
 
 .upcoming-card .upcoming-info .upcoming-new-season {
     position: absolute;
-    top: 0;
-    left: 28px;
-    font-size: 0.8rem;
+    top: -1px;
+    left: 5px;
+    font-size: 0.4rem;
     font-weight: bold;
     color: #ffd700;
     text-transform: uppercase;
@@ -674,11 +668,8 @@
     background: rgba(0, 0, 0, 0.5);
     right: 0;
     bottom: 0;
-    display: flex;
-
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
     gap: 0.3rem;
     overflow: hidden;
     width: 100%;
@@ -686,18 +677,37 @@
     opacity: 0;
     z-index: 11;
     border-radius: 1rem;
+    transform: translateY(20px);
     transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    transition-delay: 0.2s;
+        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition-delay: 0.1s;
     interpolate-size: allow-keywords;
+}
+
+.upcoming-episodes-container[data-count="10"] {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+.upcoming-episodes-container[data-count="8"] {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.upcoming-episodes-container[data-count="6"] {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.upcoming-episodes-container[data-count="4"] {
+    grid-template-columns: repeat(2, 1fr);
 }
 
 .upcoming-card:hover .upcoming-episodes-container {
     position: relative;
     height: fit-content;
     opacity: 1;
+    transform: translateY(0);
 }
 
 .upcoming-episodes-container::-webkit-scrollbar {
@@ -717,12 +727,7 @@
     box-sizing: border-box;
     backdrop-filter: blur(10px) saturate(2);
     border-radius: 0.5rem;
-    padding: 10px;
     display: flex;
-    flex: 1;
-    min-width: 30px;
-    max-width: 56px;
-    max-height: 42px;
     flex-direction: column;
     justify-content: space-between;
     position: relative;
@@ -732,6 +737,7 @@
     background-position: center;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 0.7;
+    aspect-ratio: 4/3;
 }
 
 .upcoming-episode-card:hover {
@@ -803,7 +809,8 @@
 }
 
 .upcoming-episode-card .upcoming-episode-number {
-    font-size: 1rem;
+    font-size: 0.7rem;
+    margin-left: 5px;
     font-weight: bold;
     color: white;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
@@ -903,12 +910,13 @@
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
-    padding: 16px;
+    padding: 0px 16px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .calendar-header {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+    margin-top: 10px;
     text-align: center;
 }
 
@@ -1029,7 +1037,7 @@
         0 0 10px rgba(255, 255, 255, 0.2);
 }
 
-.release-count-badge {
+.premiere-badge {
     position: absolute;
     top: -4px;
     right: -4px;
@@ -1037,8 +1045,10 @@
     color: white;
     font-weight: 900;
     font-size: 8px;
-    min-width: 14px;
     height: 14px;
+    width: 14px;
+    object-fit: cover;
+    cursor: help;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1059,7 +1069,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2;
+    z-index: 3;
     object-fit: cover;
     transition: all 0.3s ease-in-out;
 }
