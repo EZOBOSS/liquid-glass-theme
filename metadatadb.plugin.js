@@ -194,7 +194,7 @@ class MetadataDB {
         // If we got here, data is likely identical
         return false;
     }
-
+    /* 
     _mergeVideosArray(existingVideos, incomingVideos) {
         if (!Array.isArray(existingVideos) || !Array.isArray(incomingVideos)) {
             return incomingVideos;
@@ -227,7 +227,7 @@ class MetadataDB {
             return hasUserData ? { ...newVideo, ...preserve } : newVideo;
         });
     }
-
+ */
     async get(id) {
         try {
             // Check memory cache first
@@ -474,17 +474,6 @@ class MetadataDB {
                                     ...record.data,
                                 };
 
-                                // Special handling for videos array to preserve user fields
-                                if (
-                                    Array.isArray(existing.data.videos) &&
-                                    Array.isArray(record.data.videos)
-                                ) {
-                                    mergedData.videos = this._mergeVideosArray(
-                                        existing.data.videos,
-                                        record.data.videos
-                                    );
-                                }
-
                                 record.data = mergedData;
                             }
                         }
@@ -570,17 +559,6 @@ class MetadataDB {
                                 ...existing.data,
                                 ...record.data,
                             };
-
-                            // Special handling for videos array to preserve user fields
-                            if (
-                                Array.isArray(existing.data.videos) &&
-                                Array.isArray(record.data.videos)
-                            ) {
-                                mergedData.videos = this._mergeVideosArray(
-                                    existing.data.videos,
-                                    record.data.videos
-                                );
-                            }
 
                             record.data = mergedData;
                         }
