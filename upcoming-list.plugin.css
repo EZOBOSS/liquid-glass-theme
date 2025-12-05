@@ -2,10 +2,11 @@
 
 .upcoming-wrapper {
     position: fixed;
-    left: -48%;
+    left: 0;
     top: 7%;
     height: 50vh;
-    width: 50vw;
+    width: fit-content;
+    max-width: 80vw;
     z-index: 100;
     display: flex;
     flex-direction: row-reverse;
@@ -14,10 +15,11 @@
     transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
     content-visibility: auto;
+    transform: translateX(calc(-100% + 3rem));
 }
 
 .upcoming-wrapper:hover {
-    transform: translateX(95%);
+    transform: translateX(0);
 }
 
 .upcoming-wrapper:hover .upcoming-container {
@@ -202,7 +204,7 @@
     scroll-snap-type: y proximity;
     scroll-behavior: smooth;
     transition: all 0.3s ease;
-    background-color: rgba(0, 0, 0, 0.66);
+    /* background-color: rgba(0, 0, 0, 0.66); */
     border-radius: 20px;
     box-shadow: var(--box-shadow);
     padding: 10px;
@@ -283,7 +285,7 @@
     padding: 12px 8px;
     overflow: visible;
     scrollbar-width: none;
-    background: linear-gradient(45deg, #00000091, #000000b5);
+    /*  background: linear-gradient(45deg, #00000091, #000000b5); */
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
@@ -884,8 +886,9 @@
 .calendar-container {
     order: 1;
     width: 62%;
+    min-width: 338px;
     z-index: 16;
-    background: linear-gradient(45deg, #000000b5, #00000082);
+    /* background: linear-gradient(45deg, #000000b5, #00000082); */
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));

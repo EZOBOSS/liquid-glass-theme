@@ -865,7 +865,6 @@
         async renderListMode(mode = "all", container) {
             if (!container) return;
 
-            // 1. Start fetching immediately (Parallel execution)
             const fetchPromise =
                 mode === "library"
                     ? this.fetchLibraryUpcoming(8)
@@ -873,7 +872,7 @@
 
             const existingList = container.querySelector(".upcoming-list");
 
-            // 2. If mode changed, trigger fade out immediately for responsiveness
+            // Mode Change: Trigger fade out immediately
             let fadeOutPromise = Promise.resolve();
             if (existingList && mode !== this.currentMode) {
                 existingList.classList.add("fade-out");
@@ -882,44 +881,29 @@
                 );
             }
 
-            // 3. Wait for both
             const [upcoming] = await Promise.all([
                 fetchPromise,
                 fadeOutPromise,
             ]);
 
-            // 4. Data Change Detection
-            // Create a simple signature based on IDs and release text
+            // Data Signature Check
             const newSignature = upcoming
-                .map((i) => i.id + i.releaseText)
+                .map((i) => i.id + i.releaseText + (i.watched || ""))
                 .join("|");
 
             if (
                 this.currentMode === mode &&
                 this.currentDataSignature === newSignature &&
-                container.querySelector(".upcoming-groups-container") // Ensure list exists
+                container.querySelector(".upcoming-groups-container")
             ) {
-                // Data hasn't changed and we are in the same mode, skip re-render
-                // But ensure we remove any stale loading state if it exists
                 this.hideLoading(container);
                 return;
             }
 
-            // 5. Render
-            // If we didn't fade out yet (same mode but data changed), do it now
-            if (existingList && !existingList.classList.contains("fade-out")) {
-                existingList.classList.add("fade-out");
-                // Short wait to allow animation to start, but don't block too long
-                await new Promise((resolve) => setTimeout(resolve, 150));
-            }
-
-            if (existingList) existingList.remove();
-
-            // Update state
-            this.currentMode = mode;
-            this.currentDataSignature = newSignature;
-
             if (!upcoming.length) {
+                this.currentMode = mode;
+                this.currentDataSignature = newSignature;
+                if (existingList) existingList.remove();
                 this.hideLoading(container);
                 container.insertAdjacentHTML(
                     "beforeend",
@@ -928,20 +912,17 @@
                 return;
             }
 
-            // Group by date
+            // Generate Group Data
             const groupedByDate = {};
             upcoming.forEach((item) => {
                 const dateKey = item.releaseText || "Unknown";
-                if (!groupedByDate[dateKey]) {
-                    groupedByDate[dateKey] = [];
-                }
+                if (!groupedByDate[dateKey]) groupedByDate[dateKey] = [];
                 groupedByDate[dateKey].push(item);
             });
 
             const now = Date.now();
             const groupsHtmlArray = Object.entries(groupedByDate).map(
                 ([dateKey, items]) => {
-                    // Check if this group is in the past or future
                     const firstItemDate = items[0]?.releaseDate;
                     const isPast =
                         firstItemDate &&
@@ -985,6 +966,47 @@
                 }
             );
 
+            // SMART UPDATE (Data Refresh in same mode)
+            if (
+                this.currentMode === mode &&
+                container.querySelector(".upcoming-groups-container")
+            ) {
+                this.updateDOMInternal(container, groupsHtmlArray);
+
+                // Update Calendar
+                const calendarContainer = container.querySelector(
+                    ".calendar-container"
+                );
+                if (calendarContainer) {
+                    // Ideally we should diff calendar too, but it's cheaper to just replace innerHTML for now or implement similar diff
+                    // For now, full replace of calendar is acceptable as it's separate from the list scroll
+                    const newCalendarHtml = this.buildCalendar(upcoming);
+                    if (calendarContainer.innerHTML !== newCalendarHtml) {
+                        calendarContainer.innerHTML = newCalendarHtml;
+                        this.initCalendarNavigation(container, upcoming);
+                    }
+                }
+
+                this.currentDataSignature = newSignature;
+                this.hideLoading(container);
+
+                // Re-init observer for new/moved elements
+                if (this.observer) this.observer.disconnect();
+                this.initIntersectionObserver(container);
+                return;
+            }
+
+            // FULL RENDER (Mode change)
+            if (existingList && !existingList.classList.contains("fade-out")) {
+                existingList.classList.add("fade-out");
+                await new Promise((resolve) => setTimeout(resolve, 150));
+            }
+
+            if (existingList) existingList.remove();
+
+            this.currentMode = mode;
+            this.currentDataSignature = newSignature;
+
             const groupsHtml = groupsHtmlArray.map((g) => g.html).join("");
 
             container.insertAdjacentHTML(
@@ -996,7 +1018,6 @@
                 </div>`
             );
 
-            // Render calendar
             const calendarContainer = container.querySelector(
                 ".calendar-container"
             );
@@ -1005,8 +1026,52 @@
                 this.initCalendarNavigation(container, upcoming);
             }
 
-            // Initialize intersection observer
             this.initIntersectionObserver(container);
+        }
+
+        updateDOMInternal(container, groupsHtmlArray) {
+            const groupsContainer = container.querySelector(
+                ".upcoming-groups-container"
+            );
+            if (!groupsContainer) return;
+
+            const existingChildren = Array.from(groupsContainer.children);
+            const existingMap = new Map();
+            existingChildren.forEach((el) => {
+                if (el.dataset.dateKey) existingMap.set(el.dataset.dateKey, el);
+            });
+
+            // Iterate and Reconcile
+            groupsHtmlArray.forEach((groupData, index) => {
+                const key = groupData.dateKey;
+                let el = existingMap.get(key);
+
+                // Create temp to parse HTML
+                const temp = document.createElement("div");
+                temp.innerHTML = groupData.html.trim();
+                const newContent = temp.firstElementChild;
+
+                if (el) {
+                    // Update existing if content changed
+                    if (el.innerHTML !== newContent.innerHTML) {
+                        el.innerHTML = newContent.innerHTML;
+                        el.className = newContent.className;
+                    }
+                    existingMap.delete(key);
+                } else {
+                    // Create new
+                    el = newContent;
+                }
+
+                // Ensure position
+                const currentAtPos = groupsContainer.children[index];
+                if (currentAtPos !== el) {
+                    groupsContainer.insertBefore(el, currentAtPos || null);
+                }
+            });
+
+            // Cleanup remaining (items no longer in data)
+            existingMap.forEach((el) => el.remove());
         }
 
         initIntersectionObserver(container) {

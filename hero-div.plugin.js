@@ -434,8 +434,8 @@
                 heroButtonMoreInfo: hero.querySelector(".hero-overlay-button"),
                 cardContainer: hero.querySelector(".board-content-nPWv1"),
             };
+            this._renderedState = {};
         }
-
         createHeroHTML(title) {
             const info = [title.year].filter(Boolean);
             if (title.duration && title.duration !== "Unknown")
@@ -556,32 +556,40 @@
             if (animate) hero.classList.add("is-transitioning");
 
             const doUpdate = () => {
-                // Only update image if different
-                if (this.dom.heroImage && title.background) {
+                // 1. Background
+                if (title.background) {
                     const newBg = `https://images.metahub.space/background/large/${title.id}/img`;
-                    if (this.dom.heroImage.src !== newBg) {
-                        this.dom.heroImage.src = newBg;
-                    }
-                }
-
-                if (this.dom.heroLogo && title.logo) {
-                    const newLogo = `https://images.metahub.space/logo/medium/${title.id}/img`;
-                    if (this.dom.heroLogo.src !== newLogo) {
-                        this.dom.heroLogo.src = newLogo;
-                    }
-                }
-
-                if (this.dom.heroDescription) {
                     if (
-                        this.dom.heroDescription.textContent !==
-                        title.description
+                        this.dom.heroImage &&
+                        this._renderedState.bg !== newBg
                     ) {
-                        this.dom.heroDescription.textContent =
-                            title.description || "";
+                        this.dom.heroImage.src = newBg;
+                        this._renderedState.bg = newBg;
                     }
                 }
 
-                // Build text only when necessary
+                // 2. Logo
+                if (title.logo) {
+                    const newLogo = `https://images.metahub.space/logo/medium/${title.id}/img`;
+                    if (
+                        this.dom.heroLogo &&
+                        this._renderedState.logo !== newLogo
+                    ) {
+                        this.dom.heroLogo.src = newLogo;
+                        this._renderedState.logo = newLogo;
+                    }
+                }
+
+                // 3. Description
+                if (this.dom.heroDescription) {
+                    const newDesc = title.description || "";
+                    if (this._renderedState.desc !== newDesc) {
+                        this.dom.heroDescription.textContent = newDesc;
+                        this._renderedState.desc = newDesc;
+                    }
+                }
+
+                // 4. Info HTML
                 if (this.dom.heroInfo) {
                     const info = [];
                     if (title.year) info.push(title.year);
@@ -601,9 +609,9 @@
                 <p class="rating-item"><span class="rating-text">${rating}</span></p>
             `;
 
-                    if (this.dom.heroInfo.dataset.lastHtml !== wantedHTML) {
+                    if (this._renderedState.infoHtml !== wantedHTML) {
                         this.dom.heroInfo.innerHTML = wantedHTML;
-                        this.dom.heroInfo.dataset.lastHtml = wantedHTML;
+                        this._renderedState.infoHtml = wantedHTML;
                     }
                 }
 
