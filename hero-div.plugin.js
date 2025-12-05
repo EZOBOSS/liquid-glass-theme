@@ -9,6 +9,7 @@
     class HeroPlugin {
         constructor() {
             this.config = {
+                HERO_AMOUNT: 15,
                 ROTATION_INTERVAL: 8000,
                 FETCH_TIMEOUT: 10000,
                 DETAIL_TIMEOUT: 5000,
@@ -207,6 +208,7 @@
                     description: m.description || `Discover ${m.name}`,
                     year: m.year ? String(m.year) : "2024",
                     runtime: m.runtime || null,
+                    released: this.calculateReleaseDate(m) || null,
                     type,
                 }));
                 this.cacheSet(`catalog_${type}`, metas);
@@ -237,7 +239,9 @@
                     ? "45 min per episode"
                     : "Unknown";
 
-                const releaseDate = this.calculateReleaseDate(meta, actualType);
+                const releaseDate = this.getDaysSinceRelease(
+                    this.calculateReleaseDate(meta, actualType)
+                );
                 const seasons = this.calculateSeasons(meta, actualType);
 
                 const result = {
@@ -270,7 +274,7 @@
         calculateReleaseDate(meta, actualType) {
             const videos = meta.videos;
             if (!Array.isArray(videos) || videos.length === 0) {
-                return this.getDaysSinceRelease(meta.released || null);
+                return meta.released || null;
             }
 
             const now = new Date();
@@ -293,11 +297,9 @@
                 }
             }
 
-            if (closestFuture)
-                return this.getDaysSinceRelease(closestFuture.released);
-            if (latestPast)
-                return this.getDaysSinceRelease(latestPast.released);
-            return this.getDaysSinceRelease(meta.released || null);
+            if (closestFuture) return closestFuture.released;
+            if (latestPast) return latestPast.released;
+            return meta.released || null;
         }
 
         calculateSeasons(meta, actualType) {
@@ -335,7 +337,7 @@
             return enriched;
         }
 
-        async collectTitlesFromAPI() {
+        async collectTitlesFromAPI(amount = 10) {
             const cached = this.cacheGet("hero_titles");
             if (cached) {
                 this.log("info", "fetched cached titles", cached);
@@ -344,16 +346,28 @@
             this.log("info", "Collecting titles from API");
             try {
                 const [movies, series] = await Promise.all([
-                    this.fetchCatalogTitles("movie", 8),
-                    this.fetchCatalogTitles("series", 8),
+                    this.fetchCatalogTitles("movie", 45),
+                    this.fetchCatalogTitles("series", 45),
                 ]);
+
+                const now = Date.now();
+                const getDistance = (item) => {
+                    const ts = new Date(
+                        item.released || item.firstAired
+                    ).getTime();
+                    return Math.abs(ts - now) || Number.MAX_SAFE_INTEGER;
+                };
+
+                // 1. SORT EACH CATEGORY BY DATE CLOSEST TO TODAY
+                movies.sort((a, b) => getDistance(a) - getDistance(b));
+                series.sort((a, b) => getDistance(a) - getDistance(b));
 
                 const result = [];
                 let m = 0,
                     s = 0,
                     expectMovie = true;
                 while (
-                    result.length < 10 &&
+                    result.length < amount &&
                     (m < movies.length || s < series.length)
                 ) {
                     let pick = null;
@@ -383,7 +397,7 @@
                     setTimeout(() => r([]), 12000)
                 );
                 const collected = await Promise.race([
-                    this.collectTitlesFromAPI(),
+                    this.collectTitlesFromAPI(this.config.HERO_AMOUNT),
                     timeout,
                 ]);
                 if (collected && collected.length)
@@ -529,69 +543,117 @@
                     const idx = Number(el.dataset.index);
                     this.goToTitle(idx);
                 });
+
+                this._lastActiveIndicator = this.state.currentIndex;
             }
         }
 
         updateHeroContent(title, animate = true) {
             if (!this.dom.hero) return;
 
-            if (animate) this.dom.hero.classList.add("is-transitioning");
+            const hero = this.dom.hero;
 
-            setTimeout(
-                () => {
-                    if (this.dom.heroImage && title.background)
-                        this.dom.heroImage.src = `https://images.metahub.space/background/large/${title.id}/img`;
-                    if (this.dom.heroLogo && title.logo)
-                        this.dom.heroLogo.src = `https://images.metahub.space/logo/medium/${title.id}/img`;
-                    if (this.dom.heroDescription)
+            if (animate) hero.classList.add("is-transitioning");
+
+            const doUpdate = () => {
+                // Only update image if different
+                if (this.dom.heroImage && title.background) {
+                    const newBg = `https://images.metahub.space/background/large/${title.id}/img`;
+                    if (this.dom.heroImage.src !== newBg) {
+                        this.dom.heroImage.src = newBg;
+                    }
+                }
+
+                if (this.dom.heroLogo && title.logo) {
+                    const newLogo = `https://images.metahub.space/logo/medium/${title.id}/img`;
+                    if (this.dom.heroLogo.src !== newLogo) {
+                        this.dom.heroLogo.src = newLogo;
+                    }
+                }
+
+                if (this.dom.heroDescription) {
+                    if (
+                        this.dom.heroDescription.textContent !==
+                        title.description
+                    ) {
                         this.dom.heroDescription.textContent =
                             title.description || "";
-
-                    if (this.dom.heroInfo) {
-                        const info = [title.year].filter(Boolean);
-                        if (title.duration && title.duration !== "Unknown")
-                            info.push(title.duration);
-                        if (title.seasons && title.seasons !== "Unknown")
-                            info.push(title.seasons);
-                        if (title.releaseDate && title.releaseDate !== "")
-                            info.push(title.releaseDate);
-
-                        const ratingHTML =
-                            title.rating && title.rating !== "na"
-                                ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}</span></p>`
-                                : `<p class="rating-item"><span class="rating-text"></span></p>`;
-
-                        this.dom.heroInfo.innerHTML =
-                            info.map((i) => `<p>${i}</p>`).join("") +
-                            ratingHTML;
                     }
+                }
 
-                    this.dom.heroButtonWatch?.setAttribute(
-                        "onclick",
-                        `event.stopPropagation(); window.playTitle('${title.id}')`
-                    );
-                    this.dom.heroButtonMoreInfo?.setAttribute(
-                        "onclick",
-                        `event.stopPropagation(); window.showMoreInfo('${title.id}')`
-                    );
+                // Build text only when necessary
+                if (this.dom.heroInfo) {
+                    const info = [];
+                    if (title.year) info.push(title.year);
+                    if (title.duration && title.duration !== "Unknown")
+                        info.push(title.duration);
+                    if (title.seasons && title.seasons !== "Unknown")
+                        info.push(title.seasons);
+                    if (title.releaseDate) info.push(title.releaseDate);
 
-                    if (animate) {
-                        requestAnimationFrame(() => {
-                            this.dom.hero.classList.remove("is-transitioning");
-                        });
+                    const rating =
+                        title.rating && title.rating !== "na"
+                            ? `⭐ ${title.rating}`
+                            : "";
+
+                    const wantedHTML = `
+                ${info.map((i) => `<p>${i}</p>`).join("")}
+                <p class="rating-item"><span class="rating-text">${rating}</span></p>
+            `;
+
+                    if (this.dom.heroInfo.dataset.lastHtml !== wantedHTML) {
+                        this.dom.heroInfo.innerHTML = wantedHTML;
+                        this.dom.heroInfo.dataset.lastHtml = wantedHTML;
                     }
-                },
-                animate ? 400 : 0
-            );
+                }
 
-            this.dom.indicators
-                ?.querySelectorAll(".hero-indicator")
-                ?.forEach((ind, i) =>
-                    ind.classList.toggle(
-                        "active",
-                        i === this.state.currentIndex
-                    )
-                );
+                // Set listeners once (not every update!)
+                if (!this._heroButtonsBound) {
+                    this.dom.heroButtonWatch?.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        window.playTitle(this._lastTitleId);
+                    });
+                    this.dom.heroButtonMoreInfo?.addEventListener(
+                        "click",
+                        (e) => {
+                            e.stopPropagation();
+                            window.showMoreInfo(this._lastTitleId);
+                        }
+                    );
+                    this._heroButtonsBound = true;
+                }
+                this._lastTitleId = title.id;
+
+                if (animate) {
+                    requestAnimationFrame(() =>
+                        hero.classList.remove("is-transitioning")
+                    );
+                }
+            };
+
+            // Wait for animation OR run immediately
+            if (animate) {
+                setTimeout(() => requestAnimationFrame(doUpdate), 400);
+            } else {
+                requestAnimationFrame(doUpdate);
+            }
+
+            // Only toggle the changed indicator
+            if (this.dom.indicators) {
+                const activeIdx = this.state.currentIndex;
+                const indicators =
+                    this.dom.indicators.querySelectorAll(".hero-indicator");
+
+                const prev = this._lastActiveIndicator;
+                if (prev !== undefined && indicators[prev]) {
+                    indicators[prev].classList.remove("active");
+                }
+                if (indicators[activeIdx]) {
+                    indicators[activeIdx].classList.add("active");
+                }
+
+                this._lastActiveIndicator = activeIdx;
+            }
         }
 
         // -------------------------
