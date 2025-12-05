@@ -42,7 +42,6 @@
             this.currentMode = null;
             this.currentDataSignature = null;
             this.metadataDB = window.MetadataDB;
-            console.log(this.metadataDB);
 
             this.init();
         }

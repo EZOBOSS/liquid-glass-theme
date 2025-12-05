@@ -79,7 +79,7 @@
         rgba(0, 0, 0, 0.752) 1%,
         #4343439e 100%
     );
-    backdrop-filter: blur(20px) saturate(1.5);
+    backdrop-filter: blur(20px) saturate(2);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-right: none;
     border-radius: 1rem;
@@ -265,7 +265,7 @@
 }
 
 .upcoming-date-group.future {
-    opacity: 0.3;
+    opacity: 0.6;
 }
 
 .upcoming-date-group.future:hover {
