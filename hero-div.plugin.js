@@ -537,65 +537,61 @@
 
             if (animate) this.dom.hero.classList.add("is-transitioning");
 
-            requestAnimationFrame(() => {
-                setTimeout(
-                    () => {
-                        if (this.dom.heroImage && title.background)
-                            this.dom.heroImage.src = `https://images.metahub.space/background/large/${title.id}/img`;
-                        if (this.dom.heroLogo && title.logo)
-                            this.dom.heroLogo.src = `https://images.metahub.space/logo/medium/${title.id}/img`;
-                        if (this.dom.heroDescription)
-                            this.dom.heroDescription.textContent =
-                                title.description || "";
+            setTimeout(
+                () => {
+                    if (this.dom.heroImage && title.background)
+                        this.dom.heroImage.src = `https://images.metahub.space/background/large/${title.id}/img`;
+                    if (this.dom.heroLogo && title.logo)
+                        this.dom.heroLogo.src = `https://images.metahub.space/logo/medium/${title.id}/img`;
+                    if (this.dom.heroDescription)
+                        this.dom.heroDescription.textContent =
+                            title.description || "";
 
-                        if (this.dom.heroInfo) {
-                            const info = [title.year].filter(Boolean);
-                            if (title.duration && title.duration !== "Unknown")
-                                info.push(title.duration);
-                            if (title.seasons && title.seasons !== "Unknown")
-                                info.push(title.seasons);
-                            if (title.releaseDate && title.releaseDate !== "")
-                                info.push(title.releaseDate);
+                    if (this.dom.heroInfo) {
+                        const info = [title.year].filter(Boolean);
+                        if (title.duration && title.duration !== "Unknown")
+                            info.push(title.duration);
+                        if (title.seasons && title.seasons !== "Unknown")
+                            info.push(title.seasons);
+                        if (title.releaseDate && title.releaseDate !== "")
+                            info.push(title.releaseDate);
 
-                            const ratingHTML =
-                                title.rating && title.rating !== "na"
-                                    ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}</span></p>`
-                                    : `<p class="rating-item"><span class="rating-text"></span></p>`;
+                        const ratingHTML =
+                            title.rating && title.rating !== "na"
+                                ? `<p class="rating-item"><span class="rating-text">⭐ ${title.rating}</span></p>`
+                                : `<p class="rating-item"><span class="rating-text"></span></p>`;
 
-                            this.dom.heroInfo.innerHTML =
-                                info.map((i) => `<p>${i}</p>`).join("") +
-                                ratingHTML;
-                        }
+                        this.dom.heroInfo.innerHTML =
+                            info.map((i) => `<p>${i}</p>`).join("") +
+                            ratingHTML;
+                    }
 
-                        this.dom.heroButtonWatch?.setAttribute(
-                            "onclick",
-                            `event.stopPropagation(); window.playTitle('${title.id}')`
-                        );
-                        this.dom.heroButtonMoreInfo?.setAttribute(
-                            "onclick",
-                            `event.stopPropagation(); window.showMoreInfo('${title.id}')`
-                        );
-
-                        if (animate) {
-                            requestAnimationFrame(() => {
-                                this.dom.hero.classList.remove(
-                                    "is-transitioning"
-                                );
-                            });
-                        }
-                    },
-                    animate ? 400 : 0
-                );
-
-                this.dom.indicators
-                    ?.querySelectorAll(".hero-indicator")
-                    ?.forEach((ind, i) =>
-                        ind.classList.toggle(
-                            "active",
-                            i === this.state.currentIndex
-                        )
+                    this.dom.heroButtonWatch?.setAttribute(
+                        "onclick",
+                        `event.stopPropagation(); window.playTitle('${title.id}')`
                     );
-            });
+                    this.dom.heroButtonMoreInfo?.setAttribute(
+                        "onclick",
+                        `event.stopPropagation(); window.showMoreInfo('${title.id}')`
+                    );
+
+                    if (animate) {
+                        requestAnimationFrame(() => {
+                            this.dom.hero.classList.remove("is-transitioning");
+                        });
+                    }
+                },
+                animate ? 400 : 0
+            );
+
+            this.dom.indicators
+                ?.querySelectorAll(".hero-indicator")
+                ?.forEach((ind, i) =>
+                    ind.classList.toggle(
+                        "active",
+                        i === this.state.currentIndex
+                    )
+                );
         }
 
         // -------------------------

@@ -1025,6 +1025,12 @@
             groups[0].classList.add("active");
             let activeGroup = groups[0];
 
+            // Set initial calendar state
+            const initialIsoDate = groups[0].dataset.isoDate;
+            if (initialIsoDate) {
+                this.updateCalendarActiveState(container, initialIsoDate);
+            }
+
             const observerOptions = {
                 root: scrollContainer,
                 rootMargin: "-10% 0px -90% 0px", // Detects items at the top 10% of the container
@@ -1175,11 +1181,15 @@
                             // Create a shallow copy to avoid mutating the original item shared across dates
                             const entry = { ...item };
                             entry.isNewSeason = isPremiere;
+                            if (isPremiere) {
+                                entry.premiereSeason = video.season;
+                            }
                             releasesByDate.get(dateKey).push(entry);
                         } else {
                             // If already exists (e.g. E1 and E2 on same day), update isNewSeason if this one is premiere
                             if (isPremiere) {
                                 existing.isNewSeason = true;
+                                existing.premiereSeason = video.season;
                             }
                         }
                     });
@@ -1266,9 +1276,21 @@
                         `;
 
                     const premiereRelease = releases.find((r) => r.isNewSeason);
-                    const premiereBadge = premiereRelease
-                        ? `<img src="${premiereRelease.poster}" alt="Premiere" loading="lazy" class="premiere-badge" title="Season Premiere" />`
-                        : "";
+                    let premiereBadge = "";
+
+                    if (premiereRelease) {
+                        const seasonText = premiereRelease.premiereSeason
+                            ? `Season ${premiereRelease.premiereSeason}`
+                            : "New Season";
+                        premiereBadge = `
+                        <div class="premiere-badge-container">
+                            <img src="${premiereRelease.poster}" alt="Premiere" loading="lazy" class="premiere-badge" />
+                             <div class="premiere-info">
+                                <div class="premiere-title">${premiereRelease.title}</div>
+                                <div class="premiere-season">${seasonText}</div>
+                            </div>
+                        </div>`;
+                    }
 
                     html += `
                         <div class="calendar-day${isToday ? " today" : ""}${
