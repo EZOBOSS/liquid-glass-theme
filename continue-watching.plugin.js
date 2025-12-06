@@ -246,6 +246,35 @@
             return null;
         }
 
+        async getMovieProgress(movieId, libItem) {
+            if (!libItem || !libItem.state) return null;
+            const movie = await this.metadataDB.get(movieId);
+            if (!movie) return null;
+
+            const timeOffset = libItem.state.timeOffset || 0;
+            const duration = libItem.state.duration || 0;
+            const lastWatchedTime = libItem.state.lastWatched;
+
+            // If we have duration and we are less than 90% through
+            if (duration > 0 && timeOffset / duration < 0.9) {
+                return {
+                    seriesId: movie.id,
+                    seriesName: movie.name,
+                    logo: movie.logo,
+                    poster: movie.poster,
+                    background: movie.background,
+                    isMovie: true,
+                    title: movie.name,
+                    videoId: movie.id,
+                    lastWatched: lastWatchedTime,
+                    timeOffset,
+                    duration,
+                    isLocked: false,
+                };
+            }
+            return null;
+        }
+
         async getContinueWatchingList() {
             if (this.history.length === 0) return [];
 
@@ -264,24 +293,37 @@
 
                 if (!libItem) continue;
 
-                const next = await this.getNextEpisodeForSeries(
-                    cleanId,
-                    libItem
-                );
+                let next = null;
+                if (libItem.type === "series") {
+                    next = await this.getNextEpisodeForSeries(cleanId, libItem);
+                } else if (libItem.type === "movie") {
+                    next = await this.getMovieProgress(cleanId, libItem);
+                }
 
-                if (next) {
+                if (next && libItem.state.timeOffset > 0) {
                     list.push(next);
+                } else {
+                    this.removeItem(cleanId, true);
                 }
             }
+
+            // Sort locked items only to the end
+            list.sort((a, b) => {
+                if (a.isLocked === b.isLocked) return 0;
+                return a.isLocked ? 1 : -1;
+            });
+
             return list;
         }
 
-        removeItem(seriesId) {
+        removeItem(seriesId, skipUpdate = false) {
             this.history = this.history.filter(
                 (id) => id !== seriesId && !id.startsWith(seriesId + ":")
             );
             this.saveHistory();
-            this.updateList();
+            if (!skipUpdate) {
+                this.updateList();
+            }
         }
 
         renderContainer() {
@@ -411,10 +453,14 @@
                 </div>
                 <div class="cw-info-mini">
                     ${LogoOrTitle}
-                    <div class="cw-ep-mini">S${first.season} E${
-                first.episode
-            }</div>
-                    <div class="cw-ep-title-mini"> - ${first.title}</div>
+                    ${
+                        !first.isMovie
+                            ? `<div class="cw-ep-mini">S${first.season} E${first.episode}</div>`
+                            : ""
+                    }
+                    <div class="cw-ep-title-mini"> ${
+                        first.isMovie ? "" : "- "
+                    }${first.title}</div>
                     ${
                         first.lastWatched && !first.isLocked
                             ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
@@ -487,9 +533,11 @@
                         </div>
                         <div class="cw-info">
                             ${logoOrTitleRest}
-                            <div class="cw-episode-info">S${item.season} E${
-                        item.episode
-                    } - ${item.title}</div>
+                            <div class="cw-episode-info">${
+                                item.isMovie
+                                    ? item.title
+                                    : `S${item.season} E${item.episode} - ${item.title}`
+                            }</div>
                              ${
                                  item.isLocked
                                      ? `<div class="cw-timer-small">${this.formatCountdown(
@@ -515,9 +563,13 @@
                         if (item.isLocked) return;
 
                         e.stopPropagation();
-                        window.location.hash = `#/detail/series/${
-                            item.seriesId
-                        }/${encodeURIComponent(item.videoId)}`;
+                        if (item.isMovie) {
+                            window.location.hash = `#/detail/movie/${item.seriesId}`;
+                        } else {
+                            window.location.hash = `#/detail/series/${
+                                item.seriesId
+                            }/${encodeURIComponent(item.videoId)}`;
+                        }
                     });
 
                     const itemRemoveBtn = li.querySelector(".cw-remove-btn");
