@@ -58,6 +58,7 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
 ## Installation
 
 1.  Copy all files to [stremio-community-v5](https://github.com/Zaarrg/stremio-community-v5) install webmods folder
+2.  C:\Users\user\AppData\Local\Programs\LNV\Stremio-5\portable_config\webmods
 
 ## Credits
 
