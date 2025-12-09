@@ -1,4 +1,5 @@
-<img width="3839" height="1915" alt="image" src="https://github.com/user-attachments/assets/fa920ebd-2dff-4324-abfb-44ffcdddc4b1" />
+<img width="3209" height="1835" alt="image" src="https://github.com/user-attachments/assets/eefe6517-f688-44d5-b0b0-b0ab8e5150ec" />
+
 
 # Liquid Glass Theme for Stremio Web
 
@@ -26,7 +27,7 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
     -   Tracks release dates for items in your library.
     -   Shows countdowns (e.g., "in 3 days", "Tomorrow").
     -   Smart caching to minimize API requests.
-      <img width="300" height="400" alt="image" src="https://github.com/user-attachments/assets/e9c036e8-ca6d-473b-8da9-182115bb537b" />
+     
 
 
 ### 🎬 Player & Content Details
