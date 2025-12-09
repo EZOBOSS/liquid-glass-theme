@@ -885,8 +885,8 @@
 
 .calendar-container {
     order: 1;
-    width: 62%;
-    min-width: 338px;
+    width: 100%;
+    min-width: 200px;
     z-index: 16;
     /* background: linear-gradient(45deg, #000000b5, #00000082); */
     border-radius: 20px;
