@@ -14,7 +14,9 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
 -   **Liquid Glass UI**: A complete CSS overhaul providing a sleek, dark, glassmorphism-inspired interface with refined typography and animations.
 -   **Enhanced Covers**: Automatically widens cover images in the library for a more cinematic look.
 -   **Horizontal Navigation**: Moves the traditional vertical navigation bar to a modern horizontal layout at the top of the screen.
+-   **Row Navigator**: A new sidebar that lets you quickly jump between content rows on the home screen with snap-scrolling.
 -   **Tooltips Remover**: Removes standard browser tooltips for a cleaner, less cluttered user experience.
+-   **Continue Watching Manager**: Apple like "Dynamic Island" for recent items "Continue Watching" list.
 
 ### 🏠 Home Screen & Discovery
 
@@ -27,9 +29,7 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
     -   Tracks release dates for items in your library.
     -   Shows countdowns (e.g., "in 3 days", "Tomorrow").
     -   Smart caching to minimize API requests.
-     
-
-
+    **Notifications**: A built-in notification center that tracks new episode releases for series you are watching.
 ### 🎬 Player & Content Details
 
 -   **Enhanced Title Bar**: Upgrades the standard title bar with rich metadata.
