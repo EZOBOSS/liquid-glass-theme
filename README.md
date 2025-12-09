@@ -29,7 +29,7 @@ This theme is not just a visual skin; it includes a collection of JavaScript plu
     -   Tracks release dates for items in your library.
     -   Shows countdowns (e.g., "in 3 days", "Tomorrow").
     -   Smart caching to minimize API requests.
-    **Notifications**: A built-in notification center that tracks new episode releases for series you are watching.
+-   **Notifications**: A built-in notification center that tracks new episode releases for series you are watching.
 ### 🎬 Player & Content Details
 
 -   **Enhanced Title Bar**: Upgrades the standard title bar with rich metadata.
