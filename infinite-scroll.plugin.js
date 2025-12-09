@@ -26,24 +26,19 @@
         constructor() {
             console.log("[InfiniteScrollPlugin] Initializing...");
 
-            // State
             this.memoryCache = new Map();
             this.idLookupSets = new Map();
             this.fetchProgress = {};
             this.observer = null;
 
-            // Scroll State
             this.activeScrolls = new Set();
             this.isLoopRunning = false;
 
-            // Lazy Loading Observer Map - one observer per track
             this.trackObservers = new WeakMap();
 
-            // Bind methods
             this.globalTick = this.globalTick.bind(this);
             this.onHashChange = this.onHashChange.bind(this);
 
-            // Expose instance globally
             window.InfiniteScrollPluginInstance = this;
 
             this.init();
@@ -53,7 +48,7 @@
             this.clearExpiredCache();
             window.addEventListener("hashchange", this.onHashChange);
             this.initObserver();
-            // Try initial check
+
             this.findAndInitTracks();
         }
 
@@ -175,8 +170,6 @@
             }
             return false;
         }
-
-        // --- Scroll Logic ---
 
         globalTick() {
             if (this.activeScrolls.size === 0) {
@@ -569,9 +562,6 @@
             const handleWheel = (e) => {
                 e.preventDefault();
 
-                // Update widths just in case
-                // updateWidths(); // Optional: might cause read, but usually safe in event handler
-
                 const atStart = track.scrollLeft <= 0 && e.deltaY < 0;
                 const atEnd =
                     track.scrollLeft + state.widthCache.clientWidth >=
@@ -614,7 +604,6 @@
                     // If this scroll is being driven by our physics loop, ignore it
                     // to prevent "Write (globalTick) -> Read (scroll listener)" thrashing
                     if (this.activeScrolls.has(state)) {
-                        // Check if user interference happened (large discrepancy)
                         if (!rafPending) {
                             rafPending = true;
                             requestAnimationFrame(() => {
@@ -654,8 +643,6 @@
                 { passive: true }
             );
         }
-
-        // --- Fetching & Caching ---
 
         cacheKey(key) {
             return InfiniteScrollPlugin.CONFIG.CACHE_PREFIX + key;

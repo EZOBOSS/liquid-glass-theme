@@ -4,14 +4,12 @@
     const LOCAL_KEY = "custom_setting"; // single object for all custom settings
     const INSERT_INDEX = 2; // 3rd child (zero-based)
 
-    // --- Local storage helpers ---
     const readState = (prop) => {
         try {
             const obj = JSON.parse(localStorage.getItem(LOCAL_KEY) || "{}");
-            // default to true if property is missing
             return prop in obj ? !!obj[prop] : true;
         } catch {
-            return true; // default to true if parsing fails
+            return true;
         }
     };
 
@@ -23,7 +21,6 @@
         } catch {}
     };
 
-    // --- Build native Stremio toggle ---
     const buildToggleElement = () => {
         const wrapper = document.createElement("div");
         wrapper.className = "option-container-EGlcv";
@@ -38,7 +35,6 @@
         return wrapper;
     };
 
-    // --- Insert toggle into target section ---
     const insertToggleInto = (container) => {
         if (!container) return;
         if (container.querySelector(`.${TOGGLE_CLASS}`)) return;
@@ -52,7 +48,6 @@
             ".option-input-container-NPgpT"
         );
 
-        // Sync state visually and in aria
         const applyState = (state) => {
             if (state) {
                 button.classList.add("checked");
@@ -65,11 +60,9 @@
             }
         };
 
-        // Initialize from localStorage
         let isEnabled = readState("play_trailer_on_hover");
         applyState(isEnabled);
 
-        // Click handling
         button.addEventListener("click", () => {
             isEnabled = !isEnabled;
             writeState("play_trailer_on_hover", isEnabled);
@@ -88,7 +81,6 @@
         );
     };
 
-    // --- Wait for container to exist ---
     function waitForContainer(selector, cb, timeout = 8000) {
         const existing = document.querySelector(selector);
         if (existing) return cb(existing);
@@ -104,7 +96,6 @@
         setTimeout(() => observer.disconnect(), timeout);
     }
 
-    // --- Keep alive if settings re-render ---
     function ensureTogglePersists(container) {
         const checkAndInsert = () => {
             if (!container.querySelector(`.${TOGGLE_CLASS}`))
@@ -116,7 +107,6 @@
         observer.observe(container, { childList: true, subtree: true });
     }
 
-    // --- Main bootstrap ---
     function bootstrap() {
         waitForContainer(
             SELECTOR,

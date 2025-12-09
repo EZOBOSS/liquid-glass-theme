@@ -53,7 +53,6 @@
                 }
             });
 
-            // Initial check
             this.checkVisibility();
             this.updateList();
         }

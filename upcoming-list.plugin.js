@@ -7,14 +7,13 @@
  */
 
 (function () {
-    // UpcomingReleasesPlugin Main class
     class UpcomingReleasesPlugin {
         static CONFIG = {
             FETCH_TIMEOUT: 5000,
             CACHE_TTL: 1000 * 60 * 60 * 12, // 12 hours for the main catalog list
             CACHE_PREFIX: "upcoming_cache_",
             CACHE_DEBOUNCE_MS: 500, // Debounce cache updates
-            DAY_BUFFER: 86400000 * 4, // Include 4 days of future videos
+            DAY_BUFFER: 86400000 * 4, // Include 4 days of past videos
             BATCH_SIZE: 50, // Number of concurrent promises to process at once
             URLS: {
                 CINEMETA_CATALOG:
@@ -119,8 +118,6 @@
             });
         }
 
-        // --- Cache Methods ---
-
         get cacheKey() {
             return (key) => UpcomingReleasesPlugin.CONFIG.CACHE_PREFIX + key;
         }
@@ -168,8 +165,6 @@
                 return null;
             }
         }
-
-        // --- Helper Methods ---
 
         async safeFetch(
             url,
@@ -254,8 +249,6 @@
 
             return results;
         }
-
-        // --- Data Logic ---
 
         getUserLibrarySeries() {
             if (this.libraryRecentCache) return this.libraryRecentCache;

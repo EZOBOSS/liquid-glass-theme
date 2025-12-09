@@ -16,7 +16,7 @@
                 MAX_RETRIES: 2,
                 BATCH_SIZE: 6,
                 CACHE_TTL_MS: 1000 * 60 * 60 * 6, // 6 hours
-                LOG_LEVEL: "debug",
+                LOG_LEVEL: "silent",
                 PLAY_TRAILER_ON_HOVER:
                     JSON.parse(localStorage.getItem("custom_setting") || "{}")
                         .play_trailer_on_hover ?? true,

@@ -194,40 +194,7 @@ class MetadataDB {
         // If we got here, data is likely identical
         return false;
     }
-    /* 
-    _mergeVideosArray(existingVideos, incomingVideos) {
-        if (!Array.isArray(existingVideos) || !Array.isArray(incomingVideos)) {
-            return incomingVideos;
-        }
 
-        const existingMap = new Map();
-        for (const video of existingVideos) {
-            const key = video.id || `${video.season}:${video.episode}`;
-            existingMap.set(key, video);
-        }
-
-        const userFields = ["watched"];
-
-        return incomingVideos.map((newVideo) => {
-            const key = newVideo.id || `${newVideo.season}:${newVideo.episode}`;
-            const existingVideo = existingMap.get(key);
-
-            if (!existingVideo) return newVideo;
-
-            const preserve = {};
-            let hasUserData = false;
-
-            for (const field of userFields) {
-                if (existingVideo[field] !== undefined) {
-                    preserve[field] = existingVideo[field];
-                    hasUserData = true;
-                }
-            }
-
-            return hasUserData ? { ...newVideo, ...preserve } : newVideo;
-        });
-    }
- */
     async get(id) {
         try {
             // Check memory cache first

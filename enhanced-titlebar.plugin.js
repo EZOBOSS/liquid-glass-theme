@@ -12,11 +12,9 @@ const CONFIG = {
     timeout: 5000,
     updateInterval: 10000,
     concurrency: 4,
-    // Intersection Observer Config
     OBSERVER_MARGIN: "2000px 0px",
 };
 let db;
-// --- Web Worker for Dynamic Calculations ---
 const WORKER_CODE = `
 self.onmessage = function(e) {
     const { meta, id } = e.data;
@@ -27,7 +25,7 @@ self.onmessage = function(e) {
     }
 
     try {
-        // --- Helper Functions inside Worker ---
+       
         function getDaysSinceRelease(releaseDateStr) {
             if (!releaseDateStr) return "";
             const oneDay = 86400000;
@@ -51,12 +49,11 @@ self.onmessage = function(e) {
             return \`in \${daysAhead} day\${daysAhead > 1 ? "s" : ""}\`;
         }
 
-        // --- Calculation Logic ---
         const videos = meta.videos || [];
         let closestFuture = null;
         let latestPast = null;
         const now = new Date();
-        now.setDate(now.getDate() - 1); // Adjust for UTC/Timezone
+        now.setDate(now.getDate() - 1);
 
         for (const v of videos) {
             if (!v.released) continue;
@@ -72,7 +69,6 @@ self.onmessage = function(e) {
         const releaseDateStr = (closestFuture || latestPast || { released: meta.released }).released;
         const releaseDate = getDaysSinceRelease(releaseDateStr);
 
-        // --- New Tag Logic ---
         let newTag = null;
         if (releaseDate && releaseDate.includes("day")) {
             const match = releaseDate.match(/^(\\d+)/);
@@ -103,7 +99,6 @@ const workerUrl = URL.createObjectURL(workerBlob);
 const worker = new Worker(workerUrl);
 URL.revokeObjectURL(workerUrl);
 
-// Promise wrapper for Worker
 const workerCallbacks = new Map();
 worker.onmessage = (e) => {
     const { id, result, error } = e.data;
@@ -128,7 +123,6 @@ function calculateDynamicData(meta, id) {
     });
 }
 
-// --- Task Queue for Concurrency Control ---
 const taskQueue = {
     queue: [],
     active: 0,
@@ -156,7 +150,6 @@ const taskQueue = {
     },
 };
 
-// --- Styles ---
 function injectStyles() {
     if (document.getElementById("enhanced-title-bar-styles")) return;
     const style = document.createElement("style");
@@ -173,11 +166,9 @@ function injectStyles() {
     document.head.appendChild(style);
 }
 
-// --- Main Logic ---
-
+// Main Logic
 async function getMetadata(id, type) {
     try {
-        // 1. Try to get raw metadata from IndexedDB
         let meta = await db.get(id);
         let source = "cache";
 
@@ -255,8 +246,6 @@ async function getMetadata(id, type) {
         return null;
     }
 }
-
-// --- DOM Helpers ---
 
 const RE_ID = /tt\d{7,}/;
 const RE_TYPE = /\/(movie|series)\//i;
@@ -416,8 +405,7 @@ async function enhanceTitleBar(titleBar) {
 const TITLE_BAR_SELECTOR =
     ".title-bar-container-1Ba0x,[class*='title-bar-container'],[class*='titleBarContainer'],[class*='title-container']:not([class*='search-hints']),[class*='media-title']";
 
-// --- Intersection Observer ---
-/* */
+// Intersection Observer
 const containerObservers = new WeakMap();
 let globalObserver;
 
