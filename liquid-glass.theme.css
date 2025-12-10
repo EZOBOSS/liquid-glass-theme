@@ -448,6 +448,9 @@ html body {
 }
 
 .hero-image {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100vh;
     object-fit: cover;
@@ -684,11 +687,81 @@ html body {
     background: rgba(255, 255, 255, 0.9);
 }
 
-#heroImage,
 #heroLogo,
 #heroDescription,
 #heroInfo {
     transition: opacity 0.3s ease-in-out;
+}
+#heroImage {
+    transition: opacity 1s ease-in;
+}
+
+/* Swipe Animations (Wipe Effect with Parallax) */
+@keyframes heroSlideInRight {
+    from {
+        clip-path: inset(0 0 0 100%);
+        transform: translateX(15%);
+        z-index: 2;
+        opacity: 1;
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+        transform: translateX(0);
+        z-index: 2;
+    }
+}
+
+@keyframes heroSlideOutLeft {
+    from {
+        transform: scale(1) translateX(0);
+        z-index: 1;
+        opacity: 1;
+    }
+    to {
+        transform: scale(1) translateX(-15%);
+        z-index: 1;
+        opacity: 0;
+    }
+}
+
+@keyframes heroSlideInLeft {
+    from {
+        clip-path: inset(0 100% 0 0);
+        transform: translateX(-15%);
+        z-index: 2;
+        opacity: 1;
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+        transform: translateX(0);
+        z-index: 2;
+    }
+}
+
+@keyframes heroSlideOutRight {
+    from {
+        transform: scale(1) translateX(0);
+        z-index: 1;
+        opacity: 1;
+    }
+    to {
+        transform: scale(1) translateX(15%);
+        z-index: 1;
+        opacity: 0;
+    }
+}
+
+.hero-slide-in-right {
+    animation: heroSlideInRight 1.5s ease forwards;
+}
+.hero-slide-out-left {
+    animation: heroSlideOutLeft 1.5s ease forwards;
+}
+.hero-slide-in-left {
+    animation: heroSlideInLeft 1.5s ease forwards;
+}
+.hero-slide-out-right {
+    animation: heroSlideOutRight 1.5s ease forwards;
 }
 
 .hero-overlay-button-watch svg,
@@ -1745,7 +1818,7 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .meta-row-container-xtlB1 .meta-item-container-Tj0Ib.show {
     opacity: 1;
-    transform: translateY(0) !important;
+    transform: translateY(0px) !important;
 }
 .search-row-EQLaD .meta-item-container-Tj0Ib {
     opacity: 1 !important;
@@ -2048,13 +2121,6 @@ body.ghost-clicking #heroLoadingScreen {
     transform: translateY(0px);
     opacity: 1;
 }
-/*
-.meta-row-container-xtlB1.hide {
-    opacity: 0;
-    pointer-events: none;
-    content-visibility: auto;
-}
-*/
 
 .meta-item-container-Tj0Ib.dim {
     opacity: 0.2 !important;
@@ -2063,18 +2129,8 @@ body.ghost-clicking #heroLoadingScreen {
 .meta-items-container-qcuUA:hover .meta-item-container-Tj0Ib:hover {
     opacity: 0.8 !important; /* restore normal opacity */
     border-color: #ffffff;
-    transform: scale(1.06);
-    transform: translateY(-5px);
+    transform: scale(1.03) translateY(-2px) !important;
 }
-/*
-.meta-item-container-Tj0Ib:hover ~ .meta-item-container-Tj0Ib {
-    transform: translateX(130px);
-}
-   
-.meta-item-container-Tj0Ib:not(:first-child) {
-    margin-left: -130px;
-}
-     */
 
 /* fix for poster shape */
 .meta-item-container-Tj0Ib .poster-container-qkw48 .poster-image-layer-KimPZ {
@@ -2082,45 +2138,21 @@ body.ghost-clicking #heroLoadingScreen {
     left: none !important;
     bottom: none !important;
 }
-/*
 
-    */
-
-*/*/
-@keyframes fade-out {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-/* smooth scrolling fade-in with slight upward motion
-.meta-row-container-xtlB1 {
-    animation: fade-out linear;
-    animation-timeline: view();
-    animation-range-start: cover 0%;
-    animation-range-end: cover 2%;
-}
-*/
 /* ========================================= */
 /* 1. Set up Default/Final State (Visibility) */
 /* ========================================= */
 .hero-container.updating #heroLogo,
 .hero-container.updating #heroDescription,
-.hero-container.updating #heroInfo,
-.hero-container.updating #heroImage {
+.hero-container.updating #heroInfo {
     opacity: 0 !important;
 }
 
 /* Apply base transition timing to all animated elements */
 .hero-container #heroLogo,
 .hero-container #heroDescription,
-.hero-container #heroInfo,
-.hero-container #heroImage {
-    transition: opacity 0.5s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+.hero-container #heroInfo {
+    transition: opacity 0.35s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
         filter 0.6s ease;
     will-change: opacity, transform;
 }
@@ -2128,8 +2160,7 @@ body.ghost-clicking #heroLoadingScreen {
 /* Fade out and lift when changing slides */
 .hero-container.is-transitioning #heroLogo,
 .hero-container.is-transitioning #heroDescription,
-.hero-container.is-transitioning #heroInfo,
-.hero-container.is-transitioning #heroImage {
+.hero-container.is-transitioning #heroInfo {
     opacity: 0;
     transform: translateY(-25px) scale(1.03);
 }
@@ -2143,9 +2174,6 @@ body.ghost-clicking #heroLoadingScreen {
 }
 .hero-container #heroInfo {
     transition-delay: 0.1s;
-}
-.hero-container #heroImage {
-    transition-delay: 0.15s;
 }
 
 /* Once new slide comes in, fade + slide back smoothly */

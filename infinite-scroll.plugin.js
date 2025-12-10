@@ -307,7 +307,7 @@
             Object.assign(indicator.style, {
                 position: "absolute",
                 left: "50%",
-                bottom: "35%",
+                bottom: "30%",
                 transform: "translateX(-50%)",
                 padding: "12px 20px",
                 display: "flex",

@@ -548,7 +548,7 @@
             }
         }
 
-        updateHeroContent(title, animate = true) {
+        updateHeroContent(title, animate = true, direction = "next") {
             if (!this.dom.hero) return;
 
             const hero = this.dom.hero;
@@ -559,12 +559,60 @@
                 // 1. Background
                 if (title.background) {
                     const newBg = `https://images.metahub.space/background/large/${title.id}/img`;
-                    if (
-                        this.dom.heroImage &&
-                        this._renderedState.bg !== newBg
-                    ) {
-                        this.dom.heroImage.src = newBg;
-                        this._renderedState.bg = newBg;
+
+                    if (animate && this.dom.heroImage) {
+                        // Animation: Create new image, slide it in, slide old one out
+                        if (this._renderedState.bg !== newBg) {
+                            const oldImg = this.dom.heroImage;
+                            const newImg = document.createElement("img");
+                            newImg.src = newBg;
+                            newImg.className = "hero-image";
+                            newImg.alt = `${title.title} background`;
+                            newImg.id = "heroImage"; // Take over the ID
+
+                            // Determine animation classes
+                            let inClass, outClass;
+                            if (direction === "next") {
+                                inClass = "hero-slide-in-right";
+                                outClass = "hero-slide-out-left";
+                            } else {
+                                inClass = "hero-slide-in-left";
+                                outClass = "hero-slide-out-right";
+                            }
+
+                            newImg.classList.add(inClass);
+
+                            // Insert new image before the overlay (so it's behind content)
+                            // If overlay doesn't exist (unlikely), append to hero
+                            if (this.dom.heroOverlay) {
+                                hero.insertBefore(newImg, this.dom.heroOverlay);
+                            } else {
+                                hero.appendChild(newImg);
+                            }
+
+                            // Animate old image out
+                            oldImg.removeAttribute("id"); // Remove ID to avoid conflicts
+                            oldImg.classList.add(outClass);
+
+                            // Update references
+                            this.dom.heroImage = newImg;
+                            this._renderedState.bg = newBg;
+
+                            // Cleanup
+                            setTimeout(() => {
+                                oldImg.remove();
+                                newImg.classList.remove(inClass);
+                            }, 1500);
+                        }
+                    } else {
+                        // No animation or first load
+                        if (
+                            this.dom.heroImage &&
+                            this._renderedState.bg !== newBg
+                        ) {
+                            this.dom.heroImage.src = newBg;
+                            this._renderedState.bg = newBg;
+                        }
                     }
                 }
 
@@ -633,15 +681,14 @@
                 this._lastTitleId = title.id;
 
                 if (animate) {
-                    requestAnimationFrame(() =>
-                        hero.classList.remove("is-transitioning")
-                    );
+                    setTimeout(() => {
+                        hero.classList.remove("is-transitioning");
+                    }, 1000);
                 }
             };
 
-            // Wait for animation OR run immediately
             if (animate) {
-                setTimeout(() => requestAnimationFrame(doUpdate), 400);
+                setTimeout(() => requestAnimationFrame(doUpdate), 300);
             } else {
                 requestAnimationFrame(doUpdate);
             }
@@ -677,7 +724,9 @@
                     (this.state.currentIndex + 1) %
                     this.state.heroTitles.length;
                 this.updateHeroContent(
-                    this.state.heroTitles[this.state.currentIndex]
+                    this.state.heroTitles[this.state.currentIndex],
+                    true,
+                    "next"
                 );
             }, this.config.ROTATION_INTERVAL);
 
@@ -703,7 +752,9 @@
             this.state.currentIndex =
                 (this.state.currentIndex + 1) % this.state.heroTitles.length;
             this.updateHeroContent(
-                this.state.heroTitles[this.state.currentIndex]
+                this.state.heroTitles[this.state.currentIndex],
+                true,
+                "next"
             );
             this.resetAutoRotate();
         }
@@ -713,7 +764,9 @@
                 (this.state.currentIndex - 1 + this.state.heroTitles.length) %
                 this.state.heroTitles.length;
             this.updateHeroContent(
-                this.state.heroTitles[this.state.currentIndex]
+                this.state.heroTitles[this.state.currentIndex],
+                true,
+                "prev"
             );
             this.resetAutoRotate();
         }
@@ -724,9 +777,13 @@
                 idx < this.state.heroTitles.length &&
                 idx !== this.state.currentIndex
             ) {
+                const direction =
+                    idx > this.state.currentIndex ? "next" : "prev";
                 this.state.currentIndex = idx;
                 this.updateHeroContent(
-                    this.state.heroTitles[this.state.currentIndex]
+                    this.state.heroTitles[this.state.currentIndex],
+                    true,
+                    direction
                 );
                 this.resetAutoRotate();
             }
