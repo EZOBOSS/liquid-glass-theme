@@ -787,6 +787,7 @@
                     type === "movie"
                         ? `#/detail/${type}/${m.id}/${m.id}`
                         : `#/detail/${type}/${m.id}`,
+                genre: m.genre || [],
             };
         }
 

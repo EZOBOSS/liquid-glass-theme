@@ -13,8 +13,7 @@
                 ROW: ".meta-row-container-xtlB1",
                 TITLE: ".header-container-tR3Ev .title-container-Mkwnq",
                 NAV_CONTAINER: "row-navigator-container",
-                IGNORE_CONTAINER:
-                    ".meta-items-container-qcuUA, .upcoming-groups-container",
+                IGNORE_CONTAINER: ".meta-items-container-qcuUA",
             },
             OBSERVER_OPTIONS: {
                 root: null,
@@ -265,11 +264,13 @@
 
         handleScroll(e) {
             const target = e.target;
-            // Ignore horizontal scroll areas
+            // Ignore horizontal scroll areas only if they have wheel scroll initialized
+            const ignoreContainer = target.closest(
+                RowNavigatorPlugin.CONFIG.SELECTORS.IGNORE_CONTAINER
+            );
             if (
-                target.closest(
-                    RowNavigatorPlugin.CONFIG.SELECTORS.IGNORE_CONTAINER
-                )
+                ignoreContainer &&
+                ignoreContainer.dataset.wheelScrollInitialized === "true"
             )
                 return;
 
