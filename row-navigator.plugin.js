@@ -14,6 +14,7 @@
                 TITLE: ".header-container-tR3Ev .title-container-Mkwnq",
                 NAV_CONTAINER: "row-navigator-container",
                 IGNORE_CONTAINER: ".meta-items-container-qcuUA",
+                UPCOMING_LIST: ".upcoming-list",
             },
             OBSERVER_OPTIONS: {
                 root: null,
@@ -268,11 +269,15 @@
             const ignoreContainer = target.closest(
                 RowNavigatorPlugin.CONFIG.SELECTORS.IGNORE_CONTAINER
             );
+            const upcomingList = target.closest(
+                RowNavigatorPlugin.CONFIG.SELECTORS.UPCOMING_LIST
+            );
             if (
                 ignoreContainer &&
                 ignoreContainer.dataset.wheelScrollInitialized === "true"
             )
                 return;
+            if (upcomingList) return;
 
             // Ensure we are actually on the board/rows
             if (

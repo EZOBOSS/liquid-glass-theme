@@ -11,10 +11,10 @@ class MetadataDB {
         DB_NAME: "ETB_MetadataDB",
         DB_VERSION: 1,
         STORE_NAME: "metadata",
-        CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series
-        CACHE_TTL_NEW_MOVIE: 30 * 24 * 60 * 60 * 1000, // 30 days for new movies
+        CACHE_TTL_SERIES: 14 * 24 * 60 * 60 * 1000, // 14 days for series
+        CACHE_TTL_NEW_MOVIE: 14 * 24 * 60 * 60 * 1000, // 14 days for new movies
         MEMORY_CACHE_SIZE: 500, // Max items in memory cache
-        BATCH_DELAY: 50, // ms to wait before flushing batch writes
+        BATCH_DELAY: 150, // ms to wait before flushing batch writes
     };
 
     constructor() {
@@ -180,6 +180,7 @@ class MetadataDB {
         if (existing.type !== incoming.type) return true;
         if (existing.year !== incoming.year) return true;
         if (existing.releaseInfo !== incoming.releaseInfo) return true;
+        if (existing.released !== incoming.released) return true;
         if (existing.imdbRating !== incoming.imdbRating) return true;
 
         // Check videos array length
