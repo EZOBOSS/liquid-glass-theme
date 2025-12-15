@@ -857,6 +857,9 @@
         async renderListMode(mode = "all", container) {
             if (!container) return;
 
+            // Show loading indicator while fetching data
+            this.showLoading(container);
+
             const fetchPromise =
                 mode === "library"
                     ? this.fetchLibraryUpcoming(8)
@@ -1019,6 +1022,7 @@
             }
 
             this.initIntersectionObserver(container);
+            this.hideLoading(container);
         }
 
         updateDOMInternal(container, groupsHtmlArray) {

@@ -552,115 +552,136 @@
             if (!this.dom.hero) return;
 
             const hero = this.dom.hero;
+            const ANIMATION_DURATION = 1500; // Match CSS animation duration
 
-            if (animate) hero.classList.add("is-transitioning");
+            // Batch DOM reads upfront to avoid layout thrashing
+            const oldImg = this.dom.heroImage;
+            const heroOverlay = this.dom.heroOverlay;
+            const heroLogo = this.dom.heroLogo;
+            const heroDescription = this.dom.heroDescription;
+            const heroInfo = this.dom.heroInfo;
 
-            const doUpdate = () => {
-                // 1. Background
-                if (title.background) {
-                    const newBg = `https://images.metahub.space/background/large/${title.id}/img`;
+            // Pre-compute all new values before any DOM writes
+            const newBg = title.background
+                ? `https://images.metahub.space/background/large/${title.id}/img`
+                : null;
+            const newLogo = title.logo
+                ? `https://images.metahub.space/logo/medium/${title.id}/img`
+                : null;
+            const newDesc = title.description || "";
 
-                    if (animate && this.dom.heroImage) {
-                        // Animation: Create new image, slide it in, slide old one out
-                        if (this._renderedState.bg !== newBg) {
-                            const oldImg = this.dom.heroImage;
-                            const newImg = document.createElement("img");
+            // Pre-compute info HTML
+            const info = [];
+            if (title.year) info.push(title.year);
+            if (title.duration && title.duration !== "Unknown")
+                info.push(title.duration);
+            if (title.seasons && title.seasons !== "Unknown")
+                info.push(title.seasons);
+            if (title.releaseDate) info.push(title.releaseDate);
+            const rating =
+                title.rating && title.rating !== "na"
+                    ? `⭐ ${title.rating}`
+                    : "";
+            const wantedHTML = `${info
+                .map((i) => `<p>${i}</p>`)
+                .join(
+                    ""
+                )}<p class="rating-item"><span class="rating-text">${rating}</span></p>`;
+
+            // Determine animation classes upfront
+            const inClass =
+                direction === "next"
+                    ? "hero-slide-in-right"
+                    : "hero-slide-in-left";
+            const outClass =
+                direction === "next"
+                    ? "hero-slide-out-left"
+                    : "hero-slide-out-right";
+
+            const doUpdate = (preloadedImg = null) => {
+                // 1. Background - GPU optimized
+                if (newBg && this._renderedState.bg !== newBg) {
+                    if (animate && oldImg) {
+                        // Use preloaded image or create new one
+                        const newImg =
+                            preloadedImg || document.createElement("img");
+                        if (!preloadedImg) {
                             newImg.src = newBg;
                             newImg.className = "hero-image";
                             newImg.alt = `${title.title} background`;
-                            newImg.id = "heroImage"; // Take over the ID
-
-                            // Determine animation classes
-                            let inClass, outClass;
-                            if (direction === "next") {
-                                inClass = "hero-slide-in-right";
-                                outClass = "hero-slide-out-left";
-                            } else {
-                                inClass = "hero-slide-in-left";
-                                outClass = "hero-slide-out-right";
-                            }
-
-                            newImg.classList.add(inClass);
-
-                            // Insert new image before the overlay (so it's behind content)
-                            // If overlay doesn't exist (unlikely), append to hero
-                            if (this.dom.heroOverlay) {
-                                hero.insertBefore(newImg, this.dom.heroOverlay);
-                            } else {
-                                hero.appendChild(newImg);
-                            }
-
-                            // Animate old image out
-                            oldImg.removeAttribute("id"); // Remove ID to avoid conflicts
-                            oldImg.classList.add(outClass);
-
-                            // Update references
-                            this.dom.heroImage = newImg;
-                            this._renderedState.bg = newBg;
-
-                            // Cleanup
-                            setTimeout(() => {
-                                oldImg.remove();
-                                newImg.classList.remove(inClass);
-                            }, 1500);
                         }
-                    } else {
-                        // No animation or first load
-                        if (
-                            this.dom.heroImage &&
-                            this._renderedState.bg !== newBg
-                        ) {
-                            this.dom.heroImage.src = newBg;
-                            this._renderedState.bg = newBg;
+                        newImg.id = "heroImage";
+
+                        // Enable GPU compositing hint before animation
+                        newImg.style.willChange = "transform, opacity";
+                        oldImg.style.willChange = "transform, opacity";
+
+                        // Add animation class before inserting (reduces reflow)
+                        newImg.classList.add(inClass);
+
+                        // Single DOM write: insert new image
+                        if (heroOverlay) {
+                            hero.insertBefore(newImg, heroOverlay);
+                        } else {
+                            hero.appendChild(newImg);
                         }
+
+                        // Animate old image out
+                        oldImg.removeAttribute("id");
+                        oldImg.classList.add(outClass);
+
+                        // Update references immediately
+                        this.dom.heroImage = newImg;
+                        this._renderedState.bg = newBg;
+
+                        // Use animation end event for cleanup (more precise than setTimeout)
+                        const cleanup = () => {
+                            // Remove from GPU layer after animation
+                            newImg.style.willChange = "auto";
+                            newImg.classList.remove(inClass);
+                            oldImg.remove();
+                        };
+
+                        // Fallback timeout in case animationend doesn't fire
+                        const fallbackTimer = setTimeout(
+                            cleanup,
+                            ANIMATION_DURATION + 100
+                        );
+                        oldImg.addEventListener(
+                            "animationend",
+                            () => {
+                                clearTimeout(fallbackTimer);
+                                requestAnimationFrame(cleanup);
+                            },
+                            { once: true }
+                        );
+                    } else if (this.dom.heroImage) {
+                        // No animation - direct update
+                        this.dom.heroImage.src = newBg;
+                        this._renderedState.bg = newBg;
                     }
                 }
 
-                // 2. Logo
-                if (title.logo) {
-                    const newLogo = `https://images.metahub.space/logo/medium/${title.id}/img`;
-                    if (
-                        this.dom.heroLogo &&
-                        this._renderedState.logo !== newLogo
-                    ) {
-                        this.dom.heroLogo.src = newLogo;
-                        this._renderedState.logo = newLogo;
-                    }
+                // 2. Logo - batch with other non-animated updates
+                if (
+                    newLogo &&
+                    heroLogo &&
+                    this._renderedState.logo !== newLogo
+                ) {
+                    heroLogo.src = newLogo;
+                    this._renderedState.logo = newLogo;
                 }
 
                 // 3. Description
-                if (this.dom.heroDescription) {
-                    const newDesc = title.description || "";
-                    if (this._renderedState.desc !== newDesc) {
-                        this.dom.heroDescription.textContent = newDesc;
-                        this._renderedState.desc = newDesc;
-                    }
+                if (heroDescription && this._renderedState.desc !== newDesc) {
+                    heroDescription.textContent = newDesc;
+                    this._renderedState.desc = newDesc;
                 }
 
                 // 4. Info HTML
-                if (this.dom.heroInfo) {
-                    const info = [];
-                    if (title.year) info.push(title.year);
-                    if (title.duration && title.duration !== "Unknown")
-                        info.push(title.duration);
-                    if (title.seasons && title.seasons !== "Unknown")
-                        info.push(title.seasons);
-                    if (title.releaseDate) info.push(title.releaseDate);
-
-                    const rating =
-                        title.rating && title.rating !== "na"
-                            ? `⭐ ${title.rating}`
-                            : "";
-
-                    const wantedHTML = `
-                ${info.map((i) => `<p>${i}</p>`).join("")}
-                <p class="rating-item"><span class="rating-text">${rating}</span></p>
-            `;
-
-                    if (this._renderedState.infoHtml !== wantedHTML) {
-                        this.dom.heroInfo.innerHTML = wantedHTML;
-                        this._renderedState.infoHtml = wantedHTML;
-                    }
+                if (heroInfo && this._renderedState.infoHtml !== wantedHTML) {
+                    heroInfo.innerHTML = wantedHTML;
+                    this._renderedState.infoHtml = wantedHTML;
                 }
 
                 // Set listeners once (not every update!)
@@ -681,33 +702,52 @@
                 this._lastTitleId = title.id;
 
                 if (animate) {
-                    setTimeout(() => {
-                        hero.classList.remove("is-transitioning");
-                    }, 1000);
+                    setTimeout(
+                        () => hero.classList.remove("is-transitioning"),
+                        1000
+                    );
                 }
             };
 
-            if (animate) {
-                setTimeout(() => requestAnimationFrame(doUpdate), 300);
+            // GPU optimization: Preload image before starting animation
+            if (animate && newBg && this._renderedState.bg !== newBg) {
+                hero.classList.add("is-transitioning");
+
+                // Preload the new image to avoid GPU decode during animation
+                const preloadImg = new Image();
+                preloadImg.className = "hero-image";
+                preloadImg.alt = `${title.title} background`;
+
+                preloadImg.onload = () => {
+                    // Image decoded in background, now safe to animate
+                    requestAnimationFrame(() => doUpdate(preloadImg));
+                };
+                preloadImg.onerror = () => {
+                    // Fallback: proceed without preload
+                    requestAnimationFrame(() => doUpdate(null));
+                };
+                preloadImg.src = newBg;
             } else {
+                if (animate) hero.classList.add("is-transitioning");
                 requestAnimationFrame(doUpdate);
             }
 
-            // Only toggle the changed indicator
+            // Update indicators - minimal DOM touch
             if (this.dom.indicators) {
                 const activeIdx = this.state.currentIndex;
-                const indicators =
-                    this.dom.indicators.querySelectorAll(".hero-indicator");
-
                 const prev = this._lastActiveIndicator;
-                if (prev !== undefined && indicators[prev]) {
-                    indicators[prev].classList.remove("active");
-                }
-                if (indicators[activeIdx]) {
-                    indicators[activeIdx].classList.add("active");
-                }
 
-                this._lastActiveIndicator = activeIdx;
+                if (prev !== activeIdx) {
+                    const indicators =
+                        this.dom.indicators.querySelectorAll(".hero-indicator");
+                    if (prev !== undefined && indicators[prev]) {
+                        indicators[prev].classList.remove("active");
+                    }
+                    if (indicators[activeIdx]) {
+                        indicators[activeIdx].classList.add("active");
+                    }
+                    this._lastActiveIndicator = activeIdx;
+                }
             }
         }
 

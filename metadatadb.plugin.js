@@ -182,6 +182,7 @@ class MetadataDB {
         if (existing.releaseInfo !== incoming.releaseInfo) return true;
         if (existing.released !== incoming.released) return true;
         if (existing.imdbRating !== incoming.imdbRating) return true;
+        if (existing.trailers !== incoming.trailers) return true;
 
         // Check videos array length
         const existingVideos = existing.videos;
