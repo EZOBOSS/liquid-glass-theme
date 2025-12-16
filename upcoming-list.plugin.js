@@ -309,6 +309,7 @@
                     if (!rawMeta?.videos) continue;
 
                     const meta = structuredClone(rawMeta);
+
                     const videoMap = new Map(
                         meta.videos.map((v) => [`${v.season}-${v.episode}`, v])
                     );
@@ -387,6 +388,11 @@
                 }, new Map());
 
                 await this._syncWatchStateToDB(episodesBySeries);
+                console.log(
+                    "Updated watch state for",
+                    updates.length,
+                    "episodes"
+                );
             }
 
             return list;
@@ -487,7 +493,7 @@
                 runtime: m.runtime || null,
                 type: m.type || type,
                 trailer: m?.trailers?.[0]?.source,
-                videos: m.videos || [],
+                videos: m.videos ? structuredClone(m.videos) : [],
                 releaseInfo: m.releaseInfo,
             };
         }

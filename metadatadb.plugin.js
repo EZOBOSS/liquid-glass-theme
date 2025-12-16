@@ -14,7 +14,7 @@ class MetadataDB {
         CACHE_TTL_SERIES: 14 * 24 * 60 * 60 * 1000, // 14 days for series
         CACHE_TTL_NEW_MOVIE: 14 * 24 * 60 * 60 * 1000, // 14 days for new movies
         MEMORY_CACHE_SIZE: 500, // Max items in memory cache
-        BATCH_DELAY: 150, // ms to wait before flushing batch writes
+        BATCH_DELAY: 50, // ms to wait before flushing batch writes
     };
 
     constructor() {
@@ -115,6 +115,16 @@ class MetadataDB {
         }
     }
 
+    _deepFreeze(obj) {
+        if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
+            Object.freeze(obj);
+            Object.getOwnPropertyNames(obj).forEach((prop) => {
+                this._deepFreeze(obj[prop]);
+            });
+        }
+        return obj;
+    }
+
     _updateCache(id, data) {
         const existingIndex = this.cacheAccessOrder.indexOf(id);
         if (existingIndex > -1) {
@@ -122,6 +132,10 @@ class MetadataDB {
         }
 
         this.cacheAccessOrder.unshift(id);
+        // Deep freeze data before caching to prevent mutations
+        if (data) {
+            this._deepFreeze(data);
+        }
         this.memoryCache.set(id, data);
 
         if (
@@ -139,6 +153,7 @@ class MetadataDB {
                 this.cacheAccessOrder.splice(existingIndex, 1);
                 this.cacheAccessOrder.unshift(id);
             }
+            // Return reference directly - it is already frozen
             return this.memoryCache.get(id);
         }
         return undefined;
@@ -242,6 +257,8 @@ class MetadataDB {
                         this._removeFromCache(id);
                         resolve(null);
                     } else {
+                        // Freeze and cache
+                        // _updateCache handles the deep freezing
                         this._updateCache(id, record.data);
                         resolve(record.data);
                     }
@@ -292,6 +309,13 @@ class MetadataDB {
                         records = records.filter(filter);
                     }
 
+                    // Clone (if needed by consumer) but better to freeze here too?
+                    // For getAll, we'll just freeze them all to match the 'immutable' contract
+                    if (records) {
+                        records.forEach((r) => {
+                            if (r && r.data) this._deepFreeze(r.data);
+                        });
+                    }
                     resolve(records);
                 };
 
@@ -348,8 +372,9 @@ class MetadataDB {
                                 results.set(id, null);
                                 this._updateCache(id, null);
                             } else {
-                                results.set(id, record.data);
+                                // _updateCache handles the deep freezing
                                 this._updateCache(id, record.data);
+                                results.set(id, record.data);
                             }
                         };
                     }
@@ -365,11 +390,14 @@ class MetadataDB {
 
     async put(id, data, type) {
         try {
-            this._updateCache(id, data);
+            // Clone data to prevent external mutations from affecting cache/queue
+            // AND freeze our copy so it matches the read-only contract
+            const clonedData = structuredClone(data);
+            this._updateCache(id, clonedData); // This will freeze it
 
             this.writeQueue.set(id, {
                 id,
-                data,
+                data: clonedData,
                 type,
                 timestamp: Date.now(),
             });
@@ -485,7 +513,7 @@ class MetadataDB {
                 );
 
                 transaction.oncomplete = () => {
-                    this._updateCache(id, data);
+                    this._updateCache(id, record.data);
                     resolve();
                 };
 
