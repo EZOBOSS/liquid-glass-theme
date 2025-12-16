@@ -10,10 +10,13 @@
     class NotificationsPlugin {
         static CONFIG = {
             SEEN_CACHE_KEY: "notifications_seen",
+            GRACE_PERIOD_MS: 7 * 24 * 60 * 60 * 1000, // 7 days
+            MAX_SEEN_ENTRIES: 100, // LRU eviction threshold
         };
 
         constructor() {
             this.notifications = [];
+            // Map<id, timestamp> - stores when each notification was marked as seen
             this.seenNotifications = this.loadSeenState();
             this.metadataDB = window.MetadataDB;
             this.init();
@@ -33,12 +36,27 @@
                 }
             });
 
-            // Listen for storage changes (in case upcoming list updates cache)
-            window.addEventListener("storage", (e) => {
-                if (e.key === NotificationsPlugin.CONFIG.CACHE_KEY) {
-                    this.updateNotifications();
-                }
+            // Subscribe to MetadataDB changes (reactive updates)
+            this._updateDebounceTimer = null;
+            this.metadataDB.subscribe("*", (id, data, changeType) => {
+                this._onMetadataChange(id, data, changeType);
             });
+        }
+
+        _onMetadataChange(id, data, changeType) {
+            // Only react to series/movie changes
+            if (changeType !== "put") return;
+            if (!data || (data.type !== "series" && data.type !== "movie"))
+                return;
+
+            // Debounce rapid updates (e.g., batch watch state sync)
+            if (this._updateDebounceTimer) {
+                clearTimeout(this._updateDebounceTimer);
+            }
+            this._updateDebounceTimer = setTimeout(() => {
+                this._updateDebounceTimer = null;
+                this.updateNotifications();
+            }, 300);
         }
 
         toggleBellVisibility() {
@@ -58,18 +76,50 @@
                 const raw = localStorage.getItem(
                     NotificationsPlugin.CONFIG.SEEN_CACHE_KEY
                 );
-                return raw ? new Set(JSON.parse(raw)) : new Set();
+                if (!raw) return new Map();
+
+                const parsed = JSON.parse(raw);
+
+                // Handle legacy format (array of IDs) - migrate to Map with current timestamp
+                if (Array.isArray(parsed)) {
+                    const now = Date.now();
+                    const migrated = new Map(parsed.map((id) => [id, now]));
+                    // Save migrated format
+                    this.seenNotifications = migrated;
+                    this.saveSeenState();
+                    return migrated;
+                }
+
+                // New format: object { id: timestamp }
+                return new Map(Object.entries(parsed));
             } catch {
-                return new Set();
+                return new Map();
             }
         }
 
         saveSeenState() {
             try {
+                // LRU eviction: if we exceed max entries, remove oldest ones
+                if (
+                    this.seenNotifications.size >
+                    NotificationsPlugin.CONFIG.MAX_SEEN_ENTRIES
+                ) {
+                    const entries = [...this.seenNotifications.entries()];
+                    // Sort by timestamp ascending (oldest first)
+                    entries.sort((a, b) => a[1] - b[1]);
+                    // Keep only the newest MAX_SEEN_ENTRIES
+                    const toKeep = entries.slice(
+                        -NotificationsPlugin.CONFIG.MAX_SEEN_ENTRIES
+                    );
+                    this.seenNotifications = new Map(toKeep);
+                }
+
                 requestIdleCallback(() => {
+                    // Serialize Map as object { id: timestamp }
+                    const obj = Object.fromEntries(this.seenNotifications);
                     localStorage.setItem(
                         NotificationsPlugin.CONFIG.SEEN_CACHE_KEY,
-                        JSON.stringify([...this.seenNotifications])
+                        JSON.stringify(obj)
                     );
                 });
             } catch (e) {
@@ -79,7 +129,7 @@
 
         markAsSeen(id) {
             if (!this.seenNotifications.has(id)) {
-                this.seenNotifications.add(id);
+                this.seenNotifications.set(id, Date.now());
                 this.saveSeenState();
 
                 // Update the isSeen property in the notifications array
@@ -106,9 +156,10 @@
 
             if (unseenNotifications.length === 0) return;
 
+            const now = Date.now();
             // Mark each as seen
             unseenNotifications.forEach((notif) => {
-                this.seenNotifications.add(notif.id);
+                this.seenNotifications.set(notif.id, now);
                 notif.isSeen = true;
 
                 // Visually mark as seen
@@ -304,10 +355,15 @@
             const currentIds = new Set(notifications.map((n) => n.id));
             const previousSize = this.seenNotifications.size;
 
-            // Filter seenNotifications to only include those currently in the list
-            this.seenNotifications = new Set(
-                [...this.seenNotifications].filter((id) => currentIds.has(id))
-            );
+            // Grace period pruning: Only delete if NOT in current list AND older than grace period
+            for (const [id, timestamp] of this.seenNotifications) {
+                if (
+                    !currentIds.has(id) &&
+                    now - timestamp > NotificationsPlugin.CONFIG.GRACE_PERIOD_MS
+                ) {
+                    this.seenNotifications.delete(id);
+                }
+            }
 
             if (this.seenNotifications.size !== previousSize) {
                 this.saveSeenState();

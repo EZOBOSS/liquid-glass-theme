@@ -197,7 +197,7 @@ async function getMetadata(id, type) {
                 meta = data.meta;
 
                 if (meta) {
-                    console.log(`[ETB] Fetched ${id} from API`, meta.type);
+                    console.log(`[ETB] Fetched ${id}: ${meta.name} from API`);
                     // Save raw meta to DB with type for expiration logic
                     await db.put(id, meta, type);
                 }

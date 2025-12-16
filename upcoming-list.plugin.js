@@ -42,6 +42,9 @@
             this.currentDataSignature = null;
             this.metadataDB = window.MetadataDB;
 
+            // Track when watch state was last synced per series (seriesId -> timestamp)
+            this.lastWatchStateSync = new Map();
+
             this.init();
         }
 
@@ -302,9 +305,24 @@
             return false;
         }
 
+        _getLibraryItemMtime(seriesId) {
+            const items = this._getLibraryItems();
+            if (!items) return 0;
+            return items[seriesId]?._mtime || 0;
+        }
+
         async _syncWatchStateToDB(episodesBySeries) {
             for (const [seriesId, episodes] of episodesBySeries) {
                 try {
+                    // Check if library item has changed since last sync
+                    const libMtime = this._getLibraryItemMtime(seriesId);
+                    const lastSync = this.lastWatchStateSync.get(seriesId);
+
+                    if (lastSync && libMtime && lastSync >= libMtime) {
+                        // Library hasn't changed since we last synced this series
+                        continue;
+                    }
+
                     const rawMeta = await this.metadataDB.get(seriesId);
                     if (!rawMeta?.videos) continue;
 
@@ -335,6 +353,9 @@
                             `[UpcomingReleases] Updated ${episodes.length} episodes for ${seriesId}`
                         );
                     }
+
+                    // Record that we've synced this series at this time
+                    this.lastWatchStateSync.set(seriesId, Date.now());
                 } catch (err) {
                     console.warn(
                         `[UpcomingReleases] Failed to update ${seriesId}:`,

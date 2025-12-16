@@ -14,7 +14,7 @@ class MetadataDB {
         CACHE_TTL_SERIES: 14 * 24 * 60 * 60 * 1000, // 14 days for series
         CACHE_TTL_NEW_MOVIE: 14 * 24 * 60 * 60 * 1000, // 14 days for new movies
         MEMORY_CACHE_SIZE: 500, // Max items in memory cache
-        BATCH_DELAY: 50, // ms to wait before flushing batch writes
+        BATCH_DELAY: 250, // ms to wait before flushing batch writes
     };
 
     constructor() {
@@ -32,6 +32,9 @@ class MetadataDB {
 
         // Pre-calculate current year for TTL checks
         this.currentYear = new Date().getFullYear();
+
+        // Pub/Sub: subscribers per ID (or '*' for all changes)
+        this.subscribers = new Map();
     }
 
     async init() {
@@ -167,6 +170,56 @@ class MetadataDB {
         this.memoryCache.delete(id);
     }
 
+    subscribe(id, callback) {
+        if (!this.subscribers.has(id)) {
+            this.subscribers.set(id, new Set());
+        }
+        this.subscribers.get(id).add(callback);
+
+        // Return unsubscribe function
+        return () => {
+            const subs = this.subscribers.get(id);
+            if (subs) {
+                subs.delete(callback);
+                if (subs.size === 0) {
+                    this.subscribers.delete(id);
+                }
+            }
+        };
+    }
+
+    _notifySubscribers(id, data, changeType) {
+        // Notify specific ID subscribers
+        const idSubs = this.subscribers.get(id);
+        if (idSubs) {
+            for (const callback of idSubs) {
+                try {
+                    callback(id, data, changeType);
+                } catch (err) {
+                    console.error(
+                        "[MetadataDB] Subscriber callback error:",
+                        err
+                    );
+                }
+            }
+        }
+
+        // Notify wildcard subscribers
+        const wildcardSubs = this.subscribers.get("*");
+        if (wildcardSubs) {
+            for (const callback of wildcardSubs) {
+                try {
+                    callback(id, data, changeType);
+                } catch (err) {
+                    console.error(
+                        "[MetadataDB] Subscriber callback error:",
+                        err
+                    );
+                }
+            }
+        }
+    }
+
     _shouldExpire(record) {
         const age = Date.now() - record.timestamp;
 
@@ -188,27 +241,62 @@ class MetadataDB {
     }
 
     _hasDataChanged(existing, incoming) {
-        if (!existing || !incoming) return true;
-
-        // Quick checks on key fields that would indicate changes
-        if (existing.name !== incoming.name) return true;
-        if (existing.type !== incoming.type) return true;
-        if (existing.year !== incoming.year) return true;
-        if (existing.releaseInfo !== incoming.releaseInfo) return true;
-        if (existing.released !== incoming.released) return true;
-        if (existing.imdbRating !== incoming.imdbRating) return true;
-        if (existing.trailers !== incoming.trailers) return true;
-
-        // Check videos array length
-        const existingVideos = existing.videos;
-        const incomingVideos = incoming.videos;
-        if (Array.isArray(existingVideos) && Array.isArray(incomingVideos)) {
-            if (existingVideos.length !== incomingVideos.length) return true;
-        } else if (existingVideos !== incomingVideos) {
+        if (!existing || !incoming) {
+            console.log("[MetadataDB] One of the objects is missing");
             return true;
         }
 
-        // If we got here, data is likely identical
+        console.log("[MetadataDB] Checking for data changes:", existing.name);
+
+        const check = (field, a, b) => {
+            if (a !== b) {
+                console.log(`[MetadataDB] Change detected in "${field}":`, {
+                    existing: a,
+                    incoming: b,
+                });
+                return true;
+            }
+            return false;
+        };
+
+        if (check("name", existing.name, incoming.name)) return true;
+        if (check("type", existing.type, incoming.type)) return true;
+        if (check("year", existing.year, incoming.year)) return true;
+        if (check("releaseInfo", existing.releaseInfo, incoming.releaseInfo))
+            return true;
+        if (check("released", existing.released, incoming.released))
+            return true;
+        if (check("imdbRating", existing.imdbRating, incoming.imdbRating))
+            return true;
+        if (
+            check(
+                "trailers",
+                existing.trailers?.[0]?.source,
+                incoming.trailers?.[0]?.source
+            )
+        )
+            return true;
+
+        const existingVideos = existing.videos;
+        const incomingVideos = incoming.videos;
+
+        if (Array.isArray(existingVideos) && Array.isArray(incomingVideos)) {
+            if (existingVideos.length !== incomingVideos.length) {
+                console.log("[MetadataDB] Change detected in videos.length:", {
+                    existing: existingVideos.length,
+                    incoming: incomingVideos.length,
+                });
+                return true;
+            }
+        } else if (existingVideos !== incomingVideos) {
+            console.log("[MetadataDB] Change detected in videos reference:", {
+                existing: existingVideos,
+                incoming: incomingVideos,
+            });
+            return true;
+        }
+
+        console.log("[MetadataDB] Data is identical");
         return false;
     }
 
@@ -409,6 +497,9 @@ class MetadataDB {
                     );
                 }, MetadataDB.CONFIG.BATCH_DELAY);
             }
+
+            // Notify subscribers immediately (cache is already updated)
+            this._notifySubscribers(id, clonedData, "put");
         } catch (error) {
             console.error(
                 `[MetadataDB] Failed to queue write for ${id}:`,
@@ -514,6 +605,7 @@ class MetadataDB {
 
                 transaction.oncomplete = () => {
                     this._updateCache(id, record.data);
+                    this._notifySubscribers(id, record.data, "put");
                     resolve();
                 };
 
@@ -597,7 +689,10 @@ class MetadataDB {
                     "readwrite"
                 );
 
-                transaction.oncomplete = () => resolve();
+                transaction.oncomplete = () => {
+                    this._notifySubscribers(id, null, "delete");
+                    resolve();
+                };
                 transaction.onerror = () => {
                     console.error(
                         "[MetadataDB] Transaction error:",
