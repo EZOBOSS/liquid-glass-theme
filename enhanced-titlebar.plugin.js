@@ -12,7 +12,7 @@ const CONFIG = {
     timeout: 5000,
     updateInterval: 10000,
     concurrency: 4,
-    OBSERVER_MARGIN: "2000px 0px",
+    OBSERVER_MARGIN: "2000px 2000px",
 };
 let db;
 const WORKER_CODE = `
@@ -454,7 +454,7 @@ const logoLazyObserver = new IntersectionObserver(
         });
     },
     {
-        rootMargin: "1000px 0px", // preload early for smooth load
+        rootMargin: "1000px 2000px", // preload early for smooth load
         threshold: 0.01,
     }
 );

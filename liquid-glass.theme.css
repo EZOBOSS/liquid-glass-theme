@@ -665,6 +665,11 @@ html body {
     display: flex;
     gap: 8px;
     z-index: 4;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+.hero-indicators.dim {
+    opacity: 0;
 }
 
 .hero-indicator {

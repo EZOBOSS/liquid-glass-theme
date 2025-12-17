@@ -138,6 +138,8 @@
 .notification-item:hover {
     background-color: rgba(255, 255, 255, 0.1) !important;
     transform: scale(1.02);
+    filter: grayscale(0) !important;
+    opacity: 1 !important;
 }
 
 /* Mark as seen on hover logic handled by JS, but visual feedback here */
@@ -187,7 +189,7 @@
     object-fit: contain;
     object-position: center;
     margin-right: 12px;
-    opacity: 0.3;
+    opacity: 0.7;
     z-index: -1;
     padding: 2.5px;
 }
@@ -234,24 +236,23 @@
 
 .genre-badge {
     display: block;
-    width: calc(100% - 0px);
     padding: 2px 4px;
-    border-radius: 0 0 10px 10px;
+    border-radius: 5px;
     font-size: 8px;
     font-weight: 600;
     color: white;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    top: 6px;
+    right: 6px;
     backdrop-filter: blur(22px) saturate(2);
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: 1.2;
+    width: fit-content;
 }
 
 .empty-state {

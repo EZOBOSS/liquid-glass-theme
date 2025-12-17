@@ -36,6 +36,12 @@
             this.abortController = null;
             this.recentSearchesCache = null;
 
+            this.recentSearchesCache = null;
+
+            // Text measurement for smart ghost text
+            this.measureCanvas = document.createElement("canvas");
+            this.measureCtx = this.measureCanvas.getContext("2d");
+
             this.init();
         }
 
@@ -58,13 +64,16 @@
                             <circle cx="11" cy="11" r="8"/>
                             <path d="M21 21l-4.35-4.35"/>
                         </svg>
-                        <input 
-                            type="text" 
-                            class="spotlight-input" 
-                            placeholder="Search movies and series..."
-                            autocomplete="off"
-                            spellcheck="false"
-                        />
+                        <div class="spotlight-input-container">
+                            <div class="spotlight-ghost"></div>
+                            <input 
+                                type="text" 
+                                class="spotlight-input" 
+                                placeholder="Search movies and series..."
+                                autocomplete="off"
+                                spellcheck="false"
+                            />
+                        </div>
                         <span class="spotlight-shortcut-hint">ESC</span>
                     </div>
                     <div class="spotlight-results"></div>
@@ -74,6 +83,7 @@
             document.body.appendChild(this.overlay);
 
             this.input = this.overlay.querySelector(".spotlight-input");
+            this.ghost = this.overlay.querySelector(".spotlight-ghost");
             this.resultsContainer =
                 this.overlay.querySelector(".spotlight-results");
         }
@@ -106,6 +116,7 @@
             // Input handling with debounce
             this.input.addEventListener("input", () => {
                 this.handleSearch();
+                this.updateGhostText();
             });
 
             // Keyboard navigation in results
@@ -205,6 +216,7 @@
 
             // Show recent searches when opening
             this.showRecentSearches();
+            this.updateGhostText();
 
             setTimeout(() => {
                 this.input.focus();
@@ -244,6 +256,7 @@
                 this.showRecentSearches();
                 this.movieResults = [];
                 this.seriesResults = [];
+                this.updateGhostText();
                 return;
             }
 
@@ -497,6 +510,98 @@
             `;
         }
 
+        updateGhostText() {
+            if (!this.input || !this.ghost) return;
+
+            const query = this.input.value;
+
+            // Fast reset
+            if (!query) {
+                if (this._ghostActive) {
+                    this.ghost.textContent = "";
+                    this.input.style.paddingLeft = "";
+                    this._ghostActive = false;
+                }
+                return;
+            }
+
+            const results = this.getCurrentColumnResults();
+            const item = results?.[this.selectedIndex];
+            const selectedTitle = item?.name;
+
+            if (!selectedTitle) {
+                if (this._ghostActive) {
+                    this.ghost.textContent = "";
+                    this.input.style.paddingLeft = "";
+                    this._ghostActive = false;
+                }
+                return;
+            }
+
+            // Cache lowercase versions
+            const queryLower = query.toLowerCase();
+            const titleLower = selectedTitle.toLowerCase();
+
+            const matchIndex = titleLower.indexOf(queryLower);
+            if (matchIndex === -1) {
+                if (this._ghostActive) {
+                    this.ghost.textContent = "";
+                    this.input.style.paddingLeft = "";
+                    this._ghostActive = false;
+                }
+                return;
+            }
+
+            const prefix = selectedTitle.slice(0, matchIndex);
+            const suffix = selectedTitle.slice(matchIndex + query.length);
+
+            // ---- TEXT WIDTH CACHE ----
+            this._widthCache ??= new Map();
+            const font = (this._ghostFont ??=
+                "400 20px 'Open Sans', sans-serif");
+
+            let prefixWidth = this._widthCache.get(prefix);
+            if (prefixWidth == null) {
+                prefixWidth = this.getTextWidth(prefix, font);
+                this._widthCache.set(prefix, prefixWidth);
+            }
+
+            const padding = `${prefixWidth}px`;
+            if (this.input.style.paddingLeft !== padding) {
+                this.input.style.paddingLeft = padding;
+            }
+
+            // Avoid rebuilding HTML if unchanged
+            const html =
+                `<span style="opacity:.35">${this.escapeHTML(prefix)}</span>` +
+                `<span style="visibility:hidden">${this.escapeHTML(
+                    query
+                )}</span>` +
+                `<span style="opacity:.35">${this.escapeHTML(suffix)}</span>`;
+
+            if (this._lastGhostHTML !== html) {
+                this.ghost.innerHTML = html;
+                this._lastGhostHTML = html;
+            }
+
+            this._ghostActive = true;
+        }
+
+        escapeHTML(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        getTextWidth(text, font) {
+            if (!this.measureCtx) return 0;
+            this.measureCtx.font = font || getComputedStyle(this.input).font;
+            return this.measureCtx.measureText(text).width;
+        }
+
         updateSelection() {
             const items = this.resultsContainer.querySelectorAll(
                 ".spotlight-result-item"
@@ -509,6 +614,7 @@
                     itemIndex === this.selectedIndex;
                 item.classList.toggle("selected", isSelected);
             });
+            this.updateGhostText();
         }
 
         getCurrentColumnResults() {
@@ -642,6 +748,7 @@
             );
 
             this.saveRecentSearches(trimmed);
+            this.showRecentSearches(); // Refresh list if visible
         }
 
         removeRecentSearch(id) {
