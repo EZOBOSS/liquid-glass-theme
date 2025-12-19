@@ -908,6 +908,8 @@
                 fadeOutPromise,
             ]);
 
+            this.latestData = upcoming;
+
             // Data Signature Check
             const newSignature = upcoming
                 .map((i) => i.id + i.releaseText + (i.watched || ""))
@@ -1010,6 +1012,7 @@
                 }
 
                 this.currentDataSignature = newSignature;
+                this.renderTimeline(container, upcoming);
                 this.hideLoading(container);
 
                 // Re-init observer for new/moved elements
@@ -1028,6 +1031,8 @@
 
             this.currentMode = mode;
             this.currentDataSignature = newSignature;
+
+            this.renderTimeline(container, upcoming);
 
             const groupsHtml = groupsHtmlArray.map((g) => g.html).join("");
 
@@ -1299,6 +1304,163 @@
             });
 
             return releasesByDate;
+        }
+
+        renderTimeline(container, upcoming) {
+            let timeline = container.querySelector(".upcoming-timeline");
+            if (!timeline) {
+                timeline = document.createElement("div");
+                timeline.className = "upcoming-timeline";
+                container.insertBefore(
+                    timeline,
+                    container.querySelector(".upcoming-toggle-bar")
+                        ?.nextSibling || container.firstChild
+                );
+            }
+
+            const now = Date.now();
+            const halfWindow = 3.5 * 24 * 60 * 60 * 1000;
+            const timelineStart = now - halfWindow;
+            const timelineEnd = now + halfWindow;
+            const totalDuration = timelineEnd - timelineStart;
+
+            const getX = (timestamp) => {
+                const ts =
+                    typeof timestamp === "string"
+                        ? new Date(timestamp).getTime()
+                        : timestamp;
+                return ((ts - timelineStart) / totalDuration) * 100;
+            };
+
+            // Generate day background labels
+            let daysHtml = "";
+            const startOfDay = new Date(timelineStart);
+            startOfDay.setHours(0, 0, 0, 0);
+
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayTime = todayStart.getTime();
+
+            for (
+                let d = startOfDay.getTime();
+                d <= timelineEnd;
+                d += 24 * 60 * 60 * 1000
+            ) {
+                const dayStart = Math.max(d, timelineStart);
+                const dayEnd = Math.min(d + 24 * 60 * 60 * 1000, timelineEnd);
+                if (dayStart < dayEnd) {
+                    const x = getX(dayStart);
+                    const width = getX(dayEnd) - x;
+                    const date = new Date(d);
+                    const dayName = date.toLocaleDateString("en-US", {
+                        weekday: "long",
+                    });
+                    const isToday = d === todayTime;
+                    const dayClass = isToday ? "current-day" : "";
+                    daysHtml += `
+                        <div class="timeline-day-bg ${dayClass}" style="left: ${x}%; width: ${width}%">
+                            <span class="day-name-bg">${dayName}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            // Generate ticks every 12 hours
+            let ticksHtml = "";
+            const startOfHalfDay = new Date(timelineStart);
+            startOfHalfDay.setHours(
+                startOfHalfDay.getHours() < 12 ? 0 : 12,
+                0,
+                0,
+                0
+            );
+
+            for (
+                let t = startOfHalfDay.getTime();
+                t <= timelineEnd;
+                t += 12 * 60 * 60 * 1000
+            ) {
+                const x = getX(t);
+                if (x >= -5 && x <= 105) {
+                    const date = new Date(t);
+                    const label =
+                        date.getHours() === 0
+                            ? date.toLocaleDateString("en-US", {
+                                  weekday: "short",
+                                  day: "numeric",
+                              })
+                            : "12h";
+                    ticksHtml += `<div class="timeline-tick" style="left: ${x}%"><span class="tick-label">${label}</span></div>`;
+                }
+            }
+
+            // Current time line (Fixed at 50% in CSS)
+            const nowLineHtml = `<div class="timeline-now-line" style="left: 50%"><span class="now-label">NOW</span></div>`;
+
+            // Release items (fetch items within or near the window)
+            const releases = [];
+            upcoming.forEach((item) => {
+                const checkRelease = (dateStr, isWatched = false) => {
+                    if (!dateStr) return;
+                    const ts = new Date(dateStr).getTime();
+                    if (ts >= timelineStart && ts <= timelineEnd) {
+                        releases.push({
+                            ...item,
+                            releaseTs: ts,
+                            isWatched: isWatched,
+                        });
+                    }
+                };
+
+                if (Array.isArray(item.videos)) {
+                    item.videos.forEach((v) => {
+                        if (v.released) checkRelease(v.released, v.watched);
+                    });
+                } else if (item.releaseDate) {
+                    checkRelease(item.releaseDate, item.watched);
+                }
+            });
+
+            // De-duplicate releases (showing multiple episodes of same series as one portrait at the earliest time in window)
+            const uniqueReleases = [];
+            const seenIds = new Set();
+            releases
+                .sort((a, b) => a.releaseTs - b.releaseTs)
+                .forEach((r) => {
+                    if (!seenIds.has(r.id)) {
+                        seenIds.add(r.id);
+                        uniqueReleases.push(r);
+                    }
+                });
+
+            const itemsHtml = uniqueReleases
+                .map((r) => {
+                    const x = getX(r.releaseTs);
+                    const isFuture = r.releaseTs > now;
+                    const watchedClass = r.isWatched ? "watched" : "";
+                    const futureClass = isFuture ? "future" : "";
+                    const checkmark = r.isWatched
+                        ? '<div class="watched-checkmark">✓</div>'
+                        : "";
+                    return `
+                    <a href="${r.href}" class="timeline-item ${watchedClass} ${futureClass}" style="left: ${x}%" title="${r.title}">
+                        <img src="${r.poster}" alt="${r.title}" />
+                        ${checkmark}
+                    </a>
+                `;
+                })
+                .join("");
+
+            timeline.innerHTML = `
+                <div class="timeline-track">
+                    ${daysHtml}
+                    ${ticksHtml}
+                    ${nowLineHtml}
+                    <div class="timeline-items">
+                        ${itemsHtml}
+                    </div>
+                </div>
+            `;
         }
 
         buildCalendar(upcoming) {
