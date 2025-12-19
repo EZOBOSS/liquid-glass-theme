@@ -71,7 +71,7 @@
     width: 100%;
     height: 100%;
     position: relative;
-    padding: 1rem;
+    padding: 1px;
     box-sizing: border-box;
     z-index: 10;
     background-image: linear-gradient(
@@ -212,8 +212,8 @@
     scroll-behavior: smooth;
     transition: all 0.3s ease;
     /* background-color: rgba(0, 0, 0, 0.66); */
-    border-radius: 20px;
-    box-shadow: var(--box-shadow);
+    /*  border-radius: 20px;
+    box-shadow: var(--box-shadow); */
     padding: 10px;
 }
 
@@ -292,8 +292,8 @@
     padding: 12px 8px;
     overflow: visible;
     scrollbar-width: none;
-    /*  background: linear-gradient(45deg, #00000091, #000000b5); */
-    border-radius: 20px;
+    background: linear-gradient(45deg, #00000091, #000000b5);
+    border-radius: 15px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
     max-height: 80vh;
@@ -896,9 +896,9 @@
     min-width: 200px;
     z-index: 16;
     /* background: linear-gradient(45deg, #000000b5, #00000082); */
-    border-radius: 20px;
+    /*  border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3));
+    box-shadow: var(--box-shadow, 0 8px 32px rgba(0, 0, 0, 0.3)); */
     padding: 0px 16px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: visible;
@@ -1031,7 +1031,7 @@
     position: absolute;
     top: -4px;
     right: -4px;
-    z-index: 20;
+    z-index: 45;
     width: 14px;
     height: 14px;
     overflow: visible;

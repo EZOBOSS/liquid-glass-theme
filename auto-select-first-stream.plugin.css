@@ -1,0 +1,58 @@
+.auto-select-toggle {
+    position: fixed;
+    bottom: 45px;
+    left: 740px;
+    z-index: 9999;
+    padding: 20px 24px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 100px;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.auto-select-toggle:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.auto-select-toggle.is-enabled {
+    border-color: rgba(78, 185, 81, 0.5);
+    box-shadow: 0 8px 32px rgba(78, 185, 81, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.auto-select-toggle.is-enabled .status-dot {
+    background: #4eb951;
+    box-shadow: 0 0 8px #4eb951;
+}
+
+.auto-select-toggle.is-disabled {
+    opacity: 0.8;
+}
+
+.auto-select-toggle.is-disabled .status-dot {
+    background: #f44336;
+    box-shadow: 0 0 8px #f44336;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
