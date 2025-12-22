@@ -1148,7 +1148,6 @@
                                 return;
 
                             const fadeTimer = setTimeout(() => {
-                                console.log(this.dom.indicators);
                                 this.dom.indicators.classList.add("dim");
                                 this.state.visibleCards.forEach((c) => {
                                     if (c !== card) c.classList.add("dim");

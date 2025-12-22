@@ -14,7 +14,7 @@
             CONTAINER_SELECTOR:
                 ".meta-row-container-xtlB1 .meta-items-container-qcuUA",
             SCROLL: {
-                FRICTION: 0.97,
+                FRICTION: 0.98,
                 EASE: 0.02,
                 WHEEL_FORCE: 0.4,
                 MIN_VELOCITY: 0.05,
@@ -172,115 +172,70 @@
         }
 
         globalTick() {
-            if (this.activeScrolls.size === 0) {
+            const active = this.activeScrolls;
+            if (active.size === 0) {
                 this.isLoopRunning = false;
                 return;
             }
 
             const { FRICTION, EASE, MIN_VELOCITY, THRESHOLD } =
                 InfiniteScrollPlugin.CONFIG.SCROLL;
-            const updates = [];
 
-            // Phase 1: Read & Calculate (No DOM writes here)
-            for (const state of this.activeScrolls) {
-                const {
-                    track,
-                    widthCache,
-                    scrollTarget,
-                    velocity,
-                    currentScroll,
-                } = state;
+            // Phase 1: Calculate (store results on state)
+            for (const s of active) {
+                const wc = s.widthCache;
+                const maxScroll = wc.scrollWidth - wc.clientWidth;
+                const diff = s.scrollTarget - s.currentScroll;
+                const newVelocity = s.velocity * FRICTION;
 
-                const maxScroll =
-                    widthCache.scrollWidth - widthCache.clientWidth;
-
-                const currentLeft = currentScroll;
-                const diff = state.scrollTarget - currentLeft;
-
-                let newVelocity = state.velocity * FRICTION;
-                let newTarget = state.scrollTarget + newVelocity;
-
-                // Calculate next position
-                const nextPos = Math.max(
+                s._nextPos = Math.max(
                     0,
-                    Math.min(currentLeft + diff * EASE, maxScroll)
+                    Math.min(s.currentScroll + diff * EASE, maxScroll)
                 );
-
-                // Check if we should stop
-                const isStopped =
+                s._newVelocity = newVelocity;
+                s._newTarget = s.scrollTarget + newVelocity;
+                s._isStopped =
                     Math.abs(diff) <= THRESHOLD &&
                     Math.abs(newVelocity) <= MIN_VELOCITY;
-
-                updates.push({
-                    state,
-                    nextPos,
-                    newVelocity,
-                    newTarget,
-                    isStopped,
-                    maxScroll,
-                });
+                s._maxScroll = maxScroll;
             }
 
-            // Phase 2: Write (No DOM reads here)
-            for (const update of updates) {
-                const {
-                    state,
-                    nextPos,
-                    newVelocity,
-                    newTarget,
-                    isStopped,
-                    maxScroll,
-                } = update;
+            // Phase 2: Write (read from state)
+            for (const s of active) {
+                const wc = s.widthCache;
 
-                state.track.scrollLeft = nextPos; // DOM Write
-                state.currentScroll = nextPos; // Update cache
-                state.velocity = newVelocity;
-                state.scrollTarget = newTarget;
+                s.track.scrollLeft = s._nextPos;
+                s.currentScroll = s._nextPos;
+                s.velocity = s._newVelocity;
+                s.scrollTarget = s._newTarget;
 
-                // Update indicator with cached values to avoid it reading DOM
-                state.scrollIndicator &&
-                    this.updateScrollIndicator(
-                        state.track,
-                        state.scrollIndicator,
-                        {
-                            scrollLeft: nextPos,
-                            scrollWidth: state.widthCache.scrollWidth,
-                            clientWidth: state.widthCache.clientWidth,
-                        }
-                    );
+                if (s.scrollIndicator) {
+                    this.updateScrollIndicator(s.track, s.scrollIndicator, {
+                        scrollLeft: s._nextPos,
+                        scrollWidth: wc.scrollWidth,
+                        clientWidth: wc.clientWidth,
+                        totalItems: s.totalItems,
+                    });
+                }
 
-                if (isStopped) {
-                    this.activeScrolls.delete(state);
-                    state.velocity = 0;
-                    state.scrollTarget = state.track.scrollLeft;
-                    state.currentScroll = state.track.scrollLeft; // Ensure sync
-                } else {
-                    // Check for fetch trigger
-                    const preloadOffset = state.widthCache.clientWidth * 2;
-                    if (
-                        nextPos + state.widthCache.clientWidth >=
-                        maxScroll - preloadOffset
-                    ) {
-                        if (!state.disableFetch) {
-                            this.fetchMoreItems(
-                                state.track,
-                                state.type,
-                                state.catalog
-                            )
-                                .then(() => {
-                                    // Update widths after fetch
-                                    state.widthCache.scrollWidth =
-                                        state.track.scrollWidth;
-                                    state.widthCache.clientWidth =
-                                        state.track.clientWidth;
-                                })
-                                .catch(console.error);
-                        }
-                    }
+                if (s._isStopped) {
+                    active.delete(s);
+                } else if (
+                    !s.disableFetch &&
+                    !s.isFetching &&
+                    s._nextPos + wc.clientWidth >=
+                        s._maxScroll - wc.clientWidth * 2
+                ) {
+                    s.isFetching = true;
+                    this.fetchMoreItems(s.track, s.type, s.catalog)
+                        .catch(console.error)
+                        .finally(() => {
+                            s.isFetching = false;
+                        });
                 }
             }
 
-            if (this.activeScrolls.size > 0) {
+            if (active.size > 0) {
                 requestAnimationFrame(this.globalTick);
             } else {
                 this.isLoopRunning = false;
@@ -353,6 +308,7 @@
             // Initialize state tracking for preventing redundant updates
             indicator._lastState = {
                 currentItem: -1,
+                isHidden: null,
                 atStart: null,
                 atEnd: null,
                 totalItems: 0,
@@ -379,7 +335,10 @@
             const scrollLeft = values ? values.scrollLeft : track.scrollLeft;
             const scrollWidth = values ? values.scrollWidth : track.scrollWidth;
             const clientWidth = values ? values.clientWidth : track.clientWidth;
-            const childrenLength = track.children.length;
+            const childrenLength =
+                values && values.totalItems !== undefined
+                    ? values.totalItems
+                    : track.children.length;
 
             // Use cached element references (no querySelector needed!)
             const leftArrow = indicator._leftArrow;
@@ -388,9 +347,8 @@
             const lastState = indicator._lastState;
 
             // Read current class states
-            const isIndicatorHidden = indicator.classList.contains(
-                "scroll-indicator-hidden"
-            );
+            // Read current visibility state from cache
+            const isIndicatorHidden = lastState.isHidden;
 
             const threshold = 5;
             const maxScroll = scrollWidth - clientWidth;
@@ -398,8 +356,9 @@
             // PHASE 2: CALCULATE (no DOM access)
             // Hide entire indicator if there's no scrollable content
             if (maxScroll <= 0) {
-                if (!isIndicatorHidden) {
+                if (isIndicatorHidden !== true) {
                     indicator.classList.add("scroll-indicator-hidden");
+                    lastState.isHidden = true;
                 }
                 return;
             }
@@ -429,8 +388,9 @@
 
             // PHASE 3: WRITE ALL DOM CHANGES (batched writes)
             // Show indicator if it was hidden and there's scrollable content
-            if (isIndicatorHidden && !shouldHideIndicator) {
+            if (isIndicatorHidden !== false && !shouldHideIndicator) {
                 indicator.classList.remove("scroll-indicator-hidden");
+                lastState.isHidden = false;
             }
 
             // Update scroll count only if changed
@@ -466,8 +426,9 @@
             }
 
             // Hide entire indicator if both arrows are hidden
-            if (shouldHideIndicator && !isIndicatorHidden) {
+            if (shouldHideIndicator && isIndicatorHidden !== true) {
                 indicator.classList.add("scroll-indicator-hidden");
+                lastState.isHidden = true;
             }
         }
 
@@ -511,15 +472,23 @@
                     scrollWidth: track.scrollWidth,
                     clientWidth: track.clientWidth,
                 },
+                totalItems: track.children.length,
+                isFetching: false,
                 scrollIndicator,
             };
 
             const updateWidths = () => {
                 state.widthCache.scrollWidth = track.scrollWidth;
                 state.widthCache.clientWidth = track.clientWidth;
+                state.totalItems = track.children.length;
                 // Update indicator visibility when widths change
                 scrollIndicator &&
-                    this.updateScrollIndicator(track, scrollIndicator);
+                    this.updateScrollIndicator(track, scrollIndicator, {
+                        scrollLeft: track.scrollLeft,
+                        scrollWidth: state.widthCache.scrollWidth,
+                        clientWidth: state.widthCache.clientWidth,
+                        totalItems: state.totalItems,
+                    });
             };
 
             const resizeObserver = new ResizeObserver(updateWidths);
@@ -562,29 +531,32 @@
             const handleWheel = (e) => {
                 e.preventDefault();
 
-                const atStart = track.scrollLeft <= 0 && e.deltaY < 0;
-                const atEnd =
-                    track.scrollLeft + state.widthCache.clientWidth >=
-                        state.widthCache.scrollWidth && e.deltaY > 0;
+                const scrollLeft = state.currentScroll;
+                const wc = state.widthCache;
 
-                if (atStart || atEnd) return;
+                // Boundary check
+                if (
+                    (scrollLeft <= 0 && e.deltaY < 0) ||
+                    (scrollLeft + wc.clientWidth >= wc.scrollWidth &&
+                        e.deltaY > 0)
+                ) {
+                    return;
+                }
 
+                // Apply velocity (clamp in one expression)
                 const { WHEEL_FORCE, MAX_VELOCITY } =
                     InfiniteScrollPlugin.CONFIG.SCROLL;
-
-                state.velocity += e.deltaY * WHEEL_FORCE;
-                state.velocity = Math.max(
-                    -MAX_VELOCITY,
-                    Math.min(state.velocity, MAX_VELOCITY)
+                state.velocity = Math.min(
+                    MAX_VELOCITY,
+                    Math.max(
+                        -MAX_VELOCITY,
+                        state.velocity + e.deltaY * WHEEL_FORCE
+                    )
                 );
 
-                // Add to active loop
+                // Start loop if not active
                 if (!this.activeScrolls.has(state)) {
-                    // Reset target to current position to avoid jumps if re-engaging
-                    state.scrollTarget = track.scrollLeft;
-                    state.currentScroll = track.scrollLeft; // Sync cache
                     this.activeScrolls.add(state);
-
                     if (!this.isLoopRunning) {
                         this.isLoopRunning = true;
                         requestAnimationFrame(this.globalTick);
@@ -628,14 +600,25 @@
                     }
 
                     // Throttle indicator updates to once per frame
-                    if (!rafPending) {
+                    // Only if we're not currently in the physics loop (which handles it)
+                    if (!this.activeScrolls.has(state) && !rafPending) {
                         rafPending = true;
                         requestAnimationFrame(() => {
-                            scrollIndicator &&
-                                this.updateScrollIndicator(
-                                    track,
-                                    scrollIndicator
-                                );
+                            if (!this.activeScrolls.has(state)) {
+                                scrollIndicator &&
+                                    this.updateScrollIndicator(
+                                        track,
+                                        scrollIndicator,
+                                        {
+                                            scrollLeft: track.scrollLeft,
+                                            scrollWidth:
+                                                state.widthCache.scrollWidth,
+                                            clientWidth:
+                                                state.widthCache.clientWidth,
+                                            totalItems: state.totalItems,
+                                        }
+                                    );
+                            }
                             rafPending = false;
                         });
                     }
@@ -880,9 +863,6 @@
         }
 
         async fetchMoreItems(track, type = "movie", catalog = "top") {
-            if (track.dataset.loading === "true") return;
-            track.dataset.loading = "true";
-
             console.log("[InfiniteScrollPlugin] Fetching more items...");
 
             try {
@@ -930,10 +910,8 @@
                     .createContextualFragment(html);
 
                 requestAnimationFrame(() => {
-                    track.appendChild(fragment);
-
-                    // Observe all newly added images for lazy loading
-                    const newImages = track.querySelectorAll(
+                    // Observe all newly added images for lazy loading BEFORE appending
+                    const newImages = fragment.querySelectorAll(
                         ".lazy-load-img[data-src]"
                     );
                     const observer = this.trackObservers.get(track);
@@ -942,11 +920,21 @@
                             observer.observe(img);
                         });
                     }
+
+                    track.appendChild(fragment);
+
+                    // Update totalItems in state if this track is tracked
+                    const state = Array.from(this.activeScrolls).find(
+                        (s) => s.track === track
+                    );
+                    if (state) {
+                        state.widthCache.scrollWidth = track.scrollWidth;
+                        state.widthCache.clientWidth = track.clientWidth;
+                        state.totalItems = track.children.length;
+                    }
                 });
             } catch (err) {
                 console.error("[InfiniteScrollPlugin] Fetch error", err);
-            } finally {
-                track.dataset.loading = "false";
             }
         }
     }
