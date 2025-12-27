@@ -1958,6 +1958,7 @@ body.ghost-clicking #heroLoadingScreen {
 /* card margin */
 .meta-items-container-qcuUA {
     height: 28rem !important;
+    contain: layout style;
 }
 .meta-items-container-qcuUA .meta-item-container-Tj0Ib:first-child {
     margin-left: 2rem !important;

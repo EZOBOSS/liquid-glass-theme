@@ -15,7 +15,6 @@
                 ".meta-row-container-xtlB1 .meta-items-container-qcuUA",
             SCROLL: {
                 FRICTION: 0.98,
-                EASE: 0.02,
                 WHEEL_FORCE: 0.4,
                 MIN_VELOCITY: 0.05,
                 THRESHOLD: 0.4,
@@ -178,36 +177,36 @@
                 return;
             }
 
-            const { FRICTION, EASE, MIN_VELOCITY, THRESHOLD } =
+            const { FRICTION, MIN_VELOCITY } =
                 InfiniteScrollPlugin.CONFIG.SCROLL;
 
-            // Phase 1: Calculate (store results on state)
+            // Phase 1: Calculate (pure velocity model)
             for (const s of active) {
                 const wc = s.widthCache;
                 const maxScroll = wc.scrollWidth - wc.clientWidth;
-                const diff = s.scrollTarget - s.currentScroll;
-                const newVelocity = s.velocity * FRICTION;
 
-                s._nextPos = Math.max(
-                    0,
-                    Math.min(s.currentScroll + diff * EASE, maxScroll)
-                );
-                s._newVelocity = newVelocity;
-                s._newTarget = s.scrollTarget + newVelocity;
+                // Apply velocity directly to position
+                const nextPos = s.currentScroll + s.velocity;
+
+                // Clamp and apply friction
+                s._nextPos = Math.max(0, Math.min(nextPos, maxScroll));
+                s._newVelocity = s.velocity * FRICTION;
+
+                // Stop when velocity is negligible OR hit boundary
                 s._isStopped =
-                    Math.abs(diff) <= THRESHOLD &&
-                    Math.abs(newVelocity) <= MIN_VELOCITY;
+                    Math.abs(s._newVelocity) < MIN_VELOCITY ||
+                    s._nextPos <= 0 ||
+                    s._nextPos >= maxScroll;
                 s._maxScroll = maxScroll;
             }
 
-            // Phase 2: Write (read from state)
+            // Phase 2: Write
             for (const s of active) {
                 const wc = s.widthCache;
 
                 s.track.scrollLeft = s._nextPos;
                 s.currentScroll = s._nextPos;
                 s.velocity = s._newVelocity;
-                s.scrollTarget = s._newTarget;
 
                 if (s.scrollIndicator) {
                     this.updateScrollIndicator(s.track, s.scrollIndicator, {
@@ -219,6 +218,7 @@
                 }
 
                 if (s._isStopped) {
+                    s.velocity = 0;
                     active.delete(s);
                 } else if (
                     !s.disableFetch &&
