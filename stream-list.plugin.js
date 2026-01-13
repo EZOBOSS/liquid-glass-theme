@@ -400,10 +400,14 @@ class StreamListSorter {
                 }
             }
 
-            // Determine meter color based on size
-            const meterColor = this.SIZE_THRESHOLDS.find(
-                (t) => sizeInGB < t.max
-            ).color;
+            // Ensure sizeInGB is a valid number, default to 0
+            sizeInGB = isNaN(sizeInGB) ? 0 : sizeInGB;
+
+            // Determine meter color based on size with fallback
+            const threshold =
+                this.SIZE_THRESHOLDS.find((t) => sizeInGB < t.max) ||
+                this.SIZE_THRESHOLDS[this.SIZE_THRESHOLDS.length - 1];
+            const meterColor = threshold.color;
 
             const meterWidth = Math.min(100, sizeInGB);
             styledHTML += `<div style="display: flex; flex-direction: column; gap: 4px; width: 100px;"><span style="font-size: 1.1em; font-weight: 700; color: #fff; white-space: nowrap;">${fileSize}</span><div style="position: absolute; bottom: 20%; width: 65%; height: 5px; background: rgba(255,255,255,0.08); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.12); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);"><div style="width: ${meterWidth}%; height: 100%; background: linear-gradient(90deg, ${meterColor}cc, ${meterColor}); box-shadow: 0 0 8px ${meterColor}66; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: absolute; bottom: 0;"></div></div></div>`;
