@@ -42,13 +42,13 @@ class MetadataDB {
             await new Promise((resolve, reject) => {
                 const request = indexedDB.open(
                     MetadataDB.CONFIG.DB_NAME,
-                    MetadataDB.CONFIG.DB_VERSION
+                    MetadataDB.CONFIG.DB_VERSION,
                 );
 
                 request.onerror = () => {
                     console.error(
                         "[MetadataDB] Failed to open database:",
-                        request.error
+                        request.error,
                     );
                     reject(request.error);
                 };
@@ -60,13 +60,13 @@ class MetadataDB {
                     this.db.onerror = (event) => {
                         console.error(
                             "[MetadataDB] Database error:",
-                            event.target.error
+                            event.target.error,
                         );
                     };
 
                     this.db.onversionchange = () => {
                         console.warn(
-                            "[MetadataDB] Database version changed, closing connection"
+                            "[MetadataDB] Database version changed, closing connection",
                         );
                         this.db.close();
                         this.isReady = false;
@@ -80,14 +80,14 @@ class MetadataDB {
 
                     if (
                         !db.objectStoreNames.contains(
-                            MetadataDB.CONFIG.STORE_NAME
+                            MetadataDB.CONFIG.STORE_NAME,
                         )
                     ) {
                         const store = db.createObjectStore(
                             MetadataDB.CONFIG.STORE_NAME,
                             {
                                 keyPath: "id",
-                            }
+                            },
                         );
 
                         store.createIndex("type", "type", { unique: false });
@@ -99,7 +99,7 @@ class MetadataDB {
 
                 request.onblocked = () => {
                     console.warn(
-                        "[MetadataDB] Database upgrade blocked by other tabs"
+                        "[MetadataDB] Database upgrade blocked by other tabs",
                     );
                 };
             });
@@ -198,7 +198,7 @@ class MetadataDB {
                 } catch (err) {
                     console.error(
                         "[MetadataDB] Subscriber callback error:",
-                        err
+                        err,
                     );
                 }
             }
@@ -213,7 +213,7 @@ class MetadataDB {
                 } catch (err) {
                     console.error(
                         "[MetadataDB] Subscriber callback error:",
-                        err
+                        err,
                     );
                 }
             }
@@ -272,7 +272,7 @@ class MetadataDB {
             check(
                 "trailers",
                 existing.trailers?.[0]?.source,
-                incoming.trailers?.[0]?.source
+                incoming.trailers?.[0]?.source,
             )
         )
             return true;
@@ -300,7 +300,26 @@ class MetadataDB {
         return false;
     }
 
-    async get(id) {
+    async fetchFromApi(id, type = "movie") {
+        try {
+            const response = await fetch(
+                `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`,
+            );
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.meta || null;
+        } catch (error) {
+            console.error(
+                `[MetadataDB] Error fetching ${type} ${id} from API:`,
+                error,
+            );
+            return null;
+        }
+    }
+
+    async get(id, type = "movie") {
         try {
             // Check memory cache first
             const cached = this._getFromCache(id);
@@ -313,28 +332,37 @@ class MetadataDB {
             return await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
-                    "readonly"
+                    "readonly",
                 );
 
                 transaction.onerror = () => {
                     console.error(
                         "[MetadataDB] Transaction error:",
-                        transaction.error
+                        transaction.error,
                     );
                     reject(transaction.error);
                 };
 
                 const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
+                    MetadataDB.CONFIG.STORE_NAME,
                 );
                 const request = store.get(id);
 
-                request.onsuccess = () => {
+                request.onsuccess = async () => {
                     const record = request.result;
 
                     if (!record) {
-                        this._updateCache(id, null);
-                        resolve(null);
+                        // Not in DB, fetch from API
+                        const data = await this.fetchFromApi(id, type);
+                        if (data) {
+                            // Persist to DB and update cache
+                            this.put(id, data, type);
+                            resolve(data);
+                        } else {
+                            // Cache the failure in memory to prevent repeated API calls
+                            this._updateCache(id, null);
+                            resolve(null);
+                        }
                         return;
                     }
 
@@ -355,7 +383,7 @@ class MetadataDB {
                 request.onerror = () => {
                     console.error(
                         "[MetadataDB] Get request error:",
-                        request.error
+                        request.error,
                     );
                     reject(request.error);
                 };
@@ -373,19 +401,19 @@ class MetadataDB {
             return await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
-                    "readonly"
+                    "readonly",
                 );
 
                 transaction.onerror = () => {
                     console.error(
                         "[MetadataDB] Transaction error:",
-                        transaction.error
+                        transaction.error,
                     );
                     reject(transaction.error);
                 };
 
                 const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
+                    MetadataDB.CONFIG.STORE_NAME,
                 );
                 const request = store.getAll();
 
@@ -410,7 +438,7 @@ class MetadataDB {
                 request.onerror = () => {
                     console.error(
                         "[MetadataDB] GetAll request error:",
-                        request.error
+                        request.error,
                     );
                     reject(request.error);
                 };
@@ -441,14 +469,14 @@ class MetadataDB {
                 await new Promise((resolve, reject) => {
                     const transaction = this.db.transaction(
                         [MetadataDB.CONFIG.STORE_NAME],
-                        "readonly"
+                        "readonly",
                     );
 
                     transaction.oncomplete = () => resolve();
                     transaction.onerror = () => reject(transaction.error);
 
                     const store = transaction.objectStore(
-                        MetadataDB.CONFIG.STORE_NAME
+                        MetadataDB.CONFIG.STORE_NAME,
                     );
 
                     for (const id of uncachedIds) {
@@ -493,7 +521,7 @@ class MetadataDB {
             if (!this.writeTimer) {
                 this.writeTimer = setTimeout(() => {
                     this._flushWrites().catch((err) =>
-                        console.error("[MetadataDB] Batch write failed:", err)
+                        console.error("[MetadataDB] Batch write failed:", err),
                     );
                 }, MetadataDB.CONFIG.BATCH_DELAY);
             }
@@ -503,7 +531,7 @@ class MetadataDB {
         } catch (error) {
             console.error(
                 `[MetadataDB] Failed to queue write for ${id}:`,
-                error
+                error,
             );
         }
     }
@@ -524,20 +552,20 @@ class MetadataDB {
             await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
-                    "readwrite"
+                    "readwrite",
                 );
 
                 transaction.oncomplete = () => resolve();
                 transaction.onerror = () => {
                     console.error(
                         "[MetadataDB] Batch transaction error:",
-                        transaction.error
+                        transaction.error,
                     );
                     reject(transaction.error);
                 };
 
                 const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
+                    MetadataDB.CONFIG.STORE_NAME,
                 );
 
                 for (const record of writes) {
@@ -550,7 +578,7 @@ class MetadataDB {
                             if (
                                 !this._hasDataChanged(
                                     existing.data,
-                                    record.data
+                                    record.data,
                                 )
                             ) {
                                 // Fast path: Data is identical, keep existing data (timestamp still updates)
@@ -590,7 +618,7 @@ class MetadataDB {
         data,
         type,
         bypassChangeCheck = false,
-        preserveTimestamp = false
+        preserveTimestamp = false,
     ) {
         try {
             await this.ensureReady();
@@ -600,7 +628,7 @@ class MetadataDB {
             await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
-                    "readwrite"
+                    "readwrite",
                 );
 
                 transaction.oncomplete = () => {
@@ -612,13 +640,13 @@ class MetadataDB {
                 transaction.onerror = () => {
                     console.error(
                         "[MetadataDB] Transaction error:",
-                        transaction.error
+                        transaction.error,
                     );
                     reject(transaction.error);
                 };
 
                 const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
+                    MetadataDB.CONFIG.STORE_NAME,
                 );
 
                 // Read-modify-write
@@ -657,7 +685,7 @@ class MetadataDB {
                     putReq.onerror = () => {
                         console.error(
                             "[MetadataDB] Put request error:",
-                            putReq.error
+                            putReq.error,
                         );
                         reject(putReq.error);
                     };
@@ -686,7 +714,7 @@ class MetadataDB {
             await new Promise((resolve, reject) => {
                 const transaction = this.db.transaction(
                     [MetadataDB.CONFIG.STORE_NAME],
-                    "readwrite"
+                    "readwrite",
                 );
 
                 transaction.oncomplete = () => {
@@ -696,13 +724,13 @@ class MetadataDB {
                 transaction.onerror = () => {
                     console.error(
                         "[MetadataDB] Transaction error:",
-                        transaction.error
+                        transaction.error,
                     );
                     reject(transaction.error);
                 };
 
                 const store = transaction.objectStore(
-                    MetadataDB.CONFIG.STORE_NAME
+                    MetadataDB.CONFIG.STORE_NAME,
                 );
                 store.delete(id);
             });
@@ -728,19 +756,19 @@ class MetadataDB {
                 await new Promise((resolve, reject) => {
                     const transaction = this.db.transaction(
                         [MetadataDB.CONFIG.STORE_NAME],
-                        "readwrite"
+                        "readwrite",
                     );
 
                     transaction.oncomplete = () => {
                         console.log(
-                            `[MetadataDB] Cleaned up ${toDelete.length} expired records`
+                            `[MetadataDB] Cleaned up ${toDelete.length} expired records`,
                         );
                         resolve();
                     };
                     transaction.onerror = () => reject(transaction.error);
 
                     const store = transaction.objectStore(
-                        MetadataDB.CONFIG.STORE_NAME
+                        MetadataDB.CONFIG.STORE_NAME,
                     );
                     for (const id of toDelete) {
                         store.delete(id);
@@ -768,10 +796,10 @@ requestIdleCallback(() => {
 window.addEventListener("beforeunload", () => {
     if (window.MetadataDB?.writeTimer) {
         window.MetadataDB._flushWrites().catch((err) =>
-            console.error("[MetadataDB] Failed to flush on unload:", err)
+            console.error("[MetadataDB] Failed to flush on unload:", err),
         );
     }
     window.MetadataDB.cleanupExpired().catch((err) =>
-        console.error("[MetadataDB] Failed to cleanup on unload:", err)
+        console.error("[MetadataDB] Failed to cleanup on unload:", err),
     );
 });

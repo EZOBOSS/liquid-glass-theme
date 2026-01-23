@@ -132,7 +132,7 @@
                 try {
                     localStorage.setItem(
                         this.cacheKey(key),
-                        JSON.stringify(entry)
+                        JSON.stringify(entry),
                     );
                 } catch (e) {
                     console.warn("[UpcomingReleases] LocalStorage error:", e);
@@ -174,7 +174,7 @@
             {
                 timeout = UpcomingReleasesPlugin.CONFIG.FETCH_TIMEOUT,
                 retries = 1,
-            } = {}
+            } = {},
         ) {
             console.log("[UpcomingReleases] API Request:", url);
             let attempt = 0;
@@ -231,7 +231,7 @@
 
         async batchPromiseAllSettled(
             promiseFns,
-            batchSize = UpcomingReleasesPlugin.CONFIG.BATCH_SIZE
+            batchSize = UpcomingReleasesPlugin.CONFIG.BATCH_SIZE,
         ) {
             const results = [];
 
@@ -246,7 +246,7 @@
                         Math.floor(i / batchSize) + 1
                     }/${Math.ceil(promiseFns.length / batchSize)} (${
                         i + batch.length
-                    }/${promiseFns.length} total)`
+                    }/${promiseFns.length} total)`,
                 );
             }
 
@@ -258,7 +258,7 @@
 
             try {
                 const raw = localStorage.getItem(
-                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT,
                 );
                 if (!raw) return [];
                 const library = JSON.parse(raw);
@@ -280,7 +280,7 @@
             } catch (err) {
                 console.warn(
                     "[UpcomingReleases] Failed to read library_recent",
-                    err
+                    err,
                 );
                 return [];
             }
@@ -329,7 +329,7 @@
                     const meta = structuredClone(rawMeta);
 
                     const videoMap = new Map(
-                        meta.videos.map((v) => [`${v.season}-${v.episode}`, v])
+                        meta.videos.map((v) => [`${v.season}-${v.episode}`, v]),
                     );
 
                     let modified = false;
@@ -347,10 +347,10 @@
                             meta,
                             "series",
                             true,
-                            true
+                            true,
                         );
                         console.log(
-                            `[UpcomingReleases] Updated ${episodes.length} episodes for ${seriesId}`
+                            `[UpcomingReleases] Updated ${episodes.length} episodes for ${seriesId}`,
                         );
                     }
 
@@ -359,7 +359,7 @@
                 } catch (err) {
                     console.warn(
                         `[UpcomingReleases] Failed to update ${seriesId}:`,
-                        err
+                        err,
                     );
                 }
             }
@@ -387,7 +387,7 @@
                     const shouldBeWatched = this._shouldBeWatched(
                         video,
                         currentSeason,
-                        currentEpisode
+                        currentEpisode,
                     );
                     if (!!video.watched !== shouldBeWatched) {
                         video.watched = shouldBeWatched;
@@ -412,7 +412,7 @@
                 console.log(
                     "Updated watch state for",
                     updates.length,
-                    "episodes"
+                    "episodes",
                 );
             }
 
@@ -423,7 +423,7 @@
             if (this.libraryItemsCache) return this.libraryItemsCache;
             try {
                 const raw = localStorage.getItem(
-                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.LIBRARY_RECENT,
                 );
                 const items = raw ? JSON.parse(raw).items : null;
                 this.libraryItemsCache = items;
@@ -466,7 +466,7 @@
 
             if (!futureVideos.length) return null;
             return futureVideos.reduce((min, curr) =>
-                curr.dateMs < min.dateMs ? curr : min
+                curr.dateMs < min.dateMs ? curr : min,
             );
         }
 
@@ -507,8 +507,8 @@
                 genres: Array.isArray(m.genre)
                     ? m.genre
                     : Array.isArray(m.genres)
-                    ? m.genres
-                    : [],
+                      ? m.genres
+                      : [],
                 description: m.description || `Discover ${m.name}`,
                 year: String(m.year || "2024"),
                 runtime: m.runtime || null,
@@ -539,7 +539,7 @@
             const seriesIds = this.getUserLibrarySeries();
             if (!seriesIds.length) {
                 console.log(
-                    "[UpcomingReleases] No series found in library_recent"
+                    "[UpcomingReleases] No series found in library_recent",
                 );
                 return [];
             }
@@ -552,7 +552,7 @@
                 if (!cachedMeta) {
                     try {
                         const data = await this.safeFetch(
-                            `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/series/${id}.json`
+                            `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/series/${id}.json`,
                         );
                         const fetchedMeta = data?.meta;
 
@@ -560,11 +560,11 @@
                             await this.metadataDB.put(
                                 id,
                                 fetchedMeta,
-                                "series"
+                                "series",
                             );
                             console.log(
                                 "[UpcomingReleases] Fetched meta for",
-                                id
+                                id,
                             );
                             cachedMeta = fetchedMeta;
                         }
@@ -572,7 +572,7 @@
                         console.warn(
                             "[UpcomingReleases] Failed to fetch meta for",
                             id,
-                            err
+                            err,
                         );
                         return null;
                     }
@@ -580,7 +580,7 @@
                 if (cachedMeta) {
                     Object.assign(
                         meta,
-                        this.mapToListItem(cachedMeta, "series")
+                        this.mapToListItem(cachedMeta, "series"),
                     );
                 }
                 return meta;
@@ -644,8 +644,8 @@
                         const metas = Array.isArray(payload.metas)
                             ? payload.metas
                             : Array.isArray(payload)
-                            ? payload
-                            : [];
+                              ? payload
+                              : [];
 
                         // Only add items with unique IDs
                         for (const meta of metas) {
@@ -658,7 +658,7 @@
                 }
 
                 console.log(
-                    `[UpcomingReleases] Fetched ${all.length} unique items from ${results.length} catalog pages`
+                    `[UpcomingReleases] Fetched ${all.length} unique items from ${results.length} catalog pages`,
                 );
 
                 // 2. Filter and optimize series for metadata fetching
@@ -672,7 +672,7 @@
                 });
 
                 console.log(
-                    `[UpcomingReleases] Filtered series: ${activeSeries.length} active (from ${seriesMetas.length} total)`
+                    `[UpcomingReleases] Filtered series: ${activeSeries.length} active (from ${seriesMetas.length} total)`,
                 );
 
                 const promiseFns = activeSeries.map((m) => async () => {
@@ -681,18 +681,18 @@
                     if (!cachedMeta) {
                         try {
                             const data = await this.safeFetch(
-                                `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/${m.type}/${m.id}.json`
+                                `${UpcomingReleasesPlugin.CONFIG.URLS.CINEMETA_META}/${m.type}/${m.id}.json`,
                             );
                             const fetchedMeta = data?.meta;
                             if (fetchedMeta) {
                                 await this.metadataDB.put(
                                     m.id,
                                     fetchedMeta,
-                                    m.type
+                                    m.type,
                                 );
                                 console.log(
                                     "[UpcomingReleases] Fetched meta for",
-                                    m.id
+                                    m.id,
                                 );
                                 cachedMeta = fetchedMeta;
                             }
@@ -700,14 +700,14 @@
                             console.warn(
                                 "[UpcomingReleases] Failed to pre-fetch meta for",
                                 m.id,
-                                err
+                                err,
                             );
                         }
                     }
                     if (cachedMeta) {
                         Object.assign(
                             m,
-                            this.mapToListItem(cachedMeta, m.type)
+                            this.mapToListItem(cachedMeta, m.type),
                         );
                     }
                     return m;
@@ -738,7 +738,7 @@
             } catch (e) {
                 console.warn(
                     "[UpcomingReleases] Failed to fetch upcoming titles",
-                    e
+                    e,
                 );
                 return [];
             }
@@ -771,7 +771,7 @@
                     ? m.videos.filter(
                           (v) =>
                               v.season === video.season ||
-                              (v.season === 0 && v.episode === 0)
+                              (v.season === 0 && v.episode === 0),
                       )
                     : [];
 
@@ -813,6 +813,15 @@
 
                     </div>
                 `;
+
+                const container = wrapper.querySelector(".upcoming-container");
+                wrapper.addEventListener("mouseenter", () => {
+                    container.classList.add("reveal");
+                });
+                wrapper.addEventListener("mouseleave", () => {
+                    container.classList.remove("reveal");
+                });
+
                 heroContainer.appendChild(wrapper);
             }
 
@@ -822,7 +831,7 @@
 
             const lastMode =
                 localStorage.getItem(
-                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE,
                 ) || "all";
             await this.renderListMode(lastMode, container);
         }
@@ -833,7 +842,7 @@
 
             const lastMode =
                 localStorage.getItem(
-                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE
+                    UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE,
                 ) || "all";
 
             buttonBar = document.createElement("div");
@@ -875,7 +884,7 @@
                 const mode = btn.dataset.mode;
                 localStorage.setItem(
                     UpcomingReleasesPlugin.CONFIG.STORAGE_KEYS.UPCOMING_MODE,
-                    mode
+                    mode,
                 );
                 this.renderListMode(mode, container);
             });
@@ -899,7 +908,7 @@
             if (existingList && mode !== this.currentMode) {
                 existingList.classList.add("fade-out");
                 fadeOutPromise = new Promise((resolve) =>
-                    setTimeout(resolve, 300)
+                    setTimeout(resolve, 300),
                 );
             }
 
@@ -931,7 +940,7 @@
                 this.hideLoading(container);
                 container.insertAdjacentHTML(
                     "beforeend",
-                    `<div class="upcoming-list empty"><p>No upcoming releases found.</p></div>`
+                    `<div class="upcoming-list empty"><p>No upcoming releases found.</p></div>`,
                 );
                 return;
             }
@@ -962,10 +971,10 @@
                     });
 
                     const isoDate = `${dateObj.getFullYear()}-${String(
-                        dateObj.getMonth() + 1
+                        dateObj.getMonth() + 1,
                     ).padStart(2, "0")}-${String(dateObj.getDate()).padStart(
                         2,
-                        "0"
+                        "0",
                     )}`;
 
                     return {
@@ -987,7 +996,7 @@
                         isPast,
                         dateKey,
                     };
-                }
+                },
             );
 
             // SMART UPDATE (Data Refresh in same mode)
@@ -999,7 +1008,7 @@
 
                 // Update Calendar
                 const calendarContainer = container.querySelector(
-                    ".calendar-container"
+                    ".calendar-container",
                 );
                 if (calendarContainer) {
                     // Ideally we should diff calendar too, but it's cheaper to just replace innerHTML for now or implement similar diff
@@ -1042,11 +1051,11 @@
                     <div class="upcoming-groups-container">
                         ${groupsHtml}
                     </div>
-                </div>`
+                </div>`,
             );
 
             const calendarContainer = container.querySelector(
-                ".calendar-container"
+                ".calendar-container",
             );
             if (calendarContainer) {
                 calendarContainer.innerHTML = this.buildCalendar(upcoming);
@@ -1059,7 +1068,7 @@
 
         updateDOMInternal(container, groupsHtmlArray) {
             const groupsContainer = container.querySelector(
-                ".upcoming-groups-container"
+                ".upcoming-groups-container",
             );
             if (!groupsContainer) return;
 
@@ -1104,7 +1113,7 @@
 
         initIntersectionObserver(container) {
             const scrollContainer = container.querySelector(
-                ".upcoming-groups-container"
+                ".upcoming-groups-container",
             );
             const dateList = container.querySelector(".upcoming-date-list");
             const groups = container.querySelectorAll(".upcoming-date-group");
@@ -1132,7 +1141,7 @@
 
             const observerCallback = (entries) => {
                 const intersectingEntries = entries.filter(
-                    (entry) => entry.isIntersecting
+                    (entry) => entry.isIntersecting,
                 );
 
                 if (intersectingEntries.length === 0) return;
@@ -1163,20 +1172,20 @@
 
             this.observer = new IntersectionObserver(
                 observerCallback,
-                observerOptions
+                observerOptions,
             );
             groups.forEach((el) => this.observer.observe(el));
         }
 
         updateCalendarActiveState(container, isoDate) {
             const calendarContainer = container.querySelector(
-                ".calendar-container"
+                ".calendar-container",
             );
             if (!calendarContainer) return;
 
             // Remove previous active state
             const previousActive = calendarContainer.querySelector(
-                ".calendar-day.active-scroll"
+                ".calendar-day.active-scroll",
             );
             if (previousActive) {
                 previousActive.classList.remove("active-scroll");
@@ -1184,7 +1193,7 @@
 
             // Add new active state
             const newActive = calendarContainer.querySelector(
-                `.calendar-day[data-date="${isoDate}"]`
+                `.calendar-day[data-date="${isoDate}"]`,
             );
             if (newActive) {
                 newActive.classList.add("active-scroll");
@@ -1216,7 +1225,7 @@
 
                 const dateKey = item.dataset.dateKey;
                 const targetGroup = Array.from(groups).find(
-                    (g) => g.dataset.dateKey === dateKey
+                    (g) => g.dataset.dateKey === dateKey,
                 );
 
                 if (targetGroup) {
@@ -1252,10 +1261,10 @@
 
                         const date = new Date(video.released);
                         const dateKey = `${date.getFullYear()}-${String(
-                            date.getMonth() + 1
+                            date.getMonth() + 1,
                         ).padStart(2, "0")}-${String(date.getDate()).padStart(
                             2,
-                            "0"
+                            "0",
                         )}`;
 
                         if (!releasesByDate.has(dateKey)) {
@@ -1290,10 +1299,10 @@
                     // Fallback for items without videos array (movies)
                     const date = new Date(item.releaseDate);
                     const dateKey = `${date.getFullYear()}-${String(
-                        date.getMonth() + 1
+                        date.getMonth() + 1,
                     ).padStart(2, "0")}-${String(date.getDate()).padStart(
                         2,
-                        "0"
+                        "0",
                     )}`;
 
                     if (!releasesByDate.has(dateKey)) {
@@ -1314,7 +1323,7 @@
                 container.insertBefore(
                     timeline,
                     container.querySelector(".upcoming-toggle-bar")
-                        ?.nextSibling || container.firstChild
+                        ?.nextSibling || container.firstChild,
                 );
             }
 
@@ -1372,7 +1381,7 @@
                 startOfHalfDay.getHours() < 12 ? 0 : 12,
                 0,
                 0,
-                0
+                0,
             );
 
             for (
@@ -1515,7 +1524,7 @@
                 for (let day = 1; day <= daysInMonth; day++) {
                     const dateKey = `${year}-${String(month + 1).padStart(
                         2,
-                        "0"
+                        "0",
                     )}-${String(day).padStart(2, "0")}`;
                     const releases = releasesByDate.get(dateKey) || [];
                     const isToday =
@@ -1544,8 +1553,8 @@
 
                     html += `
                         <div class="calendar-day${isToday ? " today" : ""}${
-                        releases.length ? " has-releases" : ""
-                    }"
+                            releases.length ? " has-releases" : ""
+                        }"
                             data-date="${dateKey}" data-series-ids="${seriesIds}">
                             <div class="day-number">${day}</div>
                             ${premiereBadge}
@@ -1554,7 +1563,7 @@
                                 ${releases
                                     .map(
                                         (r) =>
-                                            `<img src="${r.poster}" alt="${r.title}" loading="lazy" class="calendar-poster-mini" />`
+                                            `<img src="${r.poster}" alt="${r.title}" loading="lazy" class="calendar-poster-mini" />`,
                                     )
                                     .join("")}
                             </div>
@@ -1579,12 +1588,12 @@
 
         initCalendarNavigation(container, upcoming) {
             const calendarContainer = container.querySelector(
-                ".calendar-container"
+                ".calendar-container",
             );
             if (!calendarContainer) return;
 
             const scrollContainer = container.querySelector(
-                ".upcoming-groups-container"
+                ".upcoming-groups-container",
             );
             const groups = container.querySelectorAll(".upcoming-date-group");
 
@@ -1601,12 +1610,12 @@
                 const now = Date.now();
                 const releaseText = this.formatDaysUntil(
                     clickedDate.getTime(),
-                    now
+                    now,
                 );
 
                 // Find the group with matching release text
                 const targetGroup = Array.from(groups).find(
-                    (g) => g.dataset.dateKey === releaseText
+                    (g) => g.dataset.dateKey === releaseText,
                 );
 
                 if (targetGroup) {
@@ -1623,7 +1632,7 @@
 
         initSeriesHoverHighlight(container) {
             const calendarContainer = container.querySelector(
-                ".calendar-container"
+                ".calendar-container",
             );
             if (!calendarContainer) return;
 
@@ -1687,7 +1696,7 @@
                         day.classList.add("highlight-series");
 
                         const posters = day.querySelectorAll(
-                            ".calendar-poster-mini"
+                            ".calendar-poster-mini",
                         );
                         let targetPoster = null;
 
@@ -1709,7 +1718,7 @@
                         }
 
                         const grid = day.querySelector(
-                            ".calendar-posters-grid"
+                            ".calendar-posters-grid",
                         );
                         if (grid) grid.style.opacity = "0";
 
@@ -1770,11 +1779,11 @@
                         const nextEpisode = m.videos.find(
                             (v) =>
                                 v.season === nextUp.season &&
-                                v.episode === nextUp.episode
+                                v.episode === nextUp.episode,
                         );
                         if (nextEpisode && nextEpisode.released) {
                             nextUpReleaseDate = new Date(
-                                nextEpisode.released
+                                nextEpisode.released,
                             ).toDateString();
                         }
                     }
@@ -1828,7 +1837,7 @@
                                 ep.name || "Untitled"
                             }</div>
                             <div class="upcoming-episode-date">${this.formatDate(
-                                ep.released
+                                ep.released,
                             )}</div>
                             ${watchedTextDiv}
                             <div class="upcoming-episode-thumbnail">${thumbnailHtml}</div>

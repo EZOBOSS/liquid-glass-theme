@@ -60,7 +60,7 @@
         loadHistory() {
             try {
                 const raw = localStorage.getItem(
-                    ContinueWatchingPlugin.CONFIG.HISTORY_KEY
+                    ContinueWatchingPlugin.CONFIG.HISTORY_KEY,
                 );
                 return raw ? JSON.parse(raw) : [];
             } catch {
@@ -72,7 +72,7 @@
             try {
                 localStorage.setItem(
                     ContinueWatchingPlugin.CONFIG.HISTORY_KEY,
-                    JSON.stringify(this.history)
+                    JSON.stringify(this.history),
                 );
             } catch (e) {
                 console.warn("Failed to save continue watching history", e);
@@ -140,7 +140,7 @@
         }
 
         async getNextEpisodeForSeries(seriesId, libItem) {
-            const series = await this.metadataDB.get(seriesId);
+            const series = await this.metadataDB.get(seriesId, libItem.type);
             if (!series || series.type !== "series" || !series.videos)
                 return null;
 
@@ -194,7 +194,7 @@
                 targetVideo = sortedVideos.find(
                     (v) =>
                         v.season === latestWatched.season &&
-                        v.episode === latestWatched.episode
+                        v.episode === latestWatched.episode,
                 );
             }
 
@@ -317,7 +317,7 @@
 
         removeItem(seriesId, skipUpdate = false) {
             this.history = this.history.filter(
-                (id) => id !== seriesId && !id.startsWith(seriesId + ":")
+                (id) => id !== seriesId && !id.startsWith(seriesId + ":"),
             );
             this.saveHistory();
             if (!skipUpdate) {
@@ -364,7 +364,7 @@
 
         checkVisibility() {
             const container = document.querySelector(
-                ".continue-watching-container"
+                ".continue-watching-container",
             );
             if (!container) return;
 
@@ -380,7 +380,7 @@
 
         async updateList() {
             const container = document.querySelector(
-                ".continue-watching-container"
+                ".continue-watching-container",
             );
             if (!container) return;
 
@@ -413,7 +413,7 @@
             if (first.duration > 0 && first.timeOffset > 0 && !first.isLocked) {
                 const percentage = Math.min(
                     100,
-                    Math.max(0, (first.timeOffset / first.duration) * 100)
+                    Math.max(0, (first.timeOffset / first.duration) * 100),
                 );
                 progressBarHtml = `
                     <div class="cw-progress-bar">
@@ -430,7 +430,7 @@
                             <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3 3.1-3 1.71 0 3.1 1.29 3.1 3v2z"/></svg>
                         </div>
                         <div class="cw-timer">${this.formatCountdown(
-                            first.releaseDate
+                            first.releaseDate,
                         )}</div>
                     </div>
                 `;
@@ -463,7 +463,7 @@
                     ${
                         first.lastWatched && !first.isLocked
                             ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
-                                  first.lastWatched
+                                  first.lastWatched,
                               )}</div>`
                             : ""
                     }
@@ -540,13 +540,13 @@
                              ${
                                  item.isLocked
                                      ? `<div class="cw-timer-small">${this.formatCountdown(
-                                           item.releaseDate
+                                           item.releaseDate,
                                        )}</div>`
                                      : item.lastWatched
-                                     ? `<div class="cw-last-watched">${this.formatLastWatched(
-                                           item.lastWatched
-                                       )}</div>`
-                                     : ""
+                                       ? `<div class="cw-last-watched">${this.formatLastWatched(
+                                             item.lastWatched,
+                                         )}</div>`
+                                       : ""
                              }
                         </div>
                         <div class="cw-remove-btn" title="Remove from history">
@@ -592,7 +592,7 @@
 
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             const hours = Math.floor(
-                (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+                (diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
             );
 
             if (days > 0) return `${days}d ${hours}h`;
