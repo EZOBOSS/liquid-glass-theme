@@ -323,7 +323,10 @@
                         continue;
                     }
 
-                    const rawMeta = await this.metadataDB.get(seriesId);
+                    const rawMeta = await this.metadataDB.get(
+                        seriesId,
+                        "series",
+                    );
                     if (!rawMeta?.videos) continue;
 
                     const meta = structuredClone(rawMeta);
@@ -547,7 +550,7 @@
             // Use batched processing for large libraries (300+ items)
             const promiseFns = seriesIds.map((meta) => async () => {
                 const id = meta._id;
-                let cachedMeta = await this.metadataDB.get(id);
+                let cachedMeta = await this.metadataDB.get(id, meta.type);
 
                 if (!cachedMeta) {
                     try {
@@ -676,7 +679,7 @@
                 );
 
                 const promiseFns = activeSeries.map((m) => async () => {
-                    let cachedMeta = await this.metadataDB.get(m.id);
+                    let cachedMeta = await this.metadataDB.get(m.id, m.type);
 
                     if (!cachedMeta) {
                         try {

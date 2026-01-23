@@ -300,7 +300,7 @@ class MetadataDB {
         return false;
     }
 
-    async fetchFromApi(id, type = "movie") {
+    async fetchFromApi(id, type) {
         try {
             const response = await fetch(
                 `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`,
@@ -309,6 +309,9 @@ class MetadataDB {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
+            console.log(
+                `[MetadataDB] Fetched ${id}: ${data.meta.name} from API`,
+            );
             return data.meta || null;
         } catch (error) {
             console.error(

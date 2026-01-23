@@ -169,7 +169,7 @@ function injectStyles() {
 // Main Logic
 async function getMetadata(id, type) {
     try {
-        let meta = await db.get(id);
+        let meta = await db.get(id, type);
         let source = "cache";
 
         // 2. If not in DB, fetch from API
@@ -178,7 +178,7 @@ async function getMetadata(id, type) {
             const controller = new AbortController();
             const timeoutId = setTimeout(
                 () => controller.abort(),
-                CONFIG.timeout
+                CONFIG.timeout,
             );
 
             try {
@@ -187,7 +187,7 @@ async function getMetadata(id, type) {
                     {
                         signal: controller.signal,
                         credentials: "omit",
-                    }
+                    },
                 );
                 clearTimeout(timeoutId);
 
@@ -227,7 +227,7 @@ async function getMetadata(id, type) {
             rating: meta.imdbRating?.toString() || null,
             genres:
                 [meta.genre, meta.genres].find(
-                    (g) => Array.isArray(g) && g.length > 0
+                    (g) => Array.isArray(g) && g.length > 0,
                 ) || [],
             runtime: meta.runtime || null,
             type: meta.type || type,
@@ -342,7 +342,7 @@ function createMetadataElements(metadata) {
 async function enhanceTitleBar(titleBar) {
     if (titleBar.classList.contains("enhanced-title-bar")) return;
     const titleEl = titleBar.querySelector(
-        ".title-label-VnEAc,[class*='title-label'],[class*='title']"
+        ".title-label-VnEAc,[class*='title-label'],[class*='title']",
     );
     if (!titleEl) return;
     const originalTitle = titleEl.textContent.trim();
@@ -413,7 +413,7 @@ function getObserverFor(element) {
     // Find closest scrollable container
     // Common selectors for Stremio horizontal lists and our custom lists
     const container = element.closest(
-        ".meta-items-container-qcuUA, .upcoming-groups-container, .scroll-container"
+        ".meta-items-container-qcuUA, .upcoming-groups-container, .scroll-container",
     );
 
     if (!container) {
@@ -456,7 +456,7 @@ const logoLazyObserver = new IntersectionObserver(
     {
         rootMargin: "1000px 2000px", // preload early for smooth load
         threshold: 0.01,
-    }
+    },
 );
 
 function handleIntersection(entries, observer) {
@@ -498,7 +498,7 @@ function initObservers() {
 
                         if (node.querySelectorAll) {
                             node.querySelectorAll(TITLE_BAR_SELECTOR).forEach(
-                                observeElement
+                                observeElement,
                             );
                         }
                     });
