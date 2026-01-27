@@ -1455,7 +1455,7 @@
                         ? '<div class="watched-checkmark">✓</div>'
                         : "";
                     return `
-                    <a href="${r.href}" class="timeline-item ${watchedClass} ${futureClass}" style="left: ${x}%" title="${r.title}">
+                    <a href="${r.href}" class="timeline-item ${watchedClass} ${futureClass}" style="left: ${x}%" data-title="${r.title} ${r.episodeText}">
                         <img src="${r.poster}" alt="${r.title}" />
                         ${checkmark}
                     </a>
@@ -1472,7 +1472,38 @@
                         ${itemsHtml}
                     </div>
                 </div>
+                <div class="timeline-tooltip"></div>
             `;
+
+            // Hover logic for tooltips
+            const tt = timeline.querySelector(".timeline-tooltip");
+            const items = timeline.querySelectorAll(".timeline-item");
+
+            items.forEach((item) => {
+                const handleEnter = () => {
+                    const title =
+                        item.getAttribute("data-title") ||
+                        item.querySelector("img")?.getAttribute("alt");
+                    if (!title) return;
+
+                    tt.textContent = title;
+                    tt.classList.add("visible");
+
+                    // Position relative to the item
+                    const itemLeft = item.style.left;
+                    tt.style.left = itemLeft;
+                };
+
+                const handleLeave = () => {
+                    tt.classList.remove("visible");
+                };
+
+                item.addEventListener("mouseenter", handleEnter);
+                item.addEventListener("mouseleave", handleLeave);
+                // Also support focus for accessibility
+                item.addEventListener("focus", handleEnter);
+                item.addEventListener("blur", handleLeave);
+            });
         }
 
         buildCalendar(upcoming) {

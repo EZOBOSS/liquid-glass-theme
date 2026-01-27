@@ -126,8 +126,9 @@
     padding: 0 1rem;
     border: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(35px);
-    z-index: 25;
+    z-index: 100; /* Increased */
     pointer-events: auto;
+    overflow: visible !important; /* Ensure children can be seen outside */
 }
 
 .timeline-day-bg {
@@ -244,7 +245,7 @@
 }
 .timeline-item.future {
     opacity: 0.5;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 .timeline-item.watched img {
@@ -285,6 +286,36 @@
     height: 100%;
     object-fit: cover;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.timeline-tooltip {
+    position: absolute;
+    background: #1a1a1a !important; /* Solid dark background */
+    color: white !important;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    pointer-events: none;
+    z-index: 99999 !important; /* Very high */
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, 0);
+    bottom: 110%; /* Place it a bit higher */
+    left: 50%;
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease,
+        visibility 0.2s;
+}
+
+.timeline-tooltip.visible {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translate(-50%, -5px);
 }
 
 .upcoming-toggle-bar .toggle-btn {
