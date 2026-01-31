@@ -1,0 +1,218 @@
+/**
+ * @name Hover Info Panel Styles
+ * @description Minimalistic fixed right-side panel with episode grid
+ * @version 1.2.0
+ */
+
+.hover-info-panel {
+    position: fixed;
+    right: 16px;
+    top: 35%;
+    transform: translateY(-50%) translateX(16px);
+    z-index: 10000;
+    width: 280px;
+    max-height: 75vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    /* Glassmorphism */
+    background: rgba(12, 12, 15, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+    /* Hidden by default */
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        opacity 0.2s ease,
+        visibility 0.2s ease,
+        transform 0.2s ease;
+    pointer-events: none;
+}
+
+.hover-info-panel.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+    pointer-events: auto;
+}
+
+.hover-info-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    object-fit: cover;
+    opacity: 0.1;
+}
+
+/* Header */
+.hover-info-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.hover-info-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hover-info-subtitle {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 2px;
+}
+
+/* Content area */
+.hover-info-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 10px 10px;
+}
+
+.hover-info-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.hover-info-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.hover-info-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+/* Sections */
+.hover-info-section {
+    margin-bottom: 10px;
+}
+
+.hover-info-section:last-child {
+    margin-bottom: 0;
+}
+
+.hover-info-section h4 {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: rgba(255, 255, 255, 0.3);
+    margin: 0 0 6px 2px;
+}
+
+.hover-info-upcoming h4 {
+    color: rgba(129, 199, 132, 0.6);
+}
+
+/* Episode Grid Container */
+.hover-info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Season Group */
+.season-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.season-header {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 2px 4px;
+    margin-bottom: 2px;
+}
+
+.season-episodes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+    gap: 2px;
+}
+
+/* Episode Card - Minimal */
+.episode-card {
+    position: relative;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    /* border: 1px solid transparent; */
+    transition: background 0.12s ease;
+    cursor: default;
+    backdrop-filter: blur(5px) saturate(2);
+    border-color: var(--border-color);
+    box-shadow: var(--box-shadow);
+}
+
+.episode-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.episode-card.watched {
+    opacity: 0.4;
+}
+
+.episode-card.upcoming {
+    background: rgba(129, 199, 132, 0.06);
+}
+
+/* Episode Badge */
+.episode-badge {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.2px;
+    margin-bottom: 2px;
+}
+
+.episode-card.upcoming .episode-badge {
+    color: rgba(129, 199, 132, 0.9);
+}
+
+/* Episode Title - Hidden for minimal look */
+.episode-title {
+    display: none;
+}
+
+/* Episode Meta */
+.episode-meta {
+    display: flex;
+    flex-direction: row;
+    gap: 1px;
+}
+
+.episode-date {
+    font-size: 8px;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+/* Watched Indicator */
+.episode-watched {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 10px;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(129, 199, 132, 0.25);
+    border-radius: 50%;
+    color: #81c784;
+    font-size: 6px;
+}

@@ -11,8 +11,8 @@ class MetadataDB {
         DB_NAME: "ETB_MetadataDB",
         DB_VERSION: 1,
         STORE_NAME: "metadata",
-        CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 14.24l days for series
-        CACHE_TTL_NEW_MOVIE: 30 * 24 * 60 * 60 * 1000, // 14 days for new movies
+        CACHE_TTL_SERIES: 30 * 24 * 60 * 60 * 1000, // 30 days for series
+        CACHE_TTL_NEW_MOVIE: 30 * 24 * 60 * 60 * 1000, // 30 days for new movies
         MEMORY_CACHE_SIZE: 500, // Max items in memory cache
         BATCH_DELAY: 250, // ms to wait before flushing batch writes
     };
@@ -240,6 +240,27 @@ class MetadataDB {
         return false;
     }
 
+    /**
+     * Update lastAccessed timestamp for a record (fire-and-forget)
+     * This is called on successful reads to track access patterns
+     */
+    _updateLastAccessed(record) {
+        if (!this.db || !record?.id) return;
+
+        try {
+            const transaction = this.db.transaction(
+                [MetadataDB.CONFIG.STORE_NAME],
+                "readwrite",
+            );
+
+            const store = transaction.objectStore(MetadataDB.CONFIG.STORE_NAME);
+            record.lastAccessed = Date.now();
+            store.put(record);
+        } catch (error) {
+            // Silently ignore errors - this is a non-critical operation
+        }
+    }
+
     _hasDataChanged(existing, incoming) {
         if (!existing || !incoming) {
             console.log("[MetadataDB] One of the objects is missing");
@@ -379,6 +400,8 @@ class MetadataDB {
                         // Freeze and cache
                         // _updateCache handles the deep freezing
                         this._updateCache(id, record.data);
+                        // Update lastAccessed timestamp in DB (fire-and-forget)
+                        this._updateLastAccessed(record);
                         resolve(record.data);
                     }
                 };
@@ -494,6 +517,8 @@ class MetadataDB {
                                 // _updateCache handles the deep freezing
                                 this._updateCache(id, record.data);
                                 results.set(id, record.data);
+                                // Update lastAccessed timestamp in DB (fire-and-forget)
+                                this._updateLastAccessed(record);
                             }
                         };
                     }
@@ -748,9 +773,15 @@ class MetadataDB {
 
             const allRecords = await this.getAll();
             const toDelete = [];
+            const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
             for (const record of allRecords) {
                 if (this._shouldExpire(record)) {
+                    // Skip deletion if record was accessed within the last 30 days
+                    const lastAccess = record.lastAccessed || record.timestamp;
+                    if (lastAccess && lastAccess > thirtyDaysAgo) {
+                        continue;
+                    }
                     toDelete.push(record.id);
                 }
             }

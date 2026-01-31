@@ -8,7 +8,6 @@
 
 const CONFIG = {
     apiBase: "https://v3-cinemeta.strem.io/meta",
-    corsProxy: "https://corsproxy.io/?",
     timeout: 5000,
     updateInterval: 10000,
     concurrency: 4,
@@ -183,7 +182,7 @@ async function getMetadata(id, type) {
 
             try {
                 const res = await fetch(
-                    `${CONFIG.corsProxy}${CONFIG.apiBase}/${type}/${id}.json`,
+                    `${CONFIG.apiBase}/${type}/${id}.json`,
                     {
                         signal: controller.signal,
                         credentials: "omit",
