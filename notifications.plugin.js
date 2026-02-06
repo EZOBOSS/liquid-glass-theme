@@ -61,7 +61,7 @@
 
         toggleBellVisibility() {
             const container = document.querySelector(
-                ".notifications-container"
+                ".notifications-container",
             );
             if (!container) return;
 
@@ -74,7 +74,7 @@
         loadSeenState() {
             try {
                 const raw = localStorage.getItem(
-                    NotificationsPlugin.CONFIG.SEEN_CACHE_KEY
+                    NotificationsPlugin.CONFIG.SEEN_CACHE_KEY,
                 );
                 if (!raw) return new Map();
 
@@ -109,7 +109,7 @@
                     entries.sort((a, b) => a[1] - b[1]);
                     // Keep only the newest MAX_SEEN_ENTRIES
                     const toKeep = entries.slice(
-                        -NotificationsPlugin.CONFIG.MAX_SEEN_ENTRIES
+                        -NotificationsPlugin.CONFIG.MAX_SEEN_ENTRIES,
                     );
                     this.seenNotifications = new Map(toKeep);
                 }
@@ -119,7 +119,7 @@
                     const obj = Object.fromEntries(this.seenNotifications);
                     localStorage.setItem(
                         NotificationsPlugin.CONFIG.SEEN_CACHE_KEY,
-                        JSON.stringify(obj)
+                        JSON.stringify(obj),
                     );
                 });
             } catch (e) {
@@ -151,7 +151,7 @@
         markAllAsSeen() {
             // Get all unseen notifications
             const unseenNotifications = this.notifications.filter(
-                (n) => !n.isSeen
+                (n) => !n.isSeen,
             );
 
             if (unseenNotifications.length === 0) return;
@@ -485,8 +485,8 @@
                         <img src="${
                             notif.thumbnail
                         }" class="notif-thumb" onerror="this.onerror=null; this.src='https://images.metahub.space/poster/small/${
-                    notif.seriesId
-                }/img';">
+                            notif.seriesId
+                        }/img';">
                         ${
                             !isSeries
                                 ? `<span class="genre-badge" style="background-color: ${genreColor}">${genre}</span>`
@@ -499,11 +499,11 @@
                     <div class="notif-content">
                     <div class="notif-time-container">
                         <div class="notif-time-since">${this.getTimeSinceRelease(
-                            notif.released
+                            notif.released,
                         )}</div>
                         <div class="notif-time-dot">·</div>
                         <div class="notif-time">${new Date(
-                            notif.released
+                            notif.released,
                         ).toLocaleDateString()}</div>
                         </div>
 
@@ -536,6 +536,7 @@
             }
         }
     }
-
-    new NotificationsPlugin();
+    requestIdleCallback(() => {
+        new NotificationsPlugin();
+    });
 })();
