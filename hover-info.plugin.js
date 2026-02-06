@@ -142,13 +142,6 @@
         }
 
         extractCardId(card) {
-            // Try to get ID from various sources
-            // 1. Direct card ID
-            if (card.id && card.id.startsWith("tt")) return card.id;
-
-            // 2. Data attribute
-            if (card.dataset.id) return card.dataset.id;
-
             // 3. Check anchor link ID
             const anchor = card.querySelector("a");
             if (anchor?.id && anchor.id.startsWith("tt")) return anchor.id;
@@ -158,14 +151,18 @@
             const match = href.match(/\/(tt\d+)/);
             if (match) return match[1];
 
-            // 5. Check data-id on nested elements
-            const dataIdEl = card.querySelector("[data-id]");
-            if (dataIdEl?.dataset.id) return dataIdEl.dataset.id;
+            // 6. Check data-id on img
+            const img = card.querySelector("img");
+            const imgId = img.src?.match(/\/(tt\d+)/);
+            if (imgId) return imgId[1];
 
             return null;
         }
 
         async showPanelForCard(card, cardId) {
+            const enchanedTitleBar = card.querySelector(".enhanced-title-bar");
+
+            if (enchanedTitleBar?.dataset.type === "movie") return;
             if (this.currentCardId === cardId && this.isVisible) return;
 
             if (this.currentCardId === cardId && this.panel) {

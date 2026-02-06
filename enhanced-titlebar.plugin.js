@@ -348,10 +348,11 @@ async function enhanceTitleBar(titleBar) {
     if (!originalTitle) return;
 
     titleBar.classList.add("enhanced-title-bar");
-    titleBar.dataset.originalHtml = titleBar.innerHTML.trim();
+    /* titleBar.dataset.originalHtml = titleBar.innerHTML.trim(); */
     titleBar.textContent = "";
 
     const mediaInfo = await extractMediaInfo(titleBar);
+    titleBar.dataset.type = mediaInfo.type;
 
     const fragment = document.createDocumentFragment();
     const titleContainer = Object.assign(document.createElement("div"), {
