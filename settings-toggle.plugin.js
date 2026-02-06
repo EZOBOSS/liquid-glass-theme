@@ -1,11 +1,41 @@
 (function () {
+    // Shared settings utility
+    window.StremioSettings = {
+        isEnabled(prop) {
+            try {
+                const obj = JSON.parse(
+                    localStorage.getItem("custom_setting") || "{}",
+                );
+                return prop in obj ? !!obj[prop] : true;
+            } catch {
+                return true;
+            }
+        },
+    };
+
     class SettingsTogglePlugin {
         static CONFIG = {
             SELECTOR: ".sections-container-EUKAe",
-            TOGGLE_CLASS: "trailer-toggle",
             LOCAL_KEY: "custom_setting",
             INSERT_INDEX: 2,
-            SETTING_PROP: "play_trailer_on_hover",
+            SETTINGS: [
+                {
+                    prop: "play_trailer_on_hover",
+                    label: "Play trailer on hover",
+                    toggleClass: "trailer-toggle",
+                },
+                {
+                    prop: "dynamic_island",
+                    label: "Dynamic island",
+                    toggleClass: "dynamic-island-toggle",
+                },
+                {
+                    prop: "HoverInfoPanel",
+                    label: "Show episode info on hover",
+                    toggleClass: "hover-info-toggle",
+                },
+                // Add more settings here
+            ],
         };
 
         constructor() {
@@ -19,29 +49,18 @@
             );
         }
 
-        readState() {
-            try {
-                const obj = JSON.parse(
-                    localStorage.getItem(
-                        SettingsTogglePlugin.CONFIG.LOCAL_KEY,
-                    ) || "{}",
-                );
-                return SettingsTogglePlugin.CONFIG.SETTING_PROP in obj
-                    ? !!obj[SettingsTogglePlugin.CONFIG.SETTING_PROP]
-                    : true;
-            } catch {
-                return true;
-            }
+        readState(prop) {
+            return window.StremioSettings.isEnabled(prop);
         }
 
-        writeState(value) {
+        writeState(prop, value) {
             try {
                 const obj = JSON.parse(
                     localStorage.getItem(
                         SettingsTogglePlugin.CONFIG.LOCAL_KEY,
                     ) || "{}",
                 );
-                obj[SettingsTogglePlugin.CONFIG.SETTING_PROP] = value;
+                obj[prop] = value;
                 localStorage.setItem(
                     SettingsTogglePlugin.CONFIG.LOCAL_KEY,
                     JSON.stringify(obj),
@@ -49,12 +68,12 @@
             } catch {}
         }
 
-        buildToggleElement() {
+        buildToggleElement(setting) {
             const wrapper = document.createElement("div");
             wrapper.className = "option-container-EGlcv";
             wrapper.innerHTML = `
-                <div class="option-name-container-exGMI ${SettingsTogglePlugin.CONFIG.TOGGLE_CLASS}">
-                    <div class="label-FFamJ">Play trailer on hover</div>
+                <div class="option-name-container-exGMI ${setting.toggleClass}">
+                    <div class="label-FFamJ">${setting.label}</div>
                 </div>
                 <div class="option-input-container-NPgpT toggle-container-lZfHP button-container-zVLH6">
                     <button class="toggle-toOWM" role="switch" aria-checked="false"></button>
@@ -63,56 +82,58 @@
             return wrapper;
         }
 
-        insertToggleInto(container) {
+        insertTogglesInto(container) {
             if (!container) return;
-            if (
-                container.querySelector(
-                    `.${SettingsTogglePlugin.CONFIG.TOGGLE_CLASS}`,
-                )
-            )
-                return;
 
             const targetChild =
                 container.children[SettingsTogglePlugin.CONFIG.INSERT_INDEX];
             if (!targetChild) return;
 
-            const toggle = this.buildToggleElement();
-            const button = toggle.querySelector(".toggle-toOWM");
-            const inputContainer = toggle.querySelector(
-                ".option-input-container-NPgpT",
-            );
+            SettingsTogglePlugin.CONFIG.SETTINGS.forEach((setting) => {
+                if (targetChild.querySelector(`.${setting.toggleClass}`))
+                    return;
 
-            const applyState = (state) => {
-                if (state) {
-                    button.classList.add("checked");
-                    inputContainer.classList.add("checked");
-                    button.setAttribute("aria-checked", "true");
-                } else {
-                    button.classList.remove("checked");
-                    inputContainer.classList.remove("checked");
-                    button.setAttribute("aria-checked", "false");
-                }
-            };
+                const toggle = this.buildToggleElement(setting);
+                const button = toggle.querySelector(".toggle-toOWM");
+                const inputContainer = toggle.querySelector(
+                    ".option-input-container-NPgpT",
+                );
 
-            let isEnabled = this.readState();
-            applyState(isEnabled);
+                const applyState = (state) => {
+                    if (state) {
+                        button.classList.add("checked");
+                        inputContainer.classList.add("checked");
+                        button.setAttribute("aria-checked", "true");
+                    } else {
+                        button.classList.remove("checked");
+                        inputContainer.classList.remove("checked");
+                        button.setAttribute("aria-checked", "false");
+                    }
+                };
 
-            button.addEventListener("click", () => {
-                isEnabled = !isEnabled;
-                this.writeState(isEnabled);
+                let isEnabled = this.readState(setting.prop);
                 applyState(isEnabled);
 
-                window.dispatchEvent(
-                    new CustomEvent("customSettingChanged", {
-                        detail: { enabled: isEnabled },
-                    }),
+                button.addEventListener("click", () => {
+                    isEnabled = !isEnabled;
+                    this.writeState(setting.prop, isEnabled);
+                    applyState(isEnabled);
+
+                    window.dispatchEvent(
+                        new CustomEvent("customSettingChanged", {
+                            detail: {
+                                prop: setting.prop,
+                                enabled: isEnabled,
+                            },
+                        }),
+                    );
+                });
+
+                targetChild.appendChild(toggle);
+                console.log(
+                    `[SettingsTogglePlugin] Added toggle (${setting.prop})`,
                 );
             });
-
-            targetChild.appendChild(toggle);
-            console.log(
-                `[SettingsTogglePlugin] Added toggle (${SettingsTogglePlugin.CONFIG.SETTING_PROP})`,
-            );
         }
 
         waitForContainer(selector, cb, timeout = 10000) {
@@ -130,15 +151,9 @@
             setTimeout(() => observer.disconnect(), timeout);
         }
 
-        ensureTogglePersists(container) {
+        ensureTogglesPersist(container) {
             const checkAndInsert = () => {
-                if (
-                    !container.querySelector(
-                        `.${SettingsTogglePlugin.CONFIG.TOGGLE_CLASS}`,
-                    )
-                ) {
-                    this.insertToggleInto(container);
-                }
+                this.insertTogglesInto(container);
             };
             checkAndInsert();
 
@@ -150,8 +165,8 @@
             this.waitForContainer(
                 SettingsTogglePlugin.CONFIG.SELECTOR,
                 (container) => {
-                    this.insertToggleInto(container);
-                    this.ensureTogglePersists(container);
+                    this.insertTogglesInto(container);
+                    this.ensureTogglesPersist(container);
                 },
             );
         }

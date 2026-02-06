@@ -601,14 +601,24 @@
     }
 
     // Initialize
-    if (window.MetadataDB) {
-        new ContinueWatchingPlugin();
-    } else {
-        const checkInterval = setInterval(() => {
-            if (window.MetadataDB) {
-                clearInterval(checkInterval);
-                new ContinueWatchingPlugin();
-            }
-        }, 100);
-    }
+    requestIdleCallback(() => {
+        if (
+            window.MetadataDB &&
+            window.StremioSettings &&
+            window.StremioSettings.isEnabled("dynamic_island")
+        ) {
+            new ContinueWatchingPlugin();
+        } /* else {
+            const checkInterval = setInterval(() => {
+                if (
+                    window.MetadataDB &&
+                    window.StremioSettings &&
+                    window.StremioSettings.isEnabled("dynamic_island")
+                ) {
+                    clearInterval(checkInterval);
+                    new ContinueWatchingPlugin();
+                }
+            }, 100);
+        } */
+    });
 })();

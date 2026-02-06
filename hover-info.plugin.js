@@ -397,5 +397,15 @@
         }
     }
 
-    requestIdleCallback(() => new HoverInfoPanel());
+    requestIdleCallback(() => {
+        if (
+            window.StremioSettings &&
+            window.StremioSettings.isEnabled("HoverInfoPanel")
+        ) {
+            new HoverInfoPanel();
+        } else if (!window.StremioSettings) {
+            // Fallback if settings-toggle.plugin.js is not loaded or failed
+            new HoverInfoPanel();
+        }
+    });
 })();
