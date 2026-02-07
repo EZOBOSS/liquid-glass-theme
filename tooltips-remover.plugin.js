@@ -1,3 +1,10 @@
+/**
+ * @name Tooltips Remover Plugin
+ * @description Removes tooltips from the interface
+ * @version 1.0.0
+ * @author EZOBOSS
+ */
+
 (function () {
     class TooltipsRemoverPlugin {
         constructor() {

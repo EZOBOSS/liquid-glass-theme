@@ -1,5 +1,5 @@
 /**
- * @name Continue Watching Plugin
+ * @name Continue Watching Plugin aka Dynamic Island
  * @description Adds a quick continue watching button with a dropdown for recent series
  * @version 1.2.0
  * @author EZOBOSS

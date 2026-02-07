@@ -1,3 +1,10 @@
+/**
+ * @name Settings Toggle Plugin
+ * @description Adds custom toggles to the settings menu
+ * @version 1.0.0
+ * @author EZOBOSS
+ */
+
 (function () {
     // Shared settings utility
     window.StremioSettings = {
