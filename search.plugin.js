@@ -50,7 +50,7 @@
             this.bindKeyboardShortcut();
             this.bindEvents();
             console.log(
-                "[SpotlightSearch] Initialized - Press Ctrl+Space to open"
+                "[SpotlightSearch] Initialized - Press Ctrl+Space to open",
             );
         }
 
@@ -165,7 +165,7 @@
                 if (removeBtn) {
                     e.stopPropagation();
                     const recentItem = removeBtn.closest(
-                        ".spotlight-recent-item"
+                        ".spotlight-recent-item",
                     );
                     if (recentItem) {
                         const id = recentItem.dataset.id;
@@ -272,7 +272,7 @@
             try {
                 // Use Promise.allSettled for robustness
                 const fetchPromises = SpotlightSearch.CONFIG.TYPES.map((type) =>
-                    this.fetchResults(type, query)
+                    this.fetchResults(type, query),
                 );
 
                 const results = await Promise.allSettled(fetchPromises);
@@ -284,7 +284,7 @@
                     movieResult.status === "fulfilled"
                         ? (movieResult.value || []).slice(
                               0,
-                              SpotlightSearch.CONFIG.MAX_RESULTS
+                              SpotlightSearch.CONFIG.MAX_RESULTS,
                           )
                         : [];
 
@@ -292,7 +292,7 @@
                     seriesResult.status === "fulfilled"
                         ? (seriesResult.value || []).slice(
                               0,
-                              SpotlightSearch.CONFIG.MAX_RESULTS
+                              SpotlightSearch.CONFIG.MAX_RESULTS,
                           )
                         : [];
 
@@ -425,8 +425,8 @@
                                               this.renderResultItem(
                                                   m,
                                                   i,
-                                                  "movie"
-                                              )
+                                                  "movie",
+                                              ),
                                           )
                                           .join("")
                                     : '<div class="spotlight-column-empty">No movies</div>'
@@ -448,8 +448,8 @@
                                               this.renderResultItem(
                                                   s,
                                                   i,
-                                                  "series"
-                                              )
+                                                  "series",
+                                              ),
                                           )
                                           .join("")
                                     : '<div class="spotlight-column-empty">No series</div>'
@@ -482,7 +482,7 @@
                     alt="${title}"
                     onerror="this.outerHTML='<span class=\\'spotlight-result-title\\' title=\\'${title.replace(
                         /'/g,
-                        "&#39;"
+                        "&#39;",
                     )}\\'>${title}</span>'"
                 />
             `;
@@ -491,8 +491,8 @@
                 <div class="spotlight-result-item${
                     isSelected ? " selected" : ""
                 }" data-index="${index}" data-column="${column}" data-id="${
-                meta.id
-            }" data-type="${column}">
+                    meta.id
+                }" data-type="${column}">
                     <img 
                         class="spotlight-result-poster" 
                         src="${poster}" 
@@ -575,7 +575,7 @@
             const html =
                 `<span style="opacity:.35">${this.escapeHTML(prefix)}</span>` +
                 `<span style="visibility:hidden">${this.escapeHTML(
-                    query
+                    query,
                 )}</span>` +
                 `<span style="opacity:.35">${this.escapeHTML(suffix)}</span>`;
 
@@ -604,7 +604,7 @@
 
         updateSelection() {
             const items = this.resultsContainer.querySelectorAll(
-                ".spotlight-result-item"
+                ".spotlight-result-item",
             );
             items.forEach((item) => {
                 const itemColumn = item.dataset.column;
@@ -653,7 +653,7 @@
             this.updateSelection();
 
             const selectedItem = this.resultsContainer.querySelector(
-                `.spotlight-result-item[data-column="${this.selectedColumn}"][data-index="${this.selectedIndex}"]`
+                `.spotlight-result-item[data-column="${this.selectedColumn}"][data-index="${this.selectedIndex}"]`,
             );
             if (selectedItem) {
                 selectedItem.scrollIntoView({
@@ -687,6 +687,7 @@
                         name: selected.name || "Unknown",
                         poster: selected.poster || "",
                         releaseInfo: selected.releaseInfo || "",
+                        background: selected.background || "",
                     });
 
                     window.location.hash = `#/detail/${type}/${id}`;
@@ -701,14 +702,14 @@
             }
             try {
                 const data = localStorage.getItem(
-                    SpotlightSearch.CONFIG.STORAGE_KEY
+                    SpotlightSearch.CONFIG.STORAGE_KEY,
                 );
                 this.recentSearchesCache = data ? JSON.parse(data) : [];
                 return this.recentSearchesCache;
             } catch (e) {
                 console.error(
                     "[SpotlightSearch] Failed to load recent searches:",
-                    e
+                    e,
                 );
                 return [];
             }
@@ -719,12 +720,12 @@
                 this.recentSearchesCache = searches;
                 localStorage.setItem(
                     SpotlightSearch.CONFIG.STORAGE_KEY,
-                    JSON.stringify(searches)
+                    JSON.stringify(searches),
                 );
             } catch (e) {
                 console.error(
                     "[SpotlightSearch] Failed to save recent searches:",
-                    e
+                    e,
                 );
             }
         }
@@ -744,7 +745,7 @@
             // Keep only max items
             const trimmed = filtered.slice(
                 0,
-                SpotlightSearch.CONFIG.MAX_RECENT
+                SpotlightSearch.CONFIG.MAX_RECENT,
             );
 
             this.saveRecentSearches(trimmed);
@@ -799,7 +800,7 @@
                     <div class="spotlight-recent-list">
                         ${searches
                             .map((item, index) =>
-                                this.renderRecentItem(item, index)
+                                this.renderRecentItem(item, index),
                             )
                             .join("")}
                     </div>
@@ -853,6 +854,13 @@
                         loading="lazy"
                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 150%22><rect fill=%22%23222%22 width=%22100%22 height=%22150%22/></svg>'"
                     />
+                    <img 
+                        class="spotlight-recent-background" 
+                        src="${item.background}" 
+                        alt="${escapedName}"
+                        loading="lazy"
+                        onerror="this.outerHTML=''"
+                    />
                     <div class="spotlight-recent-info">
                         <img 
                             class="spotlight-recent-logo" 
@@ -881,7 +889,7 @@
     if (document.readyState === "loading") {
         document.addEventListener(
             "DOMContentLoaded",
-            () => new SpotlightSearch()
+            () => new SpotlightSearch(),
         );
     } else {
         requestIdleCallback(() => new SpotlightSearch());
