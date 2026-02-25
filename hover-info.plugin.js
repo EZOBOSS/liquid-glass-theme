@@ -269,7 +269,10 @@
             const seasons = new Set(
                 meta.videos.map((v) => v.season).filter((s) => s > 0),
             );
-            subtitleEl.textContent = `${seasons.size} seasons · ${meta.videos.length} episodes`;
+            const episodeCount = meta.videos.filter(
+                (v) => (v.season || 0) > 0,
+            ).length;
+            subtitleEl.textContent = `${seasons.size} seasons · ${episodeCount} episodes`;
 
             // Render upcoming section
             const upcomingSection = this.panel.querySelector(
