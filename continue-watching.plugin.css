@@ -113,10 +113,12 @@
     font-size: 8px;
     color: rgba(255, 255, 255, 0.3);
     margin-left: auto;
+    align-content: center;
 }
 .cw-logo-mini {
     width: 50px;
-    object-fit: cover;
+    object-fit: contain;
+    max-height: 20px;
 }
 .cw-island:hover .cw-logo-mini {
     margin-right: 6px;
@@ -128,6 +130,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    align-content: center;
 }
 .cw-ep-title-mini {
     font-size: 11px;
@@ -140,6 +143,7 @@
     content-visibility: hidden;
     transition: all 0.2s ease;
     max-width: 100px;
+    align-content: center;
 }
 .cw-island:hover .cw-ep-title-mini {
     width: max-content;
@@ -213,7 +217,10 @@
     padding: 8px;
     cursor: pointer;
     align-items: center;
-    transition: background 0.2s, transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        background 0.2s,
+        transform 0.3s ease,
+        opacity 0.3s ease;
     opacity: 0;
     transform: translateX(-20px);
 }
@@ -302,7 +309,8 @@
 
 .cw-series-logo {
     width: 50px;
-    object-fit: cover;
+    object-fit: contain;
+    max-height: 20px;
 }
 
 .cw-last-watched {

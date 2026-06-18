@@ -30,7 +30,8 @@
     --bg-input-color: rgba(157, 157, 157, 0.74);
     --border-radius: 10px;
     --backdrop-filter: blur(5px) saturate(180%);
-    --box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    --box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1);
     --poster-shape-ratio: 1;
@@ -98,7 +99,9 @@ html body {
     padding: 8px 12px !important;
     border-radius: 6px !important;
     color: rgba(255, 255, 255, 0.9) !important;
-    transition: background 0.2s ease, transform 0.2s ease !important;
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease !important;
     cursor: pointer !important;
     background: transparent !important;
     margin: 2px 0 !important;
@@ -164,7 +167,8 @@ html body {
     background: transparent !important;
     order: 1; /* Input goes to the left when expanded */
 
-    transition: opacity 0.2s ease-in-out 0.15s,
+    transition:
+        opacity 0.2s ease-in-out 0.15s,
         width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         padding 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
@@ -191,7 +195,9 @@ html body {
     width: 45px !important;
     background: rgba(90, 90, 90, 0.22) !important;
     border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(4.7px) !important;
@@ -222,7 +228,8 @@ html body {
     border: none !important;
     background: transparent !important;
 
-    transition: opacity 0.2s ease-in-out 0.15s,
+    transition:
+        opacity 0.2s ease-in-out 0.15s,
         width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
         padding 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
@@ -265,7 +272,9 @@ html body {
     > div[class*="menu-button-container"] {
     background: rgba(90, 90, 90, 0.22) !important;
     border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.4),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -321,7 +330,9 @@ html body {
 
 .player-container-wIELK .layer-qalDW.menu-layer-HZFG9 {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -455,12 +466,14 @@ html body {
     object-fit: cover;
     object-position: center 10%;
     display: block;
-    -webkit-mask-image: linear-gradient(to top, transparent, black 45%),
+    -webkit-mask-image:
+        linear-gradient(to top, transparent, black 45%),
         linear-gradient(to right, transparent, black 75%);
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-size: cover;
     -webkit-mask-composite: intersect;
-    mask-image: linear-gradient(to top, transparent, black 45%),
+    mask-image:
+        linear-gradient(to top, transparent, black 45%),
         linear-gradient(to right, transparent, black 75%);
     mask-repeat: no-repeat;
     mask-size: cover;
@@ -526,7 +539,9 @@ html body {
 .hero-overlay-button {
     background: rgba(70, 70, 70, 0.22) !important;
     border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1);
     backdrop-filter: var(--backdrop-filter);
@@ -537,7 +552,9 @@ html body {
 .hero-overlay-button-watch {
     background: rgb(0 0 0 / 41%) !important;
     border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1);
     backdrop-filter: var(--backdrop-filter);
@@ -978,7 +995,9 @@ body.ghost-clicking #heroLoadingScreen {
 #app [class*="nav-tab-button-container"].selected {
     background: rgba(70, 70, 70, 0.22) !important;
     border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1080,7 +1099,9 @@ body.ghost-clicking #heroLoadingScreen {
         #e2ebf005 100%
     ) !important;
     border-radius: 20px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1191,7 +1212,9 @@ body.ghost-clicking #heroLoadingScreen {
     transform: translateY(-50%);
     background: rgba(70, 70, 70, 0.22) !important;
     border-radius: 999px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1254,7 +1277,8 @@ body.ghost-clicking #heroLoadingScreen {
     .play-icon-outer-r3iKR {
     background: rgba(255, 255, 255, 0.3) !important;
     border-radius: 999px !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
     backdrop-filter: blur(12px) saturate(160%) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
@@ -1299,7 +1323,9 @@ body.ghost-clicking #heroLoadingScreen {
     .play-icon-layer-vpQIo
     .play-icon-outer-r3iKR {
     background: rgba(255, 255, 255, 0.45) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.2),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 4px 16px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.6),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: blur(16px) saturate(200%) brightness(110%) !important;
@@ -1331,7 +1357,8 @@ body.ghost-clicking #heroLoadingScreen {
     padding: 6px 12px !important;
     background: rgba(255, 220, 100, 0.25) !important;
     border-radius: 999px !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 240, 150, 0.5) !important;
     backdrop-filter: blur(12px) saturate(160%) !important;
     border: 1px solid rgba(255, 200, 80, 0.4) !important;
@@ -1341,7 +1368,8 @@ body.ghost-clicking #heroLoadingScreen {
 /* Hover effect for watched flag */
 .upcoming-watched-container-msCaq .watched-container-gvzs3:hover {
     background: rgba(255, 210, 80, 0.45) !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
+    box-shadow:
+        0 6px 20px rgba(0, 0, 0, 0.4),
         inset 0 1px 0 rgba(255, 240, 150, 0.6) !important;
     backdrop-filter: blur(14px) saturate(180%) brightness(105%) !important;
     border: 1px solid rgba(255, 190, 60, 0.5) !important;
@@ -1400,7 +1428,8 @@ body.ghost-clicking #heroLoadingScreen {
     padding: 6px 12px !important;
     background: rgba(100, 255, 150, 0.35) !important;
     border-radius: 999px !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(150, 255, 180, 0.5) !important;
     backdrop-filter: blur(12px) saturate(160%) !important;
     border: 1px solid rgba(80, 255, 120, 0.4) !important;
@@ -1410,7 +1439,8 @@ body.ghost-clicking #heroLoadingScreen {
 /* Hover effect for upcoming flag */
 .upcoming-watched-container-msCaq .upcoming-container-LXfQ7:hover {
     background: rgba(90, 255, 140, 0.45) !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
+    box-shadow:
+        0 6px 20px rgba(0, 0, 0, 0.4),
         inset 0 1px 0 rgba(150, 255, 180, 0.6) !important;
     backdrop-filter: blur(14px) saturate(180%) brightness(105%) !important;
     border: 1px solid rgba(70, 255, 110, 0.5) !important;
@@ -1449,7 +1479,9 @@ body.ghost-clicking #heroLoadingScreen {
 .nav-menu-container-Pl25j,
 .nav-menu-container-Pl25j {
     background: rgba(0, 0, 0, 0.703) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1460,7 +1492,9 @@ body.ghost-clicking #heroLoadingScreen {
     background: rgba(70, 70, 70, 0.22) !important;
     backdrop-filter: var(--backdrop-filter) !important;
     border: 1px solid rgba(255, 255, 255, 0.04) !important;
-    box-shadow: 0 0px 0px rgba(0, 0, 0, 0.2), 0 0px 10px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 0px 0px rgba(0, 0, 0, 0.2),
+        0 0px 10px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
 }
@@ -1469,7 +1503,9 @@ body.ghost-clicking #heroLoadingScreen {
     .action-buttons-container-XbKVa
     .action-button-XIZa3.wide {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1478,7 +1514,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .meta-preview-container-o22hc .ratings-zUtHH {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1489,7 +1527,9 @@ body.ghost-clicking #heroLoadingScreen {
     .action-buttons-container-XbKVa
     .action-button-XIZa3 {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1498,7 +1538,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .chip-L3r9A.active-jnhyP {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1507,7 +1549,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .addon-details-modal-container-aBFaQ .cancel-button-zuUX6 {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1517,7 +1561,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .modal-container-OuxEF .modal-dialog-container-DZMKq {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1526,7 +1572,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .dropdown-MWaxp {
     background: rgba(70, 70, 70, 0.803) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1535,7 +1583,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .search-bar-container-p4tSt {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1547,7 +1597,9 @@ body.ghost-clicking #heroLoadingScreen {
     .selectable-inputs-container-tUul1
     .select-input-container-KqG8N {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1561,7 +1613,9 @@ body.ghost-clicking #heroLoadingScreen {
     .modal-dialog-content-Xgv7Z
     .addon-url-input-ucetZ:hover {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1570,7 +1624,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .option-vFOAS .content-P2T0i .button {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1586,7 +1642,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .cell-l3eWl.today-G8kuO .heading-TYXvp .day-nttmc {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1595,7 +1653,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .shortcut-container-iOrn9 kbd {
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 0px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 0px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1612,7 +1672,9 @@ body.ghost-clicking #heroLoadingScreen {
     flex-shrink: 1;
     height: 3.2rem;
     background: rgba(70, 70, 70, 0.22) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.1),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.1),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: var(--backdrop-filter) !important;
@@ -1633,7 +1695,8 @@ body.ghost-clicking #heroLoadingScreen {
 .side-drawer-r9EuA .close-button-ruzkn {
     background: rgba(70, 70, 70, 0.25) !important;
     border-radius: 999px !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
     backdrop-filter: blur(10px) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -1645,7 +1708,8 @@ body.ghost-clicking #heroLoadingScreen {
 
 .side-drawer-r9EuA .close-button-ruzkn:hover {
     background: rgba(90, 90, 90, 0.35) !important;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4),
+    box-shadow:
+        0 6px 20px rgba(0, 0, 0, 0.4),
         inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
     transform: scale(1.05) !important;
 }
@@ -1655,7 +1719,8 @@ body.ghost-clicking #heroLoadingScreen {
 .seasons-bar-container-nOZjG .next-season-button-RrYAq {
     background: rgba(70, 70, 70, 0.25) !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
     backdrop-filter: blur(10px) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -1665,7 +1730,8 @@ body.ghost-clicking #heroLoadingScreen {
 .seasons-bar-container-nOZjG .prev-season-button-bs1GQ:not(.disabled):hover,
 .seasons-bar-container-nOZjG .next-season-button-RrYAq:not(.disabled):hover {
     background: rgba(90, 90, 90, 0.35) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
     transform: translateY(-1px) !important;
 }
@@ -1679,7 +1745,8 @@ body.ghost-clicking #heroLoadingScreen {
 .seasons-bar-container-nOZjG .multiselect-menu-qMdaj .multiselect-button-XXdgA {
     background: rgba(70, 70, 70, 0.25) !important;
     border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
     backdrop-filter: blur(10px) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -1690,7 +1757,8 @@ body.ghost-clicking #heroLoadingScreen {
     .multiselect-menu-qMdaj
     .multiselect-button-XXdgA:hover {
     background: rgba(90, 90, 90, 0.35) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
 }
 
@@ -1698,7 +1766,8 @@ body.ghost-clicking #heroLoadingScreen {
 .side-drawer-r9EuA .video-container-ezBpK {
     background: rgba(50, 50, 50, 0.2) !important;
     border-radius: 12px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
     backdrop-filter: blur(8px) !important;
     border: 1px solid rgba(255, 255, 255, 0.06) !important;
@@ -1720,7 +1789,8 @@ body.ghost-clicking #heroLoadingScreen {
     padding: 12px !important;
     background: rgba(255, 255, 255, 0.3) !important;
     border-radius: 999px !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
     backdrop-filter: blur(12px) saturate(160%) !important;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
@@ -1770,7 +1840,8 @@ body.ghost-clicking #heroLoadingScreen {
 .side-drawer-r9EuA .side-drawer-meta-preview-pB8v6 {
     background: rgba(50, 50, 50, 0.25) !important;
     border-radius: 12px !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+    box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
     backdrop-filter: blur(12px) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -1808,7 +1879,9 @@ body.ghost-clicking #heroLoadingScreen {
     outline-color: transparent !important;
     transition: all 0.6s cubic-bezier(0.25, 0.1, 0.25, 1) !important;
     padding: 0.5rem !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     content-visibility: auto !important;
@@ -1841,7 +1914,8 @@ body.ghost-clicking #heroLoadingScreen {
     height: 100% !important;
     object-fit: cover !important;
     border-radius: inherit !important;
-    transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
+    transition:
+        transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
         opacity 0.3s ease !important;
     display: block !important;
 }
@@ -1895,7 +1969,9 @@ body.ghost-clicking #heroLoadingScreen {
     );
     z-index: 0;
     pointer-events: none;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
 }
@@ -1990,7 +2066,9 @@ body.ghost-clicking #heroLoadingScreen {
     backdrop-filter: blur(8px) saturate(160%) !important;
     border-radius: 0.5rem !important;
     padding: 4px 7px 4px 7px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
 }
@@ -2004,7 +2082,9 @@ body.ghost-clicking #heroLoadingScreen {
     text-shadow: 0 2px 2px rgb(0 0 0 / 65%) !important;
     color: rgba(255, 255, 255, 0.907) !important;
     transition: all 0.5s ease;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: blur(8px) saturate(160%) !important;
@@ -2025,7 +2105,9 @@ body.ghost-clicking #heroLoadingScreen {
     backdrop-filter: blur(8px) saturate(160%) !important;
     border-radius: 0.5rem !important;
     padding: 7px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.2),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     background: #00000021 !important;
@@ -2113,7 +2195,9 @@ body.ghost-clicking #heroLoadingScreen {
 
 .meta-row-container-xtlB1.active {
     opacity: 0;
-    transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+    transition:
+        opacity 0.5s ease-in-out,
+        transform 0.5s ease-in-out;
     will-change: opacity, transform;
     pointer-events: auto;
     display: flex !important;
@@ -2157,7 +2241,9 @@ body.ghost-clicking #heroLoadingScreen {
 .hero-container #heroLogo,
 .hero-container #heroDescription,
 .hero-container #heroInfo {
-    transition: opacity 0.35s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+    transition:
+        opacity 0.35s ease,
+        transform 0.8s cubic-bezier(0.4, 0, 0.2, 1),
         filter 0.6s ease;
     will-change: opacity, transform;
 }
@@ -2308,7 +2394,8 @@ body.ghost-clicking #heroLoadingScreen {
     height: 100% !important;
     opacity: 0.5 !important;
     transition: opacity 0.3s ease !important;
-    mask-image: linear-gradient(to top, transparent, black 45%),
+    mask-image:
+        linear-gradient(to top, transparent, black 45%),
         linear-gradient(to right, transparent, black 75%);
     mask-repeat: no-repeat;
     mask-size: cover;
@@ -2397,13 +2484,35 @@ body.ghost-clicking #heroLoadingScreen {
     display: none !important;
 }
 .side-drawer-r9EuA .series-content-VkYHB {
-    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
 }
 .side-drawer-r9EuA .series-content-VkYHB .videos-nRM2D {
     display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
     gap: 5px !important;
+    padding: 5px;
     height: 100% !important;
-    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent !important;
+}
+.side-drawer-r9EuA .series-content-VkYHB .videos-nRM2D::-webkit-scrollbar {
+    display: block !important;
+    height: 6px !important;
+}
+.side-drawer-r9EuA
+    .series-content-VkYHB
+    .videos-nRM2D::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-radius: 3px !important;
 }
 .side-drawer-r9EuA .video-container-ezBpK {
     width: 100% !important;
@@ -2411,6 +2520,10 @@ body.ghost-clicking #heroLoadingScreen {
     box-shadow: var(--box-shadow) !important;
     opacity: 0.9 !important;
     border-radius: 15px !important;
+    flex-shrink: 0 !important;
+}
+.player-container-wIELK .side-drawer-r9EuA .video-container-ezBpK {
+    width: 280px !important;
 }
 /* Icon-Only Navigation with Hover Reveal */
 
@@ -2446,8 +2559,12 @@ body.ghost-clicking #heroLoadingScreen {
     opacity: 0 !important;
     overflow: hidden !important;
     white-space: nowrap !important;
-    transition: max-width 0.5s ease, opacity 0.5s ease, width 0.5s ease,
-        margin-left 0.5s ease, padding 0.5s ease !important;
+    transition:
+        max-width 0.5s ease,
+        opacity 0.5s ease,
+        width 0.5s ease,
+        margin-left 0.5s ease,
+        padding 0.5s ease !important;
     padding: 0 !important; /* Remove padding when hidden */
     margin-left: 0 !important;
 }
@@ -2502,7 +2619,9 @@ body.ghost-clicking #heroLoadingScreen {
     /* Glass Effect moved here */
     background: rgba(70, 70, 70, 0.22) !important;
     border-radius: 999px !important; /* Pill shape for title too? Or 12px */
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05),
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.05),
         inset 0 1px 0 rgba(255, 255, 255, 0.15),
         inset 0 -1px 0 rgba(0, 0, 0, 0.1) !important;
     backdrop-filter: blur(10px) saturate(180%) !important;
