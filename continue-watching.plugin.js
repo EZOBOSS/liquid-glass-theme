@@ -220,6 +220,16 @@
                     targetVideo.released &&
                     new Date(targetVideo.released).getTime() > Date.now();
 
+                const seasonEpisodes = sortedVideos.filter(
+                    (v) => v.season === targetVideo.season,
+                );
+                const episodesInfo = seasonEpisodes.length > 0
+                    ? seasonEpisodes.map((v) => ({
+                          episode: v.episode,
+                          isReleased: !v.released || new Date(v.released).getTime() <= Date.now(),
+                      }))
+                    : [{ episode: targetVideo.episode, isReleased: !isLocked }];
+
                 return {
                     seriesId: series.id,
                     seriesName: series.name || series.title,
@@ -229,6 +239,7 @@
                         `https://images.metahub.space/background/medium/${series.id}/img`,
                     season: targetVideo.season,
                     episode: targetVideo.episode,
+                    episodesInfo,
                     title:
                         targetVideo.name ||
                         targetVideo.title ||
@@ -302,7 +313,12 @@
                 if (next && libItem.state.timeOffset > 0) {
                     list.push(next);
                 } else {
-                    this.removeItem(cleanId, true);
+                    // For series, if the next episode can't be found (next is null),
+                    // do not remove it from history so it can reappear when new episodes release.
+                    const isSeriesFinished = libItem.type === "series" && !next;
+                    if (!isSeriesFinished) {
+                        this.removeItem(cleanId, true);
+                    }
                 }
             }
 
@@ -436,6 +452,11 @@
                 `;
             }
 
+            let dotsHtml = "";
+            if (!first.isMovie && first.episodesInfo) {
+                dotsHtml = this.generateDotsHtml(first.episode, first.episodesInfo);
+            }
+
             currentItemEl.innerHTML = `
                 <div class="cw-poster-wrapper">
                     <img src="${
@@ -450,24 +471,26 @@
                     }
                     ${lockedOverlayHtml}
                 </div>
-                <div class="cw-info-mini">
-                    ${LogoOrTitle}
-                    ${
-                        !first.isMovie
-                            ? `<div class="cw-ep-mini">S${first.season} E${first.episode}</div>`
-                            : ""
-                    }
-                    <div class="cw-ep-title-mini"> ${
-                        first.isMovie ? "" : "- "
-                    }${first.title}</div>
-                    ${
-                        first.lastWatched && !first.isLocked
-                            ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
-                                  first.lastWatched,
-                              )}</div>`
-                            : ""
-                    }
-
+                <div class="cw-info-mini-container">
+                    <div class="cw-info-mini">
+                        ${LogoOrTitle}
+                        ${
+                            !first.isMovie
+                                ? `<div class="cw-ep-mini">S${first.season} E${first.episode}</div>`
+                                : ""
+                        }
+                        <div class="cw-ep-title-mini"> ${
+                            first.isMovie ? "" : "- "
+                        }${first.title}</div>
+                        ${
+                            first.lastWatched && !first.isLocked
+                                ? `<div class="cw-last-watched-mini">${this.formatLastWatched(
+                                      first.lastWatched,
+                                  )}</div>`
+                                : ""
+                        }
+                    </div>
+                    ${dotsHtml}
                 </div>
                 <div class="cw-remove-btn" title="Remove from history">
                     <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -512,6 +535,11 @@
                         `;
                     }
 
+                    let itemDotsHtml = "";
+                    if (!item.isMovie && item.episodesInfo) {
+                        itemDotsHtml = this.generateDotsHtml(item.episode, item.episodesInfo);
+                    }
+
                     const li = document.createElement("li");
                     li.className = "cw-item";
                     if (item.isLocked) li.classList.add("cw-locked");
@@ -530,24 +558,27 @@
                         }
                         ${itemLockedHtml}
                         </div>
-                        <div class="cw-info">
-                            ${logoOrTitleRest}
-                            <div class="cw-episode-info">${
-                                item.isMovie
-                                    ? item.title
-                                    : `S${item.season} E${item.episode} - ${item.title}`
-                            }</div>
-                             ${
-                                 item.isLocked
-                                     ? `<div class="cw-timer-small">${this.formatCountdown(
-                                           item.releaseDate,
-                                       )}</div>`
-                                     : item.lastWatched
-                                       ? `<div class="cw-last-watched">${this.formatLastWatched(
-                                             item.lastWatched,
-                                         )}</div>`
-                                       : ""
-                             }
+                        <div class="cw-info-container">
+                            <div class="cw-info">
+                                ${logoOrTitleRest}
+                                <div class="cw-episode-info">${
+                                    item.isMovie
+                                        ? item.title
+                                        : `S${item.season} E${item.episode} - ${item.title}`
+                                }</div>
+                                 ${
+                                     item.isLocked
+                                         ? `<div class="cw-timer-small">${this.formatCountdown(
+                                               item.releaseDate,
+                                           )}</div>`
+                                         : item.lastWatched
+                                           ? `<div class="cw-last-watched">${this.formatLastWatched(
+                                                 item.lastWatched,
+                                             )}</div>`
+                                           : ""
+                                 }
+                            </div>
+                            ${itemDotsHtml}
                         </div>
                         <div class="cw-remove-btn" title="Remove from history">
                             <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -580,6 +611,22 @@
                     listEl.appendChild(li);
                 });
             }
+        }
+
+        generateDotsHtml(episode, episodesInfo) {
+            if (!episodesInfo || episodesInfo.length === 0) return "";
+
+            const totalEpisodes = episodesInfo.length;
+            const gap = totalEpisodes > 24 ? "1.5px" : "3px";
+            let dotsHtml = `<div class="cw-episode-dots" style="gap: ${gap};">`;
+            for (let i = 0; i < totalEpisodes; i++) {
+                const ep = episodesInfo[i];
+                const isFilled = ep.episode < episode;
+                const unreleasedClass = !ep.isReleased ? " unreleased" : "";
+                dotsHtml += `<span class="cw-dot${isFilled ? " filled" : ""}${unreleasedClass}" title="${!ep.isReleased ? "Unreleased" : ""}"></span>`;
+            }
+            dotsHtml += `</div>`;
+            return dotsHtml;
         }
 
         formatCountdown(dateStr) {
