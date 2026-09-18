@@ -19,12 +19,29 @@
             // Map<id, timestamp> - stores when each notification was marked as seen
             this.seenNotifications = this.loadSeenState();
             this.metadataDB = window.MetadataDB;
+            this.metadataMap = new Map();
+            this.isMetadataLoaded = false;
             this.init();
         }
 
         init() {
             this.renderBell();
-            this.updateNotifications();
+
+            // Defer initial full-store load to idle time
+            const scheduleInitialLoad = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
+            scheduleInitialLoad(async () => {
+                await this.metadataDB.initPromise;
+                const records = await this.metadataDB.getAll();
+                if (records && Array.isArray(records)) {
+                    records.forEach((record) => {
+                        if (record && record.id) {
+                            this.metadataMap.set(record.id, record);
+                        }
+                    });
+                }
+                this.isMetadataLoaded = true;
+                this.updateNotifications();
+            });
 
             // Check on navigation to home
             window.addEventListener("hashchange", () => {
@@ -48,6 +65,9 @@
             if (changeType !== "put") return;
             if (!data || (data.type !== "series" && data.type !== "movie"))
                 return;
+
+            // Update in-memory map from subscribe callback instead of calling getAll()
+            this.metadataMap.set(id, { id, data, type: data.type });
 
             // Debounce rapid updates (e.g., batch watch state sync)
             if (this._updateDebounceTimer) {
@@ -217,12 +237,11 @@
         }
 
         async updateNotifications() {
-            await this.metadataDB.initPromise;
-            const cache = await this.metadataDB.getAll();
+            if (!this.isMetadataLoaded) return;
             const notifications = [];
             const now = Date.now();
 
-            Object.values(cache).forEach((entry) => {
+            this.metadataMap.forEach((entry) => {
                 const item = entry.data;
                 if (!item) return;
 

@@ -451,13 +451,6 @@ class MetadataDB {
                         records = records.filter(filter);
                     }
 
-                    // Clone (if needed by consumer) but better to freeze here too?
-                    // For getAll, we'll just freeze them all to match the 'immutable' contract
-                    if (records) {
-                        records.forEach((r) => {
-                            if (r && r.data) this._deepFreeze(r.data);
-                        });
-                    }
                     resolve(records);
                 };
 
