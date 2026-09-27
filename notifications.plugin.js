@@ -21,6 +21,14 @@
             this.metadataDB = window.MetadataDB;
             this.metadataMap = new Map();
             this.isMetadataLoaded = false;
+            // Cooperative scheduler yield helper
+            this._yieldToMain = () => {
+                if (window.scheduler && typeof window.scheduler.yield === "function") {
+                    return window.scheduler.yield();
+                }
+                return new Promise((resolve) => setTimeout(resolve, 0));
+            };
+
             this.init();
         }
 
@@ -33,11 +41,15 @@
                 await this.metadataDB.initPromise;
                 const records = await this.metadataDB.getAll();
                 if (records && Array.isArray(records)) {
-                    records.forEach((record) => {
+                    for (let i = 0; i < records.length; i++) {
+                        const record = records[i];
                         if (record && record.id) {
                             this.metadataMap.set(record.id, record);
                         }
-                    });
+                        if (i > 0 && i % 100 === 0) {
+                            await this._yieldToMain();
+                        }
+                    }
                 }
                 this.isMetadataLoaded = true;
                 this.updateNotifications();
@@ -241,21 +253,27 @@
             const notifications = [];
             const now = Date.now();
 
-            this.metadataMap.forEach((entry) => {
+            let processedCount = 0;
+            for (const [, entry] of this.metadataMap) {
+                processedCount++;
+                if (processedCount % 50 === 0) {
+                    await this._yieldToMain();
+                }
+
                 const item = entry.data;
-                if (!item) return;
+                if (!item) continue;
 
                 // Handle Movies
                 if (item.type === "movie") {
-                    if (!item.released) return;
+                    if (!item.released) continue;
                     const releaseDate = new Date(item.released).getTime();
 
                     // Check if released
-                    if (releaseDate > now) return;
+                    if (releaseDate > now) continue;
 
                     // Check if too old (30 days for movies)
                     const filterMs = 30 * 24 * 60 * 60 * 1000;
-                    if (now - releaseDate > filterMs) return;
+                    if (now - releaseDate > filterMs) continue;
 
                     const notifId = item.id;
                     const isSeen = this.seenNotifications.has(notifId);
@@ -277,12 +295,12 @@
                         isSeen: isSeen,
                         type: "movie",
                     });
-                    return;
+                    continue;
                 }
 
                 // Handle Series
                 const series = item;
-                if (series.type !== "series" || !series.videos) return;
+                if (series.type !== "series" || !series.videos) continue;
 
                 // 1. Find the latest season where user watched Ep 1
                 const watchedSeasons = new Set();
@@ -293,7 +311,7 @@
                     }
                 });
 
-                if (watchedSeasons.size === 0) return;
+                if (watchedSeasons.size === 0) continue;
                 const latestStartedSeason = Math.max(...watchedSeasons);
 
                 // 2. Find the absolute latest released season for the show
@@ -315,7 +333,7 @@
                 // If user is more than 1 season behind, don't show notifications.
                 // e.g. User on S2, Show on S4. Gap = 2. Skip.
                 // e.g. User on S3, Show on S4. Gap = 1. Allow (New season alert).
-                if (latestReleasedSeason - latestStartedSeason > 1) return;
+                if (latestReleasedSeason - latestStartedSeason > 1) continue;
 
                 // 4. Find unwatched, released episodes
                 // Constraint: Only show notifications for the LATEST released season.
@@ -358,7 +376,7 @@
                         type: "series",
                     });
                 });
-            });
+            }
 
             // Sort by unseen first, then released date (newest first)
             notifications.sort((a, b) => {
